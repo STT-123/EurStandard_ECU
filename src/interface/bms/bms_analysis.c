@@ -11,7 +11,8 @@
 
 extern CAN_FD_MESSAGE_BUS CANSendMsg; 
 // ==================== 全局变量 ====================
-static CanDataBuffer can_data_buffer = {0};
+static CanDataBuffer bcu1_data_buffer = {0};
+static CanDataBuffer bcu2_data_buffer = {0};  // 新增：bcu2缓冲区
 static PostChangeBuffer post_change_buffer = {0};
 static CommandTracking cmd_track = {0};
 static TcuSendBuffer tcu_send_buffer = {0};
@@ -19,6 +20,8 @@ static TcuSendBuffer tcu_send_buffer = {0};
 static int change_recording_active = 0;
 static CAN_FD_MESSAGE post_tcu_frames[DATA_BUFFER_SIZE];
 static int post_tcu_collected = 0;
+static CAN_FD_MESSAGE post_bcu2_frames[DATA_BUFFER_SIZE];  // 新增：bcu2变化后帧
+static int post_bcu2_collected = 0;  // 新增：bcu2已收集计数
 // 初始化缓冲区
 
 void my_modbus_set_float_badc(float f, uint16_t *dest)
@@ -452,14 +455,21 @@ uint16_T get_usBatCellTempMin(){
 // ==================== 辅助函数 ====================
 // 初始化所有缓冲区
 void init_can_buffer(void) {
-    memset(&can_data_buffer, 0, sizeof(can_data_buffer));
-    can_data_buffer.start = 0;
-    can_data_buffer.end = 0;
-    can_data_buffer.count = 0;
-    can_data_buffer.is_full = 0;
+    // 初始化BCU缓冲区
+    memset(&bcu1_data_buffer, 0, sizeof(bcu1_data_buffer));
+    bcu1_data_buffer.start = 0;
+    bcu1_data_buffer.end = 0;
+    bcu1_data_buffer.count = 0;
+    bcu1_data_buffer.is_full = 0;
+    
+    // 初始化bcu2缓冲区
+    memset(&bcu2_data_buffer, 0, sizeof(bcu2_data_buffer));
+    bcu2_data_buffer.start = 0;
+    bcu2_data_buffer.end = 0;
+    bcu2_data_buffer.count = 0;
+    bcu2_data_buffer.is_full = 0;
     
     memset(&post_change_buffer, 0, sizeof(post_change_buffer));
-    
     memset(&cmd_track, 0, sizeof(cmd_track));
     
     memset(&tcu_send_buffer, 0, sizeof(tcu_send_buffer));
@@ -470,39 +480,52 @@ void init_can_buffer(void) {
     
     change_recording_active = 0;
     post_tcu_collected = 0;
+    post_bcu2_collected = 0;  // 新增
 }
 
-// 向 BCU 缓冲区添加帧
-static void add_to_can_buffer(const CAN_FD_MESSAGE *msg) {
-    if (!msg) return;
-    memcpy(&can_data_buffer.frames[can_data_buffer.end], msg, sizeof(CAN_FD_MESSAGE));
-    can_data_buffer.end = (can_data_buffer.end + 1) % DATA_BUFFER_SIZE;
-    if (can_data_buffer.is_full) {
-        can_data_buffer.start = (can_data_buffer.start + 1) % DATA_BUFFER_SIZE;
+// 通用函数：向指定缓冲区添加帧
+static void add_to_can_buffer_main(const CAN_FD_MESSAGE *msg, CanDataBuffer *buffer) {
+    if (!msg || !buffer) return;
+    memcpy(&buffer->frames[buffer->end], msg, sizeof(CAN_FD_MESSAGE));
+    buffer->end = (buffer->end + 1) % DATA_BUFFER_SIZE;
+    if (buffer->is_full) {
+        buffer->start = (buffer->start + 1) % DATA_BUFFER_SIZE;
     } else {
-        can_data_buffer.count++;
-        if (can_data_buffer.count >= DATA_BUFFER_SIZE) {
-            can_data_buffer.is_full = 1;
+        buffer->count++;
+        if (buffer->count >= DATA_BUFFER_SIZE) {
+            buffer->is_full = 1;
         }
     }
 }
 
-// 获取 BCU 缓冲区中最新的 N 帧（新 → 旧）
-static void get_latest_frames(CAN_FD_MESSAGE *output, int n) {
-    if (n <= 0 || n > DATA_BUFFER_SIZE) return;
-    int count = (can_data_buffer.count < n) ? can_data_buffer.count : n;
+// 通用函数：获取指定缓冲区中最新的 N 帧（新 → 旧）
+static void get_latest_frames(CanDataBuffer *buffer, CAN_FD_MESSAGE *output, int n) {
+    if (!buffer || n <= 0 || n > DATA_BUFFER_SIZE) return;
+    int count = (buffer->count < n) ? buffer->count : n;
     for (int i = 0; i < count; i++) {
-        int idx = (can_data_buffer.start + can_data_buffer.count - 1 - i) % DATA_BUFFER_SIZE;
+        int idx = (buffer->start + buffer->count - 1 - i) % DATA_BUFFER_SIZE;
         if (idx < 0) idx += DATA_BUFFER_SIZE;
-        memcpy(&output[i], &can_data_buffer.frames[idx], sizeof(CAN_FD_MESSAGE));
+        memcpy(&output[i], &buffer->frames[idx], sizeof(CAN_FD_MESSAGE));
     }
+}
+
+// 打印 bcu2 帧
+static void print_bcu2_frame(const CAN_FD_MESSAGE *frame, int seq) {
+    char data_str[256] = {0};
+    int offset = 0;
+    int dlc = (frame->DLC > 64) ? 64 : frame->DLC;
+    for (int j = 0; j < dlc; j++) {
+        offset += snprintf(data_str + offset, sizeof(data_str) - offset,
+                          "%02X%s", frame->Data[j], (j < dlc - 1) ? " " : "");
+    }
+    LOG("[RECORD] BCU2 Frame %d: ID=0x%08X, DLC=%d, Data=%s\r", seq, frame->ID, frame->DLC, data_str);
 }
 
 // 向 TCU 缓冲区添加帧（并支持变化后收集）
 void record_tcu_send_frame(void)
 {
     CAN_FD_MESSAGE msg = {0};
-    msg.ID = 0x180110F4; // TCU 发送 ID（可自定义）
+    msg.ID = 0x1801E410; // TCU 发送 ID（可自定义）
     msg.DLC = 64;
     memcpy(msg.Data, CANSendMsg.Data, 64); // 假设 CANSendMsg 是全局变量
 
@@ -513,8 +536,8 @@ void record_tcu_send_frame(void)
 
         // 检查是否 BCU 和 TCU 都收满
         if (post_tcu_collected >= DATA_BUFFER_SIZE && 
-            post_change_buffer.collected_count >= DATA_BUFFER_SIZE) {
-            // 打印完整报告
+            post_change_buffer.collected_count >= DATA_BUFFER_SIZE && 
+            post_bcu2_collected >= DATA_BUFFER_SIZE) {  // 修改判断条件
             complete_change_recording();
         }
         // 注意：仍加入主 TCU 缓冲区（用于下次变化前记录）
@@ -574,26 +597,33 @@ static void print_tcu_frame(const CAN_FD_MESSAGE *frame, int seq) {
 static void complete_change_recording(void)
 {
     LOG("[RECORD] ===== SIGNAL CHANGE DETECTED - FULL RECORDING =====\r");
-
+    
     // 打印 BCU 变化后
-    LOG("[RECORD] ----- BCU AFTER CHANGE (%d frames) -----\r", DATA_BUFFER_SIZE);
+    LOG("[RECORD] ----- BCU1 AFTER CHANGE (%d frames) -----\r", DATA_BUFFER_SIZE);
     for (int i = 0; i < DATA_BUFFER_SIZE; i++) {
         print_bcu_frame(&post_change_buffer.frames[i], i + 1);
     }
-
+    
+    // 打印 BCU2 变化后
+    LOG("[RECORD] ----- BCU2 AFTER CHANGE (%d frames) -----\r", DATA_BUFFER_SIZE);
+    for (int i = 0; i < DATA_BUFFER_SIZE; i++) {
+        print_bcu2_frame(&post_bcu2_frames[i], i + 1);
+    }
+    
     // 打印 TCU 变化后
     LOG("[RECORD] ----- TCU AFTER CHANGE (%d frames) -----\r", DATA_BUFFER_SIZE);
     for (int i = 0; i < DATA_BUFFER_SIZE; i++) {
         print_tcu_frame(&post_tcu_frames[i], i + 1);
     }
-
+    
     LOG("[RECORD] ===========================================\n");
-
+    
     // 重置状态
     change_recording_active = 0;
     post_change_buffer.is_collecting = 0;
     post_change_buffer.collected_count = 0;
     post_tcu_collected = 0;
+    post_bcu2_collected = 0;
 }
 
 // ==================== 主记录函数 ====================
@@ -615,106 +645,139 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
     static unsigned char TCU_HighVoltType_LAST = 0;
     static unsigned short TCU_HighVoltValue_LAST = 0;
     static unsigned short TCU_PowerUpCmd_LAST = 0;
-    if (!msg || msg->ID != 0x180110E4) {
+    if (!msg) {
         return;
     }
 
-    // 所有 BCU 帧入缓冲区
-    add_to_can_buffer(msg);
+    if(msg->ID == 0x180110E4){
+         add_to_can_buffer_main(msg, &bcu1_data_buffer);
+        
+        // 如果正在收集"变化后"BCU帧
+        if (post_change_buffer.is_collecting) {
+            if (post_change_buffer.collected_count < DATA_BUFFER_SIZE) {
+                memcpy(&post_change_buffer.frames[post_change_buffer.collected_count],
+                       msg, sizeof(CAN_FD_MESSAGE));
+                post_change_buffer.collected_count++;
+                
+                if (post_change_buffer.collected_count >= DATA_BUFFER_SIZE && 
+                    post_tcu_collected >= DATA_BUFFER_SIZE && 
+                    post_bcu2_collected >= DATA_BUFFER_SIZE) {  // 修改判断条件
+                    complete_change_recording();
+                }
+            }
+            return;
+        }
 
-    // 如果正在收集“变化后”BCU 帧
-    if (post_change_buffer.is_collecting) {
-        if (post_change_buffer.collected_count < DATA_BUFFER_SIZE) {
-            memcpy(&post_change_buffer.frames[post_change_buffer.collected_count],
-                   msg, sizeof(CAN_FD_MESSAGE));
-            post_change_buffer.collected_count++;
+         // 提取当前值（需确保这些函数存在）
+        unsigned short current_workmode = get_BCU_SystemWorkModeValue();
+        unsigned int current_fault_lv1 = get_BCU_FaultInfoLv1Value();
+        unsigned int current_fault_lv2 = get_BCU_FaultInfoLv2Value();
+        unsigned int current_fault_lv3 = get_BCU_FaultInfoLv3Value();
+        unsigned int current_fault_lv4 = get_BCU_FaultInfoLv4Value();
 
+        unsigned char current_OTA_XCPConnect = get_OTA_XCPConnect();
+        unsigned char current_TCU_ACMuteSet = get_TCU_ACMuteSet();
+        unsigned int current_TCU_BCUEINSet = get_TCU_BCUEINSet();
+        unsigned char current_TCU_ChargerWorkSts = get_TCU_ChargerWorkSts();
+        unsigned char current_TCU_ECOMode = get_TCU_ECOMode();
+        unsigned char current_TCU_FcnStopSet = get_TCU_FcnStopSet();
+        unsigned char current_TCU_HighVoltType = get_TCU_HighVoltType();
+        unsigned short current_TCU_HighVoltValue = get_TCU_HighVoltValue();
+        unsigned char current_TCU_PowerUpCmd = get_TCU_PowerUpCmd();
+        // printf("current_fault_lv1 = %d\n",current_fault_lv1);
+        // printf("get_BCU_FaultInfoLv1Value() = %d\n",get_BCU_FaultInfoLv1Value());
+        // 检查变化
+        int changed = 0;
+        if (BCU_SystemWorkMode_LAST != current_workmode) {changed = 1;LOG("BCU_SystemWorkMode Change from [0x%x] to [0x%x]\r",BCU_SystemWorkMode_LAST,current_workmode);}
+        if (BCU_FaultInfoLv1_LAST != current_fault_lv1) {changed = 1;LOG("BCU_FaultInfoLv1 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv1_LAST,current_fault_lv1);}
+        if (BCU_FaultInfoLv2_LAST != current_fault_lv2) {changed = 1;LOG("BCU_FaultInfoLv2 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv2_LAST,current_fault_lv2);}
+        if (BCU_FaultInfoLv3_LAST != current_fault_lv3){ changed = 1;LOG("BCU_FaultInfoLv3 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv3_LAST,current_fault_lv3);}
+        if (BCU_FaultInfoLv4_LAST != current_fault_lv4) {changed = 1;LOG("BCU_FaultInfoLv4 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv4_LAST,current_fault_lv4);}
+        if (OTA_XCPConnect_LAST != current_OTA_XCPConnect) {changed = 1;LOG("OTA_XCPConnect Change from [0x%x] to [0x%x]\r",OTA_XCPConnect_LAST,current_OTA_XCPConnect);}
+        if (TCU_ACMuteSet_LAST != current_TCU_ACMuteSet) {changed = 1;LOG("TCU_ACMuteSet Change from [0x%x] to [0x%x]\r",TCU_ACMuteSet_LAST,current_TCU_ACMuteSet);}
+        if (TCU_BCUEINSet_LAST != current_TCU_BCUEINSet) {changed = 1;LOG("TCU_BCUEINSet Change from [0x%x] to [0x%x]\r",TCU_BCUEINSet_LAST,current_TCU_BCUEINSet);}
+        if (TCU_ChargerWorkSts_LAST != current_TCU_ChargerWorkSts) {changed = 1;LOG("TCU_ChargerWorkSts Change from [0x%x] to [0x%x]\r",TCU_ChargerWorkSts_LAST,current_TCU_ChargerWorkSts);}
+        if (TCU_ECOMode_LAST != current_TCU_ECOMode) {changed = 1;LOG("TCU_ECOMode Change from [0x%x] to [0x%x]\r",TCU_ECOMode_LAST,current_TCU_ECOMode);}
+        if (TCU_FcnStopSet_LAST != current_TCU_FcnStopSet) {changed = 1;LOG("TCU_FcnStopSet Change from [0x%x] to [0x%x]\r",TCU_FcnStopSet_LAST,current_TCU_FcnStopSet);}
+        if (TCU_HighVoltType_LAST != current_TCU_HighVoltType) {changed = 1;LOG("TCU_HighVoltType Change from [0x%x] to [0x%x]\r",TCU_HighVoltType_LAST,current_TCU_HighVoltType);}
+        if (TCU_HighVoltValue_LAST != current_TCU_HighVoltValue) {changed = 1;LOG("TCU_HighVoltValue Change from [0x%x] to [0x%x]\r",TCU_HighVoltValue_LAST,current_TCU_HighVoltValue);}
+        if (TCU_PowerUpCmd_LAST != current_TCU_PowerUpCmd){ changed = 1;LOG("TCU_PowerUpCmd Change from [0x%x] to [0x%x]\r",TCU_PowerUpCmd_LAST,current_TCU_PowerUpCmd);}
+        // 触发记录
+        if (changed && !change_recording_active) {
+            change_recording_active = 1;
+            post_change_buffer.is_collecting = 1;
+            post_change_buffer.collected_count = 0;
+            post_tcu_collected = 0;
+            post_bcu2_collected = 0;  // 新增
+            
+            // --- BCU 变化前 ---
+            int pre_bcu_count = (bcu1_data_buffer.count < DATA_BUFFER_SIZE) ? bcu1_data_buffer.count : DATA_BUFFER_SIZE;
+            CAN_FD_MESSAGE pre_bcu[DATA_BUFFER_SIZE];
+            get_latest_frames(&bcu1_data_buffer, pre_bcu, pre_bcu_count);
+            LOG("[RECORD] ----- BCU1 BEFORE CHANGE (%d frames) -----\r", pre_bcu_count);
+            for (int i = pre_bcu_count - 1; i >= 0; i--) {
+                print_bcu_frame(&pre_bcu[i], pre_bcu_count - i);
+            }
+            
+            // --- BCU2 变化前 ---
+            int pre_bcu2_count = (bcu2_data_buffer.count < DATA_BUFFER_SIZE) ? bcu2_data_buffer.count : DATA_BUFFER_SIZE;
+            CAN_FD_MESSAGE pre_bcu2[DATA_BUFFER_SIZE];
+            get_latest_frames(&bcu2_data_buffer, pre_bcu2, pre_bcu2_count);
+            LOG("[RECORD] ----- BCU2 BEFORE CHANGE (%d frames) -----\r", pre_bcu2_count);
+            for (int i = pre_bcu2_count - 1; i >= 0; i--) {
+                print_bcu2_frame(&pre_bcu2[i], pre_bcu2_count - i);
+            }
+            
+            // --- TCU 变化前 ---
+            int pre_tcu_count = (tcu_send_buffer.count < DATA_BUFFER_SIZE) ? tcu_send_buffer.count : DATA_BUFFER_SIZE;
+            CAN_FD_MESSAGE pre_tcu[DATA_BUFFER_SIZE];
+            get_latest_tcu_frames(pre_tcu, pre_tcu_count);
+            LOG("[RECORD] ----- TCU BEFORE CHANGE (%d frames) -----\r", pre_tcu_count);
+            for (int i = pre_tcu_count - 1; i >= 0; i--) {
+                print_tcu_frame(&pre_tcu[i], pre_tcu_count - i);
+            }
+            
+            // 当前 BCU 帧作为"变化后"第1帧
+            memcpy(&post_change_buffer.frames[0], msg, sizeof(CAN_FD_MESSAGE));
+            post_change_buffer.collected_count = 1;
+        }
+        // 更新 LAST 值
+        BCU_SystemWorkMode_LAST = current_workmode;
+        BCU_FaultInfoLv1_LAST = current_fault_lv1;
+        BCU_FaultInfoLv2_LAST = current_fault_lv2;
+        BCU_FaultInfoLv3_LAST = current_fault_lv3;
+        BCU_FaultInfoLv4_LAST = current_fault_lv4;
+
+        OTA_XCPConnect_LAST = current_OTA_XCPConnect;
+        TCU_ACMuteSet_LAST = current_TCU_ACMuteSet;
+        TCU_BCUEINSet_LAST = current_TCU_BCUEINSet;
+        TCU_ChargerWorkSts_LAST = current_TCU_ChargerWorkSts;
+        TCU_ECOMode_LAST = current_TCU_ECOMode;
+        TCU_FcnStopSet_LAST = current_TCU_FcnStopSet;
+        TCU_HighVoltType_LAST = current_TCU_HighVoltType;
+        TCU_HighVoltValue_LAST = current_TCU_HighVoltValue;
+        TCU_PowerUpCmd_LAST = current_TCU_PowerUpCmd;
+    }
+    else if (msg->ID == 0x180210E4) 
+    {
+        // BCU2数据
+        add_to_can_buffer_main(msg, &bcu2_data_buffer);
+        
+        // 如果正在收集"变化后"bcu2帧
+        if (change_recording_active && post_bcu2_collected < DATA_BUFFER_SIZE) {
+            memcpy(&post_bcu2_frames[post_bcu2_collected], msg, sizeof(CAN_FD_MESSAGE));
+            post_bcu2_collected++;
+            
+            // 检查是否所有缓冲区都收满
             if (post_change_buffer.collected_count >= DATA_BUFFER_SIZE && 
-                post_tcu_collected >= DATA_BUFFER_SIZE) {
+                post_tcu_collected >= DATA_BUFFER_SIZE && 
+                post_bcu2_collected >= DATA_BUFFER_SIZE) {
                 complete_change_recording();
             }
         }
-        return;
+    }else{     
+        return; // 其他ID的消息，不处理
     }
 
-    // 提取当前值（需确保这些函数存在）
-    unsigned short current_workmode = get_BCU_SystemWorkModeValue();
-    unsigned int current_fault_lv1 = get_BCU_FaultInfoLv1Value();
-    unsigned int current_fault_lv2 = get_BCU_FaultInfoLv2Value();
-    unsigned int current_fault_lv3 = get_BCU_FaultInfoLv3Value();
-    unsigned int current_fault_lv4 = get_BCU_FaultInfoLv4Value();
 
-    unsigned char current_OTA_XCPConnect = get_OTA_XCPConnect();
-    unsigned char current_TCU_ACMuteSet = get_TCU_ACMuteSet();
-    unsigned int current_TCU_BCUEINSet = get_TCU_BCUEINSet();
-    unsigned char current_TCU_ChargerWorkSts = get_TCU_ChargerWorkSts();
-    unsigned char current_TCU_ECOMode = get_TCU_ECOMode();
-    unsigned char current_TCU_FcnStopSet = get_TCU_FcnStopSet();
-    unsigned char current_TCU_HighVoltType = get_TCU_HighVoltType();
-    unsigned short current_TCU_HighVoltValue = get_TCU_HighVoltValue();
-    unsigned char current_TCU_PowerUpCmd = get_TCU_PowerUpCmd();
-    // 检查变化
-    int changed = 0;
-    if (BCU_SystemWorkMode_LAST != current_workmode) {changed = 1;LOG("BCU_SystemWorkMode Change from [0x%x] to [0x%x]\r",BCU_SystemWorkMode_LAST,current_workmode);}
-    if (BCU_FaultInfoLv1_LAST != current_fault_lv1) {changed = 1;LOG("BCU_FaultInfoLv1 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv1_LAST,current_fault_lv1);}
-    if (BCU_FaultInfoLv2_LAST != current_fault_lv2) {changed = 1;LOG("BCU_FaultInfoLv2 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv2_LAST,current_fault_lv2);}
-    if (BCU_FaultInfoLv3_LAST != current_fault_lv3){ changed = 1;LOG("BCU_FaultInfoLv3 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv3_LAST,current_fault_lv3);}
-    if (BCU_FaultInfoLv4_LAST != current_fault_lv4) {changed = 1;LOG("BCU_FaultInfoLv4 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv4_LAST,current_fault_lv4);}
-    if (OTA_XCPConnect_LAST != current_OTA_XCPConnect) {changed = 1;LOG("OTA_XCPConnect Change from [0x%x] to [0x%x]\r",OTA_XCPConnect_LAST,current_OTA_XCPConnect);}
-    if (TCU_ACMuteSet_LAST != current_TCU_ACMuteSet) {changed = 1;LOG("TCU_ACMuteSet Change from [0x%x] to [0x%x]\r",TCU_ACMuteSet_LAST,current_TCU_ACMuteSet);}
-    if (TCU_BCUEINSet_LAST != current_TCU_BCUEINSet) {changed = 1;LOG("TCU_BCUEINSet Change from [0x%x] to [0x%x]\r",TCU_BCUEINSet_LAST,current_TCU_BCUEINSet);}
-    if (TCU_ChargerWorkSts_LAST != current_TCU_ChargerWorkSts) {changed = 1;LOG("TCU_ChargerWorkSts Change from [0x%x] to [0x%x]\r",TCU_ChargerWorkSts_LAST,current_TCU_ChargerWorkSts);}
-    if (TCU_ECOMode_LAST != current_TCU_ECOMode) {changed = 1;LOG("TCU_ECOMode Change from [0x%x] to [0x%x]\r",TCU_ECOMode_LAST,current_TCU_ECOMode);}
-    if (TCU_FcnStopSet_LAST != current_TCU_FcnStopSet) {changed = 1;LOG("TCU_FcnStopSet Change from [0x%x] to [0x%x]\r",TCU_FcnStopSet_LAST,current_TCU_FcnStopSet);}
-    if (TCU_HighVoltType_LAST != current_TCU_HighVoltType) {changed = 1;LOG("TCU_HighVoltType Change from [0x%x] to [0x%x]\r",TCU_HighVoltType_LAST,current_TCU_HighVoltType);}
-    if (TCU_HighVoltValue_LAST != current_TCU_HighVoltValue) {changed = 1;LOG("TCU_HighVoltValue Change from [0x%x] to [0x%x]\r",TCU_HighVoltValue_LAST,current_TCU_HighVoltValue);}
-    if (TCU_PowerUpCmd_LAST != current_TCU_PowerUpCmd){ changed = 1;LOG("TCU_PowerUpCmd Change from [0x%x] to [0x%x]\r",TCU_PowerUpCmd_LAST,current_TCU_PowerUpCmd);}
-    // 触发记录
-    if (changed && !change_recording_active) {
-        change_recording_active = 1;
-        post_change_buffer.is_collecting = 1;
-        post_change_buffer.collected_count = 0;
-        post_tcu_collected = 0;
-
-        // --- BCU 变化前 ---
-        int pre_bcu_count = (can_data_buffer.count < DATA_BUFFER_SIZE) ? can_data_buffer.count : DATA_BUFFER_SIZE;
-        CAN_FD_MESSAGE pre_bcu[DATA_BUFFER_SIZE];
-        get_latest_frames(pre_bcu, pre_bcu_count);
-        LOG("[RECORD] ----- BCU BEFORE CHANGE (%d frames) -----\r", pre_bcu_count);
-        for (int i = pre_bcu_count - 1; i >= 0; i--) {
-            print_bcu_frame(&pre_bcu[i], pre_bcu_count - i);
-        }
-
-        // --- TCU 变化前 ---
-        int pre_tcu_count = (tcu_send_buffer.count < DATA_BUFFER_SIZE) ? tcu_send_buffer.count : DATA_BUFFER_SIZE;
-        CAN_FD_MESSAGE pre_tcu[DATA_BUFFER_SIZE];
-        get_latest_tcu_frames(pre_tcu, pre_tcu_count);
-        LOG("[RECORD] ----- TCU BEFORE CHANGE (%d frames) -----\r", pre_tcu_count);
-        for (int i = pre_tcu_count - 1; i >= 0; i--) {
-            print_tcu_frame(&pre_tcu[i], pre_tcu_count - i);
-        }
-
-        // 当前 BCU 帧作为“变化后”第1帧
-        memcpy(&post_change_buffer.frames[0], msg, sizeof(CAN_FD_MESSAGE));
-        post_change_buffer.collected_count = 1;
-
-        // 注意：TCU 的“变化后”第1帧将在下一次 TCU 发送时由 record_tcu_send_frame() 记录
-    }
-
-    // 更新 LAST 值
-    BCU_SystemWorkMode_LAST = current_workmode;
-    BCU_FaultInfoLv1_LAST = current_fault_lv1;
-    BCU_FaultInfoLv2_LAST = current_fault_lv2;
-    BCU_FaultInfoLv3_LAST = current_fault_lv3;
-    BCU_FaultInfoLv4_LAST = current_fault_lv4;
-
-    OTA_XCPConnect_LAST = current_OTA_XCPConnect;
-    TCU_ACMuteSet_LAST = current_TCU_ACMuteSet;
-    TCU_BCUEINSet_LAST = current_TCU_BCUEINSet;
-    TCU_ChargerWorkSts_LAST = current_TCU_ChargerWorkSts;
-    TCU_ECOMode_LAST = current_TCU_ECOMode;
-    TCU_FcnStopSet_LAST = current_TCU_FcnStopSet;
-    TCU_HighVoltType_LAST = current_TCU_HighVoltType;
-    TCU_HighVoltValue_LAST = current_TCU_HighVoltValue;
-    TCU_PowerUpCmd_LAST = current_TCU_PowerUpCmd;
 }

@@ -88,26 +88,31 @@ void setup_crash_handler() {
     
     printf("Crash handler installed\n");
 }
-
+/*
+加一个读取判断是否非法0。0。0，255等等
+查一下ftp会自己复制，或者自己复制一份
+代码升级任务--加一个过滤ID 
+增加记录BCU_info2
+*/
 int main(int argc, char **argv)
 {
     setup_crash_handler();
-    /*=================硬件接口初始化部分================*/
+    /*=================接口初始化部分================*/
     log_init();// 日志初始化
     printf_version();//初始打印
-    settings_Init();// 判断本机IP 如果不存在 默认使用110
+    settings_Init();// 判断本机IP 如果不存在 默认使用110---加一个读取判断是否非法0。0。0，255等等
     my_epoll_Init(); // 初始化epoll环境
    
     /*=================任务初始化部分================*/
     bcu_DealTaskCreate();
     bmu_DealTaskCreate();
     modbusTcpServerTaskCreate();//moduTCP服务
-    ota_Upgrade_TaskCreate();//代码升级任务
+    ota_Upgrade_TaskCreate();//代码升级任务--加一个过滤ID 
     xmodemCommTaskCreatee();//监听OTA 存储升级文件Xmodem协议
     SDCardDataSaveTaskCreate(); // SD卡写任务
     abnormalDetectionTaskCreate(); // 异常监测任务
     // ocppCommunicationTaskCreate(); //ocpp通信任务
-    FtpServiceThreadCreate();
+    FtpServiceThreadCreate();//查一下ftp会自己复制，或者自己复制一份
     int index1 = 0;
 
     while(1)

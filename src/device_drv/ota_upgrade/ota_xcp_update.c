@@ -57,6 +57,7 @@ signed char XCPCANOTAMSGParse(struct can_frame *pCANMsg, XCPStatus *pXCPStatus)
 	else if(pCANMsg->can_dlc == 6)//步骤2
 	{
 		unsigned char cmpbuf[6] ={0xFF, 0x00, 0x10, 0x00, 0x00, 0x00};
+        LOG("[OTA] pCANMsg->ID: %x\r",pCANMsg->can_id);
         LOG("[OTA] pCANMsg->Data[0]: %x\r",pCANMsg->data[0]);
         LOG("[OTA] pCANMsg->Data[1]: %x\r",pCANMsg->data[1]);
         LOG("[OTA] pCANMsg->Data[2]: %x\r",pCANMsg->data[2]);

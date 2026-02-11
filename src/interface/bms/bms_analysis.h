@@ -191,8 +191,8 @@ uint16_T get_usBatCellTempMin();
 void Log_Bcu_Data(const CAN_FD_MESSAGE *msg);
 /*========================================*/
 void init_can_buffer(void) ;
-static void add_to_can_buffer(const CAN_FD_MESSAGE *msg);
-static void get_latest_frames(CAN_FD_MESSAGE *output, int n);
+static void add_to_can_buffer_main(const CAN_FD_MESSAGE *msg, CanDataBuffer *buffer);
+static void get_latest_frames(CanDataBuffer *buffer, CAN_FD_MESSAGE *output, int n);
 void record_tcu_send_frame(void);
 static void get_latest_tcu_frames(CAN_FD_MESSAGE *output, int n);
 static void print_bcu_frame(const CAN_FD_MESSAGE *frame, int seq);

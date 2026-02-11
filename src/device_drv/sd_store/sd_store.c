@@ -35,69 +35,84 @@ static uint32_t CAN_IDs[] = {
 
 static struct timeval first_tv = {0, 0};
 static int first_time_captured = 0;
-/**
- * 
- * 检查U盘是否可用   0正常 1不正常
- * 
-*/
-
-static int mount_sdcard_fat32(void)
-{
-    const char *device = USB_DEVICE;
-    const char *mount_point = USB_MOUNT_POINT ;
-    int ret;
+/*检查U盘是否可用   0正常 1不正常*/
+static char* find_sd_card_simple(void) {
+    // 按优先级尝试的设备列表
+    const char *devices[] = {
+        "/dev/mmcblk1p1",  // 第一优先级：有分区的SD卡
+        "/dev/mmcblk1",    // 第二优先级：整个SD卡
+        "/dev/mmcblk2p1",  // 第三优先级：其他可能的设备
+        "/dev/mmcblk2",
+        NULL
+    };
     
-    //LOG("[SD Card] 开始挂载FAT32格式的SD卡...\n");
-    
-    // 1. 检查设备是否存在
-    struct stat st;
-    if (stat(device, &st) == -1) {
-        //LOG("[SD Card] error: device %s not exits\n", device);
-        return -1;
+    for (int i = 0; devices[i] != NULL; i++) {
+        // 检查文件是否存在
+        if (access(devices[i], F_OK) == 0) {
+            LOG("[SD] 找到设备: %s\n", devices[i]);
+            return strdup(devices[i]);  // 返回设备路径
+        }
     }
     
-    // 2. 检查是否已挂载
+    LOG("[SD] 未找到SD卡设备\n");
+    return NULL;
+}
+// 检查设备是否已经挂载
+// 最简单实用的SD卡挂载函数
+int mount_sdcard_fat32(void) {
+    char *device = NULL;
+    int ret;
+    
+    // 先检查/proc/mounts
     FILE *fp = fopen("/proc/mounts", "r");
     if (fp) {
         char line[256];
         while (fgets(line, sizeof(line), fp)) {
-            if (strstr(line, mount_point)) {
+            if (strstr(line, USB_MOUNT_POINT)) {
                 fclose(fp);
-                //LOG("[SD Card] SD卡已经挂载在 %s\n", mount_point);
-                return 0;
+                return 0;  // 已经挂载了，直接返回成功
             }
         }
         fclose(fp);
     }
+
+    // 1. 查找SD卡设备
+    device = find_sd_card_simple();
+    if (!device) {
+        return -1;
+    }
     
-    // 3. 创建挂载点
-    if (mkdir(mount_point, 0755) == -1) {
-        if (errno != EEXIST) {
-            LOG("[SD Card] Failed to create mount point: %s\n", strerror(errno));
-            return -1;
+    // 2. 创建挂载点目录
+    // mkdir - 创建目录（最简单的API）
+    if (mkdir(USB_MOUNT_POINT, 0755) != 0) {
+        if (errno != EEXIST) {  // 如果目录已存在，不算是错误
+            LOG("[SD_Card] create /mnt/sda failed: %s\n", strerror(errno));
+            free(device);
+           return -1;
         }
     }
     
-    ret = mount(device, mount_point, "vfat", 0, "iocharset=utf8");
+    // 3. 尝试挂载
+    // mount - 挂载文件系统（核心API）
+    // 先尝试带UTF8支持
+    ret = mount(device, USB_MOUNT_POINT, "vfat", 0, "iocharset=utf8");
     
-    if (ret == 0) {
-        LOG("[SD Card] FAT32 SD card mounted successfully\n");
-        return 0;
-    } else {
-        LOG("[SD Card] FAT32 mount failed: %s\n", strerror(errno));
-        
-        // 尝试不带字符集参数
-        LOG("[SD Card] Attempt to mount without character set parameters...\n");
-        ret = mount(device, mount_point, "vfat", 0, NULL);
-        if (ret == 0) {
-            LOG("[SD Card] FAT32 SD card mounted successfully(No Character Set)\n");
-            return 0;
-        } else {
-            LOG("[SD Card] Final mounting failed: %ensure_mount_points\n", strerror(errno));
-            return -1;
-        }
+    if (ret != 0) {
+        // 如果失败，尝试不带参数
+        LOG("[SD_Card]  Mounting with parameters failed. Trying simple mounting...\n");
+        ret = mount(device, USB_MOUNT_POINT, "vfat", 0, NULL);
     }
-}
+    
+    if (ret != 0) {
+        LOG("[SD] Mount failed: %s\n", strerror(errno));
+        free(device);
+        return -1;
+    }
+    
+    LOG("[SD_Card] Mount suceefully: %s -> %s\n", device, USB_MOUNT_POINT);
+    free(device);
+    return 0;
+} 
 
 /**
  * 获取本地时间

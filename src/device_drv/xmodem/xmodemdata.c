@@ -110,7 +110,7 @@ void *lwip_data_TASK(void *param)
 								packidoverflownum++;//循环次数
 							}
 							packno = tcp_server_recvbuf[1] + packidoverflownum * 255;//总包数
-							LOG("[Xmodem] recv packnum = %d,packidoverflownum = %d,tcp_server_recvbuf[1] = %d \r\n",packno,packidoverflownum,tcp_server_recvbuf[1]);
+							// LOG("[Xmodem] recv packnum = %d,packidoverflownum = %d,tcp_server_recvbuf[1] = %d \r\n",packno,packidoverflownum,tcp_server_recvbuf[1]);
 							if(packno != xmodempacknum)
 							{
 								readdatanum = 128;//每次读取128字节
@@ -736,7 +736,7 @@ signed char SaveOtaFile(char *name, unsigned char *buf, int totalpacknum, int cu
     {
         return -1;
     }
-	switch_to_root_directory();
+	//switch_to_root_directory();
     // 如果文件还没打开，打开它（第一次包）
     if(OTAfil == NULL)
     {

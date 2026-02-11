@@ -31,6 +31,24 @@ int load_setting_from_file(const char *filepath, Setting_t *ipsetting)
     return -1;
 }
 
+// 判断是否为合法的可配置 IPv4 地址（排除 0.0.0.0, 255.255.255.255, 回环, 广播等）
+static int is_valid_ip(uint32_t ip)
+{
+    // 所以这里 ip 也是主机字节序
+    if (ip == 0) return 0;                      // 0.0.0.0
+    if (ip == 0xFFFFFFFFU) return 0;            // 255.255.255.255
+
+    uint8_t a = (ip >> 24) & 0xFF;
+    uint8_t b = (ip >> 16) & 0xFF;
+
+    if (a == 127) return 0;// 回环地址 127.0.0.0/8
+    if (a == 169 && b == 254) return 0;// 链路本地地址 169.254.0.0/16（通常不应作为配置 IP）
+    if (a >= 224 && a <= 239) return 0; // 多播地址 224.0.0.0/4
+    if (a >= 240) return 0;// 保留地址（240.0.0.0/4，包括 255.255.255.255 已处理）
+    return 1; // 合法
+}
+
+
 void settings_Init()
 {
     memset(&g_ipsetting, 0, sizeof(g_ipsetting));
@@ -38,7 +56,7 @@ void settings_Init()
     struct stat st;
     int config_exist = (stat(CONFIG_FILE_PATH, &st) == 0);
 
-    if (config_exist && load_setting_from_file(CONFIG_FILE_PATH, &g_ipsetting) == 0 && g_ipsetting.flag == 1)
+    if (config_exist && (load_setting_from_file(CONFIG_FILE_PATH, &g_ipsetting) == 0) && (g_ipsetting.flag == 1) && (is_valid_ip(g_ipsetting.ip)))
     {
         struct in_addr addr;
         addr.s_addr = htonl(g_ipsetting.ip);

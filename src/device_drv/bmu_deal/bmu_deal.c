@@ -19,22 +19,44 @@ static void bmu_can_epoll_msg_transmit(void *arg)
     if(BMU_CAN_FD < 0){
         return;
     }
-
     if (HAL_can_read(BMU_CAN_FD, &can_rev, 1) > 0) 
     {
-        // for (int i = 0; i < 8; i++)
-        // {
-        //     printf("d[%d] = 0x%x  ",i,can_rev.data[i]);
-        // }
-        // printf("\r\n");
-
-        // 在OTA 的过程中，可以根据CAN ID进行过滤放在消息队列中，避免在OTA浪费计算
-        if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0)
-        {
+        if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0){
             queue_destroy(&Queue_BMURevData);
             queue_init(&Queue_BMURevData);
         }
     }
+
+    // if (HAL_can_read(BMU_CAN_FD, &can_rev, 1) > 0) 
+    // {
+    //     if(get_ota_OTAStart() == 1){
+    //         uint32_t can_id = can_rev.can_id;// 检查是否是扩展帧
+    //         uint32_t effective_id;
+            
+    //         if (can_id & CAN_EFF_FLAG) { 
+    //             effective_id = can_id & CAN_EFF_MASK;// 扩展帧：获取29位ID
+    //         } else {
+    //             effective_id = can_id & CAN_SFF_MASK;// 标准帧：获取11位ID
+    //         }
+
+    //         uint32_t id_prefix_mask = 0x1FFFF000;  // 高17位的掩码
+    //         uint32_t expected_prefix = 0x1821D000;  // 0x1821D左移12位
+    //         if ((effective_id & id_prefix_mask) == expected_prefix) {
+    //             // 在OTA 的过程中，可以根据CAN ID进行过滤放在消息队列中，避免在OTA浪费计算
+    //             if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0){
+    //                 queue_destroy(&Queue_BMURevData);
+    //                 queue_init(&Queue_BMURevData);
+    //             }        
+    //         }
+    //     }
+    //     else
+    //     {
+    //         if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0){
+    //             queue_destroy(&Queue_BMURevData);
+    //             queue_init(&Queue_BMURevData);
+    //         }
+    //     }
+    // }
 }
 
 // 初始化
