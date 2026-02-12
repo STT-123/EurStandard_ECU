@@ -54,7 +54,7 @@ static char* find_sd_card_simple(void) {
         }
     }
     
-    LOG("[SD] 未找到SD卡设备\n");
+    // LOG("[SD] 未找到SD卡设备\n");
     return NULL;
 }
 // 检查设备是否已经挂载
