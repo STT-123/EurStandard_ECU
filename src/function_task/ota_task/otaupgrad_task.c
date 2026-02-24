@@ -10,7 +10,7 @@
 #include "device_drv/xmodem/xmodemstate.h"
 #include "interface/modbus/modbus_defines.h"
 #include "device_drv/bcu_deal/bcu_deal.h"
-
+#include "device_drv/bmu_deal/bmu_deal.h"
 pthread_t OTAUpgrad_TASKHandle = 0;
 volatile unsigned int CurrentOTADeviceCanID = 0x1821FF10;
 unsigned short g_ota_flag = 0;
@@ -35,7 +35,7 @@ void *ota_Upgrade_Task(void *arg)
     // set_ota_deviceID(0x1821FF10) ;
 
     //BCU
-    set_ota_OTAFilename("XC_BCU_V502.tar");
+    set_ota_OTAFilename("XC_BCU_V501.tar");
     set_ota_deviceType(BCU);
     set_ota_deviceID(BCUOTACANID) ;//BCU
     //ECU
@@ -208,6 +208,9 @@ void *ota_Upgrade_Task(void *arg)
                     BCUOtaFlag = 0;
                     if (is_bcu_can_ready())
                     {
+
+                        restart_can_interface_enhanced(BCU_CAN_DEVICE_NAME);
+                        sleep(2);
                         while(BCUOtaFlag < 3)
                         {
                             set_ota_OTAStart(1);
@@ -259,6 +262,8 @@ void *ota_Upgrade_Task(void *arg)
                     {
                         BMUOtaFlag = 0;
                         unsigned int percentage = 0;
+                        restart_can_interface_enhanced(BMU_CAN_DEVICE_NAME);
+                        sleep(2);
                         for (int i = 0; i < BMUMAXNUM; i++)//BMUMAXNUM
                         {
                             ReOtaFlag = 0;

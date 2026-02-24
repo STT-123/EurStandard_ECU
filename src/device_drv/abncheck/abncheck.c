@@ -363,7 +363,7 @@ int can_monitor_fun(void) {
         g_bmu_can_ready = 1;
     }
 }
-static void restart_can_interface_enhanced(const char* can_if) {
+void restart_can_interface_enhanced(const char* can_if) {
     struct can_ctrlmode cm = {0};
     
     // 0. 先停止接口

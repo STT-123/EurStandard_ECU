@@ -117,9 +117,14 @@ int main(int argc, char **argv)
 
     while(1)
     {
-        sleep(1);
+        sleep(5);
         // main_test();
-        // printf("DAqX_FaultCode1 = %d\r\n", DAqX_FaultCode1[0]);//一级故障
+        // LOG("DAqX_FaultCode1 = %d\r\n", DAqX_FaultCode1[0]);//一级故障
+        // for(int i = 0; i < 15; i++){
+        //     printf("DAq_version[%d] = %d\r\n",i, DAq_version[i]);//一级故障
+        // }
+
+
         // printf("data.get_usBatMaxTempCellIndex = %ld\n", get_usBatMaxTempCellIndex());
         // printf("data. get_usBatCellTempMax( = %d\n",  get_usBatCellTempMax());
         // printf("data. get_usBatMinTempCellIndex( = %d\n",  get_usBatMinTempCellIndex());

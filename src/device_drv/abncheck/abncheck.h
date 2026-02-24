@@ -65,7 +65,7 @@ void check_bcu_rx_timeout(void);
 void set_emcu_fault(unsigned char parameter, unsigned char status);
 int can_monitor_fun(void) ;
 int check_can_state_detailed(const char* can_if);
-static void restart_can_interface_enhanced(const char* can_if);
+void restart_can_interface_enhanced(const char* can_if);
 void get_BCU_FaultInfo(uint32_T faultValue_4H,uint32_T faultValue_3H,uint32_T faultValue_2H);
 int is_bcu_can_ready(void);
 int is_bmu_can_ready(void);
