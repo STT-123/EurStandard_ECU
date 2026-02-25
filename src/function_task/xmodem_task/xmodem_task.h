@@ -7,6 +7,6 @@
 #include <pthread.h>
 
 
-void xmodemCommTaskCreatee(void);
+void xmodemCommTaskCreate(void);
 
 #endif

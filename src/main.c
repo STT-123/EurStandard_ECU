@@ -108,7 +108,7 @@ int main(int argc, char **argv)
     bmu_DealTaskCreate();
     modbusTcpServerTaskCreate();//moduTCP服务
     ota_Upgrade_TaskCreate();//代码升级任务--加一个过滤ID 
-    xmodemCommTaskCreatee();//监听OTA 存储升级文件Xmodem协议
+    xmodemCommTaskCreate();//监听OTA 存储升级文件Xmodem协议
     SDCardDataSaveTaskCreate(); // SD卡写任务
     abnormalDetectionTaskCreate(); // 异常监测任务
     // ocppCommunicationTaskCreate(); //ocpp通信任务

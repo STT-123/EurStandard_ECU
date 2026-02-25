@@ -184,8 +184,8 @@ void *ota_Upgrade_Task(void *arg)
             else if (get_ota_deviceType() == BCU || get_ota_deviceType() == BMU)
             {
                 LOG("[OTA] BCU or BMU OTA start!\r\n");
-                LOG("[OTA] get_ota_deviceType() == BCU : %u\r\n", get_ota_deviceType());
-                if (get_ota_deviceType() == BCU)
+                LOG("[OTA] get_ota_deviceType() ==  : %u\r\n", get_ota_deviceType());
+                if (get_ota_deviceType() == BCU)//0x1cb0110e4
                 {
                     for (unsigned int i = 0; i < 5; i++){
                         set_OTA_XCPConnect(255);//设置跳转到BOOT的条件,OTA_XCPConnect为0xFF才会跳转到BOOT
@@ -214,8 +214,7 @@ void *ota_Upgrade_Task(void *arg)
                         while(BCUOtaFlag < 3)
                         {
                             set_ota_OTAStart(1);
-                            queue_destroy(&Queue_BCURevData);
-                            queue_init(&Queue_BCURevData);//情况缓存消息队列
+                            queue_clear(&Queue_BCURevData);//情况缓存消息队列
 
                             XCP_OTA(BCUOtaFlag);
                             if (xcpstatus.ErrorReg == 0)

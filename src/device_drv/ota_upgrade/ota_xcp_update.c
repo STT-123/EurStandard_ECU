@@ -44,7 +44,7 @@ signed char XCPCANOTAMSGParse(struct can_frame *pCANMsg, XCPStatus *pXCPStatus)
         LOG("[OTA] pCANMsg == NULL  pXCPStatus== NULL\r\n");
 		return -1;
 	}
-
+    // printf("[OTA] pCANMsg->ID: 0x %x\r",pCANMsg->can_id);
 	if(pCANMsg->can_dlc == 1)
 	{
 		if(pCANMsg->data[0] == 0xFF) //步骤3、4、5
@@ -209,7 +209,8 @@ static int XCPCANOTAMSGParseMult(XCPStatus *xcpstatus)
                 // LOG("[OTA] XCPCANOTAMSGParse =  %d, canmsg.can_dlc = %d \r\n",res,canmsg.can_dlc);//-4表示内部存在其他值，不是升级的反馈值，BCU不存在，BMU存在
             }
 	    }
-		else if (GetTimeDifference_ms(xStartTime)>1000 )//50->100
+
+		if (GetTimeDifference_ms(xStartTime)>1000 )//50->100
 		{
             LOG("[OTA] GetTimeDifference_ms(xStartTime) = %d\r\n",GetTimeDifference_ms(xStartTime));
             LOG("[OTA] XCPCANOTAMSGParseMult_timeout\r\n");
@@ -389,7 +390,7 @@ static bool ReadFileData(FILE *rfile, unsigned char *FileBuff, unsigned char *Fi
     return true;
 }
 
-static int  SendOTACommand( unsigned char *buf, unsigned int len, XCPStatus *xcpstatus, unsigned int i, unsigned int totalpack, unsigned int percent_count) 
+static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcpstatus, unsigned int i, unsigned int totalpack)
 {
     if ( xcpstatus == NULL) {
             LOG("[OTA] Error: Null pointer passed to XCPCANOTAMSGParseMult.\n");
@@ -397,9 +398,13 @@ static int  SendOTACommand( unsigned char *buf, unsigned int len, XCPStatus *xcp
         }
 
     xcpstatus->XCPCMDResponseFlag = 0;
-
-    unsigned int times = 0;
-    unsigned int per = i / percent_count;
+    unsigned int per = 0;
+    if (totalpack > 0) {
+        per = (i * 100U) / totalpack; // map packet index to 0~99
+        if (per > 99U) {
+            per = 99U;
+        }
+    }
     
     signed char res = -1;
     if(get_ota_deviceType() == BMU)
@@ -408,7 +413,7 @@ static int  SendOTACommand( unsigned char *buf, unsigned int len, XCPStatus *xcp
     }
     else
     {
-        set_modbus_reg_val(OTAPPROGRESSREGADDR, (10 + per)); // 0124, upgrade progress,BCU直接写升级进度，BMU 由于有15个，不在这里写进度
+        set_modbus_reg_val(OTAPPROGRESSREGADDR, per); // BCU OTA progress: 0~99, 100 is set on final success
         res = XcpSendProgramMaxCMD(get_ota_deviceID(), buf, len,1);
     }
     if (res != 0) {
@@ -512,9 +517,6 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
         unsigned int totalpack = (filesize - lastpackdatanum) / 7;
         LOG("[OTA] totalpack %d\r\n", totalpack);
 
-        unsigned int percent_count = totalpack / 80;
-        LOG("[OTA] percent_count %d\r\n", percent_count);
-
         lastpackdatanum = filesize - (totalpack * 7);
         LOG("[OTA] lastpackdatanum %d\r\n", lastpackdatanum); 
         fseek(rfile, 0, SEEK_SET);         
@@ -551,7 +553,7 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                 memcpy(buf, &FileBuff[FileCount * 7], 7);
                 rnum = 7;
                 FileCount++;
-                SendOTACommand(buf, 7, xcpstatus, i, totalpack, percent_count);
+                SendOTACommand(buf, 7, xcpstatus, i, totalpack);
                 if(xcpstatus->ErrorReg != 0)
                 {
                     LOG("[OTA] if(xcpstatus.ErrorReg != 0)");
@@ -607,7 +609,7 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                 memcpy(buf, &FileBuff[FileCount * 7], 7);
                 rnum = 7;
                 FileCount++;
-                SendOTACommand(buf, 7, xcpstatus, i, totalpack, percent_count);
+                SendOTACommand(buf, 7, xcpstatus, i, totalpack);
                 ProgramProgress = (int)((float)i/totalpack*100);
 
                 if(ProgramProgress != PrvProgramProgress)

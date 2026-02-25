@@ -31,7 +31,7 @@ void *bmu_DealTask(void *arg)
             }
         }
         // printf("queue_pend return err = %d\r\n", err);
-        usleep(10 * 1000);
+        usleep(2 * 1000);
     }
 }
 

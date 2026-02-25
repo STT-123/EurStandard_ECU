@@ -23,7 +23,7 @@ extern queue_t Queue_BCURevData_FD;
 bool bcu_Init(void);
 int Drv_bcu_can_send(CAN_MESSAGE *pFrame);
 int Drv_bcu_canfd_send(CAN_FD_MESSAGE_BUS *pFrame);
-int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,void (*callback)(void));
-int Drv_can_auto_recover(const char *can_name, int bitrate, int *can_fd_ptr, void (*callback)(void));
+int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,void (*callback)(void *arg));
+int Drv_can_auto_recover(const char *can_name, int bitrate, int *can_fd_ptr, void (*callback)(void *arg));
 int get_BCU_CAN_FD(void);
 #endif

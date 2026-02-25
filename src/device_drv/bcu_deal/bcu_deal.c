@@ -51,16 +51,18 @@ static void bcu_can_epoll_msg_transmit(void *arg)
     }
     int frame_type = HAL_canfd_read(BCU_CAN_FD, &canfd_rev, 1);
 
-    time(&g_last_bcu_rx_time);
-    
+    if (frame_type == 1 || frame_type == 2) {time(&g_last_bcu_rx_time);}
     if (frame_type == 1)//1 表示CAN 数据-8
     {
         Convert_canfd_frame_to_can_fram(&canfd_rev, &can_rev);//把canfd转换成can
         // 在OTA 的过程中，可以根据CAN ID进行过滤放在消息队列中，避免在OTA浪费计算
         if (queue_post(&Queue_BCURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0)
         {   
-            queue_destroy(&Queue_BCURevData);
-            queue_init(&Queue_BCURevData);
+            static uint32_t bcu_drop_cnt_can = 0;// 队列满：直接丢弃本帧并记录计数/日志
+            bcu_drop_cnt_can++;
+            if ((bcu_drop_cnt_can % 100) == 1) {
+                LOG("[BCU CAN] Queue_BCURevData full, drop=%u\n", bcu_drop_cnt_can);
+            }
         }
         else{
         }
@@ -70,8 +72,11 @@ static void bcu_can_epoll_msg_transmit(void *arg)
         //往can fd队列方数据，但是数据满了,在升级过程在，不再从canfd队列取数据了，此时fd满了
         if (queue_post(&Queue_BCURevData_FD, (unsigned char *)&canfd_rev, sizeof(canfd_rev)) != 0)
         {
-            queue_destroy(&Queue_BCURevData_FD);
-            queue_init(&Queue_BCURevData_FD);
+            static uint32_t bcu_drop_cnt_canfd = 0;// 队列满：直接丢弃本帧并记录计数/日志
+            bcu_drop_cnt_canfd++;
+            if ((bcu_drop_cnt_canfd % 100) == 1) {
+                LOG("[BCU CANFD] Queue_BCURevData full, drop=%u\n", bcu_drop_cnt_canfd);
+            }
         }
         else{
         }
@@ -169,7 +174,7 @@ int Drv_bcu_canfd_send(CAN_FD_MESSAGE_BUS *pFrame)
  * @return 成功返回0，失败返回-1
  */
 int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,
-                           void (*callback)(void))
+                           void (*callback)(void *arg))
 {
     LOG("[CAN]Rebinding %s interface...\n", can_name);
 
@@ -214,14 +219,16 @@ int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,
     ev.events = EPOLLIN;
 
 
-    if(can_name == BCU_CAN_DEVICE_NAME){
+    if(strcmp(can_name, BCU_CAN_DEVICE_NAME) == 0){
         bcuCanEventData.fd = *can_fd_ptr;  // 设置新的文件描述符
-        bcuCanEventData.fun_handle = (void *)callback;  // 使用传入的回调函数
+        bcuCanEventData.fun_handle = callback;  // 使用传入的回调函数
 	    ev.data.ptr = (void *)&bcuCanEventData;
-    }else if(can_name == BMU_CAN_DEVICE_NAME){
+    }else if(strcmp(can_name, BMU_CAN_DEVICE_NAME) == 0){
         bmuCanEventData.fd = *can_fd_ptr;  // 设置新的文件描述符
-        bmuCanEventData.fun_handle = (void *)callback;  // 使用传入的回调函数
+        bmuCanEventData.fun_handle = callback;  // 使用传入的回调函数
         ev.data.ptr = (void *)&bmuCanEventData;
+    }else{
+        return -1;
     }
 
     if (-1 == my_epoll_addtast(*can_fd_ptr, &ev)) {
@@ -244,7 +251,7 @@ int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,
  * @return 成功返回0，失败返回-1
  */
 int Drv_can_auto_recover(const char *can_name, int bitrate, int *can_fd_ptr, 
-                        void (*callback)(void))
+                        void (*callback)(void *arg))
 {
     if (can_name == NULL || can_fd_ptr == NULL) {
         return -1;
@@ -257,11 +264,10 @@ int Drv_can_auto_recover(const char *can_name, int bitrate, int *can_fd_ptr,
     }
 
     bool need_rebind = false;
-    int canState = 0;
     int ret = -1;
 
     // 1. 检查物理链路状态
-    if (!check_can_state_detailed(can_name)) 
+    if (check_can_state_detailed(can_name) <= 0) 
     {
         LOG("[CAN]%s physical link is DOWN, need rebind\n", can_name);
         need_rebind = true;

@@ -2,9 +2,11 @@
 #include "device_drv/sd_store/sd_store.h"
 #include "interface/setting/ip_setting.h"
 #define DATA_PORT 40900
-#define BUFFER_SIZE 2920 // 2048 网络传输包mtu限制改为1460得倍数
+#define FTP_BUFFER_SIZE 2920 // 2048 网络传输包mtu限制改为1460得倍数
 #define TIMEOUT_SECONDS 300000
 pthread_mutex_t ftp_file_io_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int is_safe_path(const char *path);
+static int build_safe_filepath(const FTPState *state, const char *name, char *filepath, size_t filepath_size);
 
 // 安全关闭文件的辅助函数
 static void safe_close_file(FILE **file_ptr) {
@@ -79,7 +81,7 @@ static void handle_user_command(FTPState *state, char *args)
 static void handle_pass_command(FTPState *state, char *args)
 {
     update_last_activity(state);
-    state->logged_in = 1;
+    state->logged_in = 0;
 
     // 切换到 U 盘挂载目录
     if (chdir(USB_MOUNT_POINT) != 0)
@@ -89,6 +91,14 @@ static void handle_pass_command(FTPState *state, char *args)
         return;
     }
 
+    if (getcwd(state->path, sizeof(state->path)) == NULL)
+    {
+        LOG("Failed to get USB directory path: %s\n", strerror(errno));
+        send_response(state->control_sock, "550 Failed to access USB directory.\r\n");
+        return;
+    }
+
+    state->logged_in = 1;
     send_response(state->control_sock, "230 Login successful.\r\n");
 }
 
@@ -98,7 +108,7 @@ static void handle_pasv_command(FTPState *state)
 
     struct timeval timeout;
     uint32_t host_ip = g_ipsetting.ip; // 主机字节序
-    char response[BUFFER_SIZE] = {0};
+    char response[FTP_BUFFER_SIZE] = {0};
 
     // 拆分为四个字节（从高到低）
     uint8_t a = (host_ip >> 24) & 0xFF;
@@ -170,6 +180,11 @@ static void handle_port_command(FTPState *state, char *args)
 
     int ip[4];
     int port_high, port_low;
+    if (!args)
+    {
+        send_response(state->control_sock, "501 Syntax error in parameters or arguments.\r\n");
+        return;
+    }
 
     if (sscanf(args, "%d,%d,%d,%d,%d,%d", &ip[0], &ip[1], &ip[2], &ip[3], &port_high, &port_low) != 6)
     {
@@ -239,8 +254,8 @@ static void handle_list_command(FTPState *state, char *args)
 
     DIR *dir;
     struct dirent *entry;
-    char buffer[BUFFER_SIZE] = {0};
-    char cwd[BUFFER_SIZE] = {0};
+    char buffer[FTP_BUFFER_SIZE] = {0};
+    char cwd[FTP_BUFFER_SIZE] = {0};
 
     if (getcwd(cwd, sizeof(cwd)) == NULL)
     {
@@ -269,7 +284,7 @@ static void handle_list_command(FTPState *state, char *args)
             continue;
         }
 
-        char fullpath[BUFFER_SIZE];
+        char fullpath[FTP_BUFFER_SIZE];
         snprintf(fullpath, sizeof(fullpath), "%s/%s", cwd, entry->d_name);
 
         struct stat st;
@@ -335,6 +350,12 @@ bool get_ftp_read_file_flag()
 static void handle_retr_command(FTPState *state, char *filename) {
     int client_data_sock = -1;
     int result = -1;
+    char filepath[512] = {0};
+
+    if (build_safe_filepath(state, filename, filepath, sizeof(filepath)) != 0) {
+        send_response(state->control_sock, "550 Invalid filename.\r\n");
+        return;
+    }
     
     pthread_mutex_lock(&ftp_file_io_mutex);
     
@@ -351,14 +372,6 @@ static void handle_retr_command(FTPState *state, char *filename) {
 
         send_response(state->control_sock, "150 Opening data connection.\r\n");
 
-        // 构建文件路径并验证
-        char filepath[512] = {0};
-        if (strlen(state->path) + strlen(filename) + 2 > sizeof(filepath)) {
-            send_response(state->control_sock, "550 Path too long.\r\n");
-            break;
-        }
-        
-        snprintf(filepath, sizeof(filepath), "%s/%s", state->path, filename);
         LOG("Loading file: %s\n", filepath);
 
         // 打开文件
@@ -370,7 +383,7 @@ static void handle_retr_command(FTPState *state, char *filename) {
         }
 
         // 传输文件数据
-        char buffer[BUFFER_SIZE];
+        char buffer[FTP_BUFFER_SIZE];
         size_t bytes_read;
         result = 0;
 
@@ -405,6 +418,12 @@ static void handle_stor_command(FTPState *state, char *filename) {
     int client_data_sock = -1;
     FILE *file = NULL;
     int result = -1;
+    char filepath[512] = {0};
+
+    if (build_safe_filepath(state, filename, filepath, sizeof(filepath)) != 0) {
+        send_response(state->control_sock, "550 Invalid filename.\r\n");
+        return;
+    }
     
     send_response(state->control_sock, "150 Opening data connection.\r\n");
 
@@ -419,15 +438,6 @@ static void handle_stor_command(FTPState *state, char *filename) {
             break;
         }
 
-        // 构建文件路径并验证
-        char filepath[512] = {0};
-        if (strlen(state->path) + strlen(filename) + 2 > sizeof(filepath)) {
-            send_response(state->control_sock, "550 Path too long.\r\n");
-            break;
-        }
-        
-        snprintf(filepath, sizeof(filepath), "%s/%s", state->path, filename);
-
         // 创建文件
         file = fopen(filepath, "wb");
         if (!file) {
@@ -437,7 +447,7 @@ static void handle_stor_command(FTPState *state, char *filename) {
         }
 
         // 接收并写入数据
-        char buffer[BUFFER_SIZE];
+        char buffer[FTP_BUFFER_SIZE];
         ssize_t bytes_received;
         result = 0;
 
@@ -469,6 +479,14 @@ static void handle_stor_command(FTPState *state, char *filename) {
 
 static void handle_mget_command(FTPState *state, char *args)
 {
+    char filepath[512] = {0};
+
+    if (build_safe_filepath(state, args, filepath, sizeof(filepath)) != 0)
+    {
+        send_response(state->control_sock, "550 Invalid filename.\r\n");
+        return;
+    }
+
     send_response(state->control_sock, "150 Opening data connection.\r\n");
 
     int client_data_sock = accept(state->data_sock, (struct sockaddr *)&state->client_addr, &state->client_addr_len);
@@ -480,9 +498,6 @@ static void handle_mget_command(FTPState *state, char *args)
         return;
     }
 
-    char filepath[512] = {0};
-    snprintf(filepath, sizeof(filepath), "%s/%s", state->path, args);
-
     FILE *file = fopen(filepath, "rb"); // Open the file for reading
     if (!file)
     {
@@ -493,7 +508,7 @@ static void handle_mget_command(FTPState *state, char *args)
         return;
     }
 
-    char buffer[BUFFER_SIZE];
+    char buffer[FTP_BUFFER_SIZE];
     size_t bytes_read;
 
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
@@ -524,11 +539,11 @@ static void handle_mget_command(FTPState *state, char *args)
 
 static void handle_pwd_command(FTPState *state)
 {
-    char cwd[BUFFER_SIZE];
+    char cwd[FTP_BUFFER_SIZE];
 
     if (getcwd(cwd, sizeof(cwd)) != NULL)
     {
-        char response[BUFFER_SIZE];
+        char response[FTP_BUFFER_SIZE];
         snprintf(response, sizeof(response), "257 \"%s\" is the current directory.\r\n", cwd);
         send_response(state->control_sock, response);
     }
@@ -549,7 +564,7 @@ static void handle_cdup_command(FTPState *state)
     update_last_activity(state);
 
     // 获取当前目录
-    char cwd[BUFFER_SIZE];
+    char cwd[FTP_BUFFER_SIZE];
     if (getcwd(cwd, sizeof(cwd)) == NULL)
     {
         LOG("Failed to get current directory\n");
@@ -557,16 +572,34 @@ static void handle_cdup_command(FTPState *state)
         return;
     }
 
-    // 改变目录到父级目录
+    // 改变目录到上级目录
     if (chdir("..") != 0)
     {
         LOG("Failed to change to parent directory\n");
         send_response(state->control_sock, "550 Failed to change directory.\r\n");
+        return;
     }
-    else
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL)
     {
-        send_response(state->control_sock, "200 Directory successfully changed.\r\n");
+        LOG("Failed to get current directory after CDUP\n");
+        chdir(USB_MOUNT_POINT);
+        strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
+        state->path[sizeof(state->path) - 1] = '\0';
+        send_response(state->control_sock, "550 Failed to change directory.\r\n");
+        return;
     }
+
+    if (!is_safe_path(cwd))
+    {
+        chdir(state->path[0] ? state->path : USB_MOUNT_POINT);
+        send_response(state->control_sock, "550 Access denied.\r\n");
+        return;
+    }
+
+    strncpy(state->path, cwd, sizeof(state->path) - 1);
+    state->path[sizeof(state->path) - 1] = '\0';
+    send_response(state->control_sock, "200 Directory successfully changed.\r\n");
 }
 
 // 路径安全检查函数
@@ -585,6 +618,31 @@ static int is_safe_path(const char *path) {
     }
     
     return 1;
+}
+
+static int build_safe_filepath(const FTPState *state, const char *name, char *filepath, size_t filepath_size)
+{
+    int len = 0;
+
+    if (!state || !name || !filepath || filepath_size == 0) {
+        return -1;
+    }
+    if (name[0] == '\0') {
+        return -1;
+    }
+    if (name[0] == '/' || strstr(name, "..") != NULL) {
+        return -1;
+    }
+
+    len = snprintf(filepath, filepath_size, "%s/%s", state->path, name);
+    if (len < 0 || (size_t)len >= filepath_size) {
+        return -1;
+    }
+
+    if (!is_safe_path(filepath)) {
+        return -1;
+    }
+    return 0;
 }
 
 // 改进的CWD命令处理
@@ -608,6 +666,7 @@ static void handle_cwd_command(FTPState *state, const char *args) {
         }
     } else {
         // 处理相对路径
+        LOG("[FTP] CWD state->path =  %s\r\n",state->path);
         snprintf(target_path, sizeof(target_path), "%s/%s", state->path, args);
     }
 
@@ -671,7 +730,11 @@ static void handle_size_command(FTPState *state, char *filename)
     }
 
     char filepath[512] = {0};
-    snprintf(filepath, sizeof(filepath), "%s/%s", state->path, filename);
+    if (build_safe_filepath(state, filename, filepath, sizeof(filepath)) != 0)
+    {
+        send_response(state->control_sock, "550 Invalid filename.\r\n");
+        return;
+    }
 
     struct stat st;
     if (stat(filepath, &st) != 0)
@@ -722,7 +785,7 @@ void init_ftp_state(FTPState *state) {
 int handle_ftp_commands(FTPState *state) {
     if (!state) return -1;
     
-    char buffer[BUFFER_SIZE];
+    char buffer[FTP_BUFFER_SIZE];
     ssize_t bytes_received;
     update_last_activity(state);
 
@@ -929,11 +992,14 @@ int handle_ftp_commands(FTPState *state) {
             }
         }
     }
+
+    cleanup_ftp_state(state);
+    return 0;
 }
 
 // int handle_ftp_commands(FTPState *state)
 // {
-//     char buffer[BUFFER_SIZE];
+//     char buffer[FTP_BUFFER_SIZE];
 //     ssize_t bytes_received;
 //     update_last_activity(state);
 

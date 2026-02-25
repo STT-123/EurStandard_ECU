@@ -709,6 +709,30 @@ static void Drv_init_double_ring_buffer(DoubleRingBuffer *drb)
     drb->activeBuffer = 0;
     pthread_mutex_init(&drb->switchMutex, NULL);
 }
+
+// 新建文件时清空双缓冲，避免把上一个文件的尾巴写进新文件
+static void Drv_reset_timestamp_and_clear_buffers(DoubleRingBuffer *drb)
+{
+    if (!drb) return;
+
+    pthread_mutex_lock(&drb->switchMutex);
+    pthread_mutex_lock(&drb->buffers[0].mutex);
+    pthread_mutex_lock(&drb->buffers[1].mutex);
+
+    for (int i = 0; i < 2; ++i) {
+        drb->buffers[i].writeIndex = 0;
+        drb->buffers[i].readIndex = 0;
+        drb->buffers[i].count = 0;
+    }
+
+    // 让下一条CAN帧作为新的时间戳基准（从0开始）
+    memset(&first_tv, 0, sizeof(first_tv));
+    first_time_captured = 0;
+
+    pthread_mutex_unlock(&drb->buffers[1].mutex);
+    pthread_mutex_unlock(&drb->buffers[0].mutex);
+    pthread_mutex_unlock(&drb->switchMutex);
+}
 /*=================================外部调用函数========================================*/
 
 void sd_storeInit(void)
@@ -892,6 +916,11 @@ void Drv_write_buffer_to_file(void)
 
     GetNowTime(&nowTimeInfo);// 获取当前时间
 
+    if (newFileNeeded) {
+        // 丢弃旧文件尾巴，重置时间戳基准
+        Drv_reset_timestamp_and_clear_buffers(drb);
+    }
+
     pthread_mutex_lock(&drb->switchMutex);// 交换当前使用的缓冲区
     drb->activeBuffer = 1 - drb->activeBuffer;
     pthread_mutex_unlock(&drb->switchMutex);
@@ -929,12 +958,6 @@ void Drv_write_buffer_to_file(void)
 
     if (OpenNowWriteAscFile(filePath, &file) == 0  && file != NULL)
     {
-        if(newFileNeeded){
-            gettimeofday(&first_tv, NULL);  // 重要：创建新文件时，重置基准时间
-            first_time_captured = 0;
-            LOG("[SD Card] New file created, reset timestamp base to: %ld.%06ld\n", 
-                first_tv.tv_sec, first_tv.tv_usec);
-        }
     }
     else
     {

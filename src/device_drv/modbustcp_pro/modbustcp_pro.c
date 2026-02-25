@@ -19,11 +19,9 @@ pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBu
 	static unsigned char last_data_ecomode = 0xFF;
 
     header_length = modbus_get_header_length(ctx); // 获取数据长度
-
+    if ((req_length < 12) || (header_length >= MODBUS_TCP_MAX_ADU_LENGTH)){return; }// 长度不够直接退出
     if (query[header_length] == 0x06) // 功能码
     {
-        if (req_length < 12){return; }// 长度不够直接退出
-
         // 获取目标地址和数据
         address = (query[header_length + 1] << 8) | query[header_length + 2];
         data = (query[header_length + 3] << 8) | query[header_length + 4];
@@ -118,7 +116,7 @@ pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBu
  ********************************************************************************/
 int get_modbus_reg_val(uint16_t addr, uint16_t *get_val)
 {
-	if (modbusBuff == NULL)
+	if (modbusBuff == NULL || get_val == NULL)
 	{
 		return -1;
 	}
@@ -329,6 +327,7 @@ static int BatteryCalibration_ModBus_Deal(uint16_t address, uint16_t data)
     }
 
     LOG("[RECORD] TesterRly_Data, ID = 0x%x ,Data = %s\r", bms_calibration_msg.ID, data_str);
+	return 0;
 }
 
 static int VoltageCalibration_ModBus_Deal(uint16_t address, uint16_t data)
@@ -358,6 +357,7 @@ static int VoltageCalibration_ModBus_Deal(uint16_t address, uint16_t data)
 		set_TCU_HighVoltValue(HighVoltValue);//电压校准数值
 		LOG("[ModbusTcp] HighVoltValue %d\r\n",data);
 	}	
+	return 0;
 }
 
 static void set_ems_bms_reboot()

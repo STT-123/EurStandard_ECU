@@ -248,7 +248,7 @@ void *XmodemCommTask(void *arg)
 }
 
 
-void xmodemCommTaskCreatee(void)
+void xmodemCommTaskCreate(void)
 {
     int ret;
     do
