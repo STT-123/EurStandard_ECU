@@ -1,6 +1,8 @@
 #include <time.h>
 #include <netdb.h>  
 #include <features.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 #include "interface/log/log.h"
 #include "interface/bms/bms_analysis.h"
 #include "device_drv/abncheck/abncheck.h"
@@ -118,58 +120,45 @@ int CheckSinglePHYStatus(const char *ifname)
 	fclose(fp);
 	return 0; // 接口未找到
 }
-
-void PHYlinktate()
+void PHYlinktate(void)
 {
-	static struct timespec phy_last_check_tick = {0};
-	clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick); // 记录lastCheckTick初始时间
-	static int PHY_RECOVER_FLAG = 0;
-	static int PHY_ERROR_FLAG = 0;
+    static struct timespec phy_last_check_tick = {0};
+    static int initialized = 0;
+    static int pending_link_state = -1; // 1:有流量(认为链路正常), 0:无流量(认为异常)
+    static int reported_link_state = -1; // 1:已上报恢复, 0:已上报故障
 
-	int eth1_status = 0;
+    int eth1_status = CheckSinglePHYStatus(NET_ETH_1);
 
-	// 检查eth1
-	eth1_status = CheckSinglePHYStatus(NET_ETH_1);//检测网线口十分有数据流量活动，代码只支持eth0和eth1检测，其他不支持。
+    if (!initialized) {
+        clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
+        pending_link_state = eth1_status;
+        initialized = 1;
+    }
 
-	// LOG("TTTTTTTTTTTTTTTTT eth0_status = %d,  eth1_status=%d ", eth0_status, eth1_status);
-	// eth1_status = 1;
+    // 状态变化时才重置计时起点
+    if (eth1_status != pending_link_state) {
+        pending_link_state = eth1_status;
+        clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
+    }
 
-	if (eth1_status) // 连接
-	{
-		if (PHY_RECOVER_FLAG == 1)
-		{
-			if (GetTimeDifference_ms(phy_last_check_tick) >= RECOVER_REPORT_TIME)
-			{
-				set_emcu_fault(PHY_LINK_FAULT, SET_RECOVER);
-				PHY_ERROR_FLAG = 0;
-			}
-		}
-		else
-		{
-			clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
-			PHY_RECOVER_FLAG = 1;
-			PHY_ERROR_FLAG = 0;
-		}
-	}
-	else // 未连接就报故障
-	{
-		if (PHY_ERROR_FLAG == 1)
-		{
-			if (GetTimeDifference_ms(phy_last_check_tick) >= FAULT_REPORT_TIME)
-			{
-				set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
-				PHY_RECOVER_FLAG = 0;
-			}
-		}
-		else
-		{
-			clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
-			PHY_ERROR_FLAG = 1;
-			PHY_RECOVER_FLAG = 0;
-		}
-	}
+    if (pending_link_state) {
+        // 连续正常达到恢复门限才清故障
+        if (reported_link_state != 1 &&
+            GetTimeDifference_ms(phy_last_check_tick) >= RECOVER_REPORT_TIME) {
+            set_emcu_fault(PHY_LINK_FAULT, SET_RECOVER);
+            LOG("PHY_LINK_FAULT OK\r");
+            reported_link_state = 1;
+        }
+    } else {
+        // 连续异常达到故障门限才置故障
+        if (reported_link_state != 0 &&
+            GetTimeDifference_ms(phy_last_check_tick) >= FAULT_REPORT_TIME) {
+            set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
+            LOG("PHY_LINK_FAULT ERROR\r");
+            reported_link_state = 0;
+        }
+    }
 }
-
 
 void ECUfault_process()
 {
@@ -298,7 +287,7 @@ void check_bcu_rx_timeout(void)
 /**
  * 检测CAN 是否异常函数
 */
-int can_monitor_fun(void) {
+void can_monitor_fun(void) {
     // ============ can2 处理 ============
     int bcu_can_state = check_can_state_detailed(BCU_CAN_DEVICE_NAME);
     
@@ -372,19 +361,16 @@ void restart_can_interface_enhanced(const char* can_if) {
     // 1. 尝试设置CAN FD模式（在接口DOWN状态下）
     if (can_get_ctrlmode(can_if, &cm) != 0) {
         LOG("can_get_ctrlmode failed");
-        return;
     }
 
     // 2. 设置比特率和采样点
     if (can_set_canfd_bitrates_samplepoint(can_if, 500000, 0, 500000, 0) != 0) {
         LOG("Failed to set CAN FD bitrates");
-        return;
     }
     
     // 3. 启动接口
     if (can_do_start(can_if) != 0) {
         LOG("Failed to start CAN interface");
-        return;
     }
 }
 
@@ -454,45 +440,47 @@ void get_BCU_FaultInfo(uint32_T faultValue_4H, uint32_T faultValue_3H,uint32_T f
         }
     }
 }
-/**
- * @brief 检测是否能ping通指定主机
- * @param hostname 主机名或IP地址
- * @param timeout_sec 超时时间（秒）
- * @return 1: 可ping通, 0: 不可ping通, -1: 执行错误
- */
-int can_ping_host(const char *hostname, int timeout_sec) {
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) return -1;
 
-    int result = -1;
-    do {
-        // 所有操作在此块内完成
-        struct sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(80);
+static int get_interface_ipv4(const char *if_name, char *ip_buf, size_t ip_buf_len)
+{
+    struct ifaddrs *ifaddr = NULL;
+    struct ifaddrs *ifa = NULL;
 
-        struct hostent *server = gethostbyname(hostname);
-        if (!server) break;
+    if (if_name == NULL || ip_buf == NULL || ip_buf_len == 0) {
+        return -1;
+    }
 
-        memcpy(&addr.sin_addr.s_addr, server->h_addr_list, server->h_length);
+    ip_buf[0] = '\0';
+    if (getifaddrs(&ifaddr) == -1) {
+        return -1;
+    }
 
-        struct timeval tv = { .tv_sec = timeout_sec };
-        setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) {
+            continue;
+        }
+        if (ifa->ifa_addr->sa_family != AF_INET) {
+            continue;
+        }
+        if (strcmp(ifa->ifa_name, if_name) != 0) {
+            continue;
+        }
 
-        result = (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == 0) ? 1 : 0;
-    } while (0);
+        if (inet_ntop(AF_INET,
+                      &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
+                      ip_buf, ip_buf_len) != NULL) {
+            freeifaddrs(ifaddr);
+            return 0;
+        }
+    }
 
-    close(sockfd);
-    return result;
+    freeifaddrs(ifaddr);
+    return -1;
 }
+
 int check_and_fix_ip(const char *if_name)
 {
-	unsigned char expected_ip[16] = IP_ADDRESS;//
-
-    char command[256];
-    FILE *fp;
-    char buffer[1024];
+	char expected_ip[16] = {0};
     char current_ip[16] = {0};
     int need_fix = 1;
     
@@ -508,27 +496,11 @@ int check_and_fix_ip(const char *if_name)
         LOG("Failed to format IP address\n");
         return -1;
     }
-    // 检测当前IP
-    snprintf(command, sizeof(command), 
-             "ip -4 addr show %s 2>/dev/null | grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}/' | head -1 | sed 's|/||'", 
-             if_name);
-    
-    fp = popen(command, "r");
-    if (fp != NULL) {
-        if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-            buffer[strcspn(buffer, "\n")] = 0;
-            char *trimmed = buffer;
-            while (*trimmed == ' ') trimmed++;
-            
-            if (strlen(trimmed) > 0) {
-                strncpy(current_ip, trimmed, sizeof(current_ip) - 1);
-                
-                if (strcmp(current_ip, expected_ip) == 0) {
-                    need_fix = 0;
-                }
-            }
+    // 检测当前IP（避免shell命令拼接，杜绝注入风险）
+    if (get_interface_ipv4(if_name, current_ip, sizeof(current_ip)) == 0) {
+        if (strcmp(current_ip, expected_ip) == 0) {
+            need_fix = 0;
         }
-        pclose(fp);
     }
     
     // 如果需要修复
@@ -547,28 +519,15 @@ int check_and_fix_ip(const char *if_name)
             LOG("[IP] IP modification successful\n");
             sleep(2);// 修改后验证
             memset(current_ip, 0, sizeof(current_ip));
-            snprintf(command, sizeof(command), 
-                     "ip -4 addr show %s 2>/dev/null | grep -oE '([0-9]{1,3}\\.){3}[0-9]{1,3}/' | head -1 | sed 's|/||'", 
-                     if_name);
-            
-            fp = popen(command, "r");
-            if (fp != NULL && fgets(buffer, sizeof(buffer), fp) != NULL) {
-                buffer[strcspn(buffer, "\n")] = 0;
-                char *trimmed = buffer;
-                while (*trimmed == ' ') trimmed++;
-                
-                if (strlen(trimmed) > 0) {
-                    strncpy(current_ip, trimmed, sizeof(current_ip) - 1);
-                    if (strcmp(current_ip, expected_ip) == 0) {
-                        LOG("[IP] Verified successfully after modification\n");
-                        return 0;
-                    } else {
-                        LOG("[IP] Verification failed after modification. Current IP address: %s\n", current_ip);
-                        return -1;
-                    }
+
+            if (get_interface_ipv4(if_name, current_ip, sizeof(current_ip)) == 0) {
+                if (strcmp(current_ip, expected_ip) == 0) {
+                    LOG("[IP] Verified successfully after modification\n");
+                    return 0;
                 }
+                LOG("[IP] Verification failed after modification. Current IP address: %s\n", current_ip);
+                return -1;
             }
-            pclose(fp);
             
             LOG("[IP] Modified successfully but unable to verify\n");
             return 0;

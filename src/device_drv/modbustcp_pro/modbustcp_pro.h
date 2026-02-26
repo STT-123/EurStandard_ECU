@@ -13,7 +13,7 @@
 #include "interface/modbus/modbus-tcp.h"
 
 #define LOGO 0x9528  //公司标识
-#define ECU_VERSION 0x11D //  表示v1.01 格式xx。yy xx 高八位yy低八位
+#define ECU_VERSION 0x11E //  表示v1.01 格式xx。yy xx 高八位yy低八位
 #define REGISTERS_NB 0x4000 // 寄存器数量
 
 

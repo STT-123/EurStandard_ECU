@@ -14,7 +14,6 @@
 #include <time.h> // for timespec 
 #include <sys/time.h> // for timeval 
 #include <sys/stat.h>
-#include <sys/time.h>
 #include "device_drv/ota_upgrade/ota_fun.h"
 #include <linux/types.h>
 #include <linux/can.h>

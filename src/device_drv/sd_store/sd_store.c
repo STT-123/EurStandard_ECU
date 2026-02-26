@@ -850,6 +850,7 @@ void Drv_write_to_active_buffer(const CAN_FD_MESSAGE *msg, uint8_t channel)
 {
     DoubleRingBuffer *drb = &canDoubleRingBuffer;
     uint8_t ret = 0;
+    if (!msg) {return;}
     Log_Bcu_Data(msg);
     if (((msg->ID == 0x1cb0e410) && (msg->Data[0] == 0xC9)) ||
         (msg->ID == 0x1cb010e4) || (msg->ID == 0x1823E410) || (msg->ID == 0))
@@ -1065,7 +1066,10 @@ int SD_Initialize(void)
         LOG("[SD Card] Clean files ERROR\n");       
     }
     LOG("[SD Card] Clean files completed\n");
-    chdir(USB_MOUNT_POINT);
+    if (chdir(USB_MOUNT_POINT) != 0) {
+        LOG("[SD Card] chdir to %s failed: %s\n", USB_MOUNT_POINT, strerror(errno));
+        return -1;
+    }
     usleep(100 * 1000);
     newFileNeeded = true;
     return 0;
@@ -1075,6 +1079,11 @@ int SD_Initialize(void)
 static int remove_cb(const char *fpath, const struct stat *sb,
                      int typeflag, struct FTW *ftwbuf)
 {
+    // 保留根目录本身，只删除其下内容
+    if (ftwbuf && ftwbuf->level == 0) {
+        return 0;
+    }
+
     // 注意：nftw 默认是后序遍历（FTW_DEPTH），所以先删子目录内容，再删目录本身
     if (remove(fpath) != 0) {
         // 可选：记录错误，但不要中断整个删除（返回 0 继续）
@@ -1111,6 +1120,7 @@ void checkSDCardCapacity(void)
     {
         LOG("[SD Card] Failed to get SD card capacity.\n");
         usleep(CHECKSD_TRIGGERING_TIME);
+        return;
     }
     uint64_t total = (uint64_t)stat.f_blocks * (uint64_t)stat.f_frsize;
     uint64_t free_space = (uint64_t)stat.f_bavail  * (uint64_t)stat.f_frsize;

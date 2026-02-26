@@ -156,7 +156,7 @@ void *lwip_data_TASK(void *param)
 									{
 										set_ota_UpDating(0);//1130
 										otadeviceType = 0;
-										delete_files_with_prefix("USB_MOUNT_POINT", "XC");
+											delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 										LOG("[Xmodem] Invalid upgrade file\r\n");
 										setXmodemServerReceiveFileEnd(1);
 										set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);;
@@ -170,7 +170,7 @@ void *lwip_data_TASK(void *param)
 									filenormalflag =1;
 									set_ota_UpDating(0);//1130
 									otadeviceType = 0;
-									if (fclose(&OTAfil) != 0)
+									if (fclose(OTAfil) != 0)
 									{
 										LOG("[Xmodem] Error file close failed err code!\r\n");
 									}
@@ -178,7 +178,7 @@ void *lwip_data_TASK(void *param)
 									{
 										LOG("[Xmodem] file closed successfully!\r\n");
 									}
-									delete_files_with_prefix("0:", "XC");
+									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 									LOG("[Xmodem] Failed to write upgrade file\r\n");
 									setXmodemServerReceiveFileEnd(1);
 									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
@@ -195,7 +195,7 @@ void *lwip_data_TASK(void *param)
 									filenormalflag =1;
 									set_ota_UpDating(0);//1130
 									otadeviceType = 0;
-									if (fclose(&OTAfil) != 0)
+									if (fclose(OTAfil) != 0)
 									{
 										LOG("[Xmodem] Error file close failed err code!\r\n");
 									}
@@ -203,7 +203,7 @@ void *lwip_data_TASK(void *param)
 									{
 										LOG("[Xmodem] file closed successfully!\r\n");
 									}
-									delete_files_with_prefix("0:", "XC");
+										delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 									LOG("[Xmodem] Failed to write upgrade file\r\n");
 									// XmodemServerReceiveFileEnd = 1;
 									setXmodemServerReceiveFileEnd(1);
@@ -439,7 +439,7 @@ void *lwip_data_TASK(void *param)
 								filenormalflag =1;
 								set_ota_UpDating(0);//1130
 								otadeviceType = 0;
-								if (fclose(&OTAfil) != 0)
+								if (fclose(OTAfil) != 0)
 								{
 									LOG("[Xmodem] Error file close failed err code!\r\n");
 								}
@@ -447,7 +447,7 @@ void *lwip_data_TASK(void *param)
 								{
 									LOG("[Xmodem] file closed successfully!\r\n");
 								}
-								delete_files_with_prefix("0:", "XC");
+								delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 								LOG("[Xmodem] Failed to write upgrade file\r\n");
 								setXmodemServerReceiveFileEnd(1);
 								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
@@ -465,7 +465,7 @@ void *lwip_data_TASK(void *param)
 								filenormalflag =1;
 								set_ota_UpDating(0);//1130
 								otadeviceType = 0;
-								if (fclose(&OTAfil) != 0)
+								if (fclose(OTAfil) != 0)
 								{
 									LOG("[Xmodem] Error file close failed err code!\r\n");
 								}
@@ -474,7 +474,7 @@ void *lwip_data_TASK(void *param)
 									LOG("[Xmodem] file closed successfully!\r\n");
 								}
 
-								delete_files_with_prefix("0:", "XC");
+									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 								LOG("[Xmodem] Failed to write upgrade file\r\n");
 								setXmodemServerReceiveFileEnd(1);
 								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
@@ -595,32 +595,10 @@ void *lwip_data_TASK(void *param)
 
 		if(getXmodemServerReceiveFileEnd())
 		{
-			LOG("[Xmodem] receive file end!\r\n");
-			uint32_t starttime = OsIf_GetMilliseconds();
-			while(1)
-			{
-				uint32_t time = OsIf_GetMilliseconds()-starttime;
-
-				{
-					LOG("[Xmodem] wait XmodemServerReceiveEOT over !\r\n");
-					setXmodemServerEnd(1);
-					setXmodemServerReceiveEOT(0);
-					setXmodemServerReceiveFileEnd(0);
-					break;
-				}
-				if(time >= 10000)
-				{
-					tcp_server_Txbuf[0] = CAN;
-					write(otasock1, tcp_server_Txbuf, 1);
-					LOG("[Xmodem] wait XmodemServerReceiveEOT over 10s exit!\r\n");
-					setXmodemServerEnd(1);
-					setXmodemServerReceiveEOT(0);
-					setXmodemServerReceiveFileEnd(0);
-					break;
-
-				}
-				usleep(100*1000);
-			}
+			LOG("[Xmodem] wait XmodemServerReceiveEOT over !\r\n");
+			setXmodemServerEnd(1);
+			setXmodemServerReceiveEOT(0);
+			setXmodemServerReceiveFileEnd(0);
 		}
 		usleep(5*1000);
 	}

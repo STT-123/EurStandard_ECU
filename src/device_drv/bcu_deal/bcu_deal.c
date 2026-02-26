@@ -19,25 +19,28 @@ my_event_data_t bcuCanEventData = {
 extern my_event_data_t bmuCanEventData ;
 static pthread_mutex_t can_recover_mutex = PTHREAD_MUTEX_INITIALIZER; //恢复锁，当需要can复位的时候，避免两个任务都复位
 
-// static int Drv_bcu_resetcan_device(const char *can_name)
-// {
-//     int canState = 0;
-//     HAL_can_get_state(can_name, &canState);
-//     if (canState != 0) {
-//         LOG("[BCU]%s ERROR status is %0x\r\n", can_name, canState);
-//         HAL_can_closeEx(&BCU_CAN_FD);
-//         if (can_ifconfig_init(BCU_CAN_DEVICE_NAME, BCU_CAN_BITRATE) == false){
-//             LOG("[BCU]can_ifconfig_init 失败\n");
-//             return false;
-//         }
+// 最新值覆盖策略：队列满时清空历史，仅保留当前最新帧
+static void bcu_queue_post_latest_can(const struct can_frame *frame)
+{
+    if (queue_post(&Queue_BCURevData, (unsigned char *)frame, sizeof(*frame)) == 0) {
+        return;
+    }
+    queue_clear(&Queue_BCURevData);
+    if (queue_post(&Queue_BCURevData, (unsigned char *)frame, sizeof(*frame)) != 0) {
+        LOG("[BCU CAN] Queue overwrite failed\n");
+    } 
+}
 
-//         while (can_band_init(BCU_CAN_DEVICE_NAME, &BCU_CAN_FD) == false) {
-//             sleep(1);
-//         }
-//     }
-//     return 0;
-// }
-
+static void bcu_queue_post_latest_canfd(const struct canfd_frame *frame)
+{
+    if (queue_post(&Queue_BCURevData_FD, (unsigned char *)frame, sizeof(*frame)) == 0) {
+        return;
+    }
+    queue_clear(&Queue_BCURevData_FD);
+    if (queue_post(&Queue_BCURevData_FD, (unsigned char *)frame, sizeof(*frame)) != 0) {
+        LOG("[BCU CANFD] Queue overwrite failed\n");
+    } 
+}
 static void bcu_can_epoll_msg_transmit(void *arg)
 {
     struct canfd_frame canfd_rev ;
@@ -56,37 +59,27 @@ static void bcu_can_epoll_msg_transmit(void *arg)
     {
         Convert_canfd_frame_to_can_fram(&canfd_rev, &can_rev);//把canfd转换成can
         // 在OTA 的过程中，可以根据CAN ID进行过滤放在消息队列中，避免在OTA浪费计算
-        if (queue_post(&Queue_BCURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0)
-        {   
-            static uint32_t bcu_drop_cnt_can = 0;// 队列满：直接丢弃本帧并记录计数/日志
-            bcu_drop_cnt_can++;
-            if ((bcu_drop_cnt_can % 100) == 1) {
-                LOG("[BCU CAN] Queue_BCURevData full, drop=%u\n", bcu_drop_cnt_can);
-            }
-        }
-        else{
-        }
+        bcu_queue_post_latest_can(&can_rev);
     }
     else if (frame_type == 2)//2    表示CAN FD数据-64
     {
-        //往can fd队列方数据，但是数据满了,在升级过程在，不再从canfd队列取数据了，此时fd满了
-        if (queue_post(&Queue_BCURevData_FD, (unsigned char *)&canfd_rev, sizeof(canfd_rev)) != 0)
-        {
-            static uint32_t bcu_drop_cnt_canfd = 0;// 队列满：直接丢弃本帧并记录计数/日志
-            bcu_drop_cnt_canfd++;
-            if ((bcu_drop_cnt_canfd % 100) == 1) {
-                LOG("[BCU CANFD] Queue_BCURevData full, drop=%u\n", bcu_drop_cnt_canfd);
-            }
-        }
-        else{
-        }
+        // 往CAN FD队列放数据，队列满时保留最新值
+        bcu_queue_post_latest_canfd(&canfd_rev);
     }
     else if(frame_type < 0)
     {
         if (errno == EBADF) 
         {
+            static uint32_t bcu_ebadf_recover_cnt = 0;
+            int recover_ret = -1;
             LOG("[BCU] CAN fd is bad, triggering recovery...\n");
-            Drv_can_auto_recover(BCU_CAN_DEVICE_NAME, BCU_CAN_BITRATE, &BCU_CAN_FD, bcu_can_epoll_msg_transmit);
+            recover_ret = Drv_can_auto_recover(BCU_CAN_DEVICE_NAME, BCU_CAN_BITRATE, &BCU_CAN_FD, bcu_can_epoll_msg_transmit);
+            if (recover_ret != 0) {
+                bcu_ebadf_recover_cnt++;
+                if ((bcu_ebadf_recover_cnt % 20) == 1) {
+                    LOG("[BCU] CAN recover failed(ret=%d), cnt=%u\n", recover_ret, bcu_ebadf_recover_cnt);
+                }
+            }
         }
     }
 }
@@ -95,10 +88,13 @@ static void bcu_can_epoll_msg_transmit(void *arg)
 /*======================================外部函数==================================================*/
 bool bcu_Init(void)
 {
+    int bind_ret = 0;
+
     queue_init(&Queue_BCURevData);    // 用于接收消息后存入
     queue_init(&Queue_BCURevData_FD); // 用于接收消息后存入
 
-    if(Drv_can_bind_interface(BCU_CAN_DEVICE_NAME, BCU_CAN_BITRATE ,&BCU_CAN_FD,bcu_can_epoll_msg_transmit))
+    bind_ret = Drv_can_bind_interface(BCU_CAN_DEVICE_NAME, BCU_CAN_BITRATE ,&BCU_CAN_FD,bcu_can_epoll_msg_transmit);
+    if (bind_ret != 0)
     {
         LOG("[BCU]%s initial bind failed\n", BCU_CAN_DEVICE_NAME);
         return false;
@@ -179,7 +175,7 @@ int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,
     LOG("[CAN]Rebinding %s interface...\n", can_name);
 
     // 1. 清理旧的epoll注册和文件描述符
-    if (*can_fd_ptr > 0) 
+    if (*can_fd_ptr >= 0) 
     {
         struct epoll_event ev;
         my_epoll_deltast(*can_fd_ptr, &ev); // 从epoll中删除
@@ -253,7 +249,7 @@ int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,
 int Drv_can_auto_recover(const char *can_name, int bitrate, int *can_fd_ptr, 
                         void (*callback)(void *arg))
 {
-    if (can_name == NULL || can_fd_ptr == NULL) {
+    if (can_name == NULL || can_fd_ptr == NULL || callback == NULL) {
         return -1;
     }
 
@@ -266,20 +262,27 @@ int Drv_can_auto_recover(const char *can_name, int bitrate, int *can_fd_ptr,
     bool need_rebind = false;
     int ret = -1;
 
-    // 1. 检查物理链路状态
-    if (check_can_state_detailed(can_name) <= 0) 
+    // 0. fd异常优先重绑（如EBADF）
+    if (*can_fd_ptr < 0)
     {
-        LOG("[CAN]%s physical link is DOWN, need rebind\n", can_name);
+        LOG("[CAN]%s fd invalid(%d), force rebind\n", can_name, *can_fd_ptr);
         need_rebind = true;
     }
-    else 
+
+    // 1. 检查物理链路状态
+    if (!need_rebind)
     {
-        // printf("[CAN]%s physical link is UP, not need rebind\n", can_name);
-        ret = 0;
-        goto unlock; // 使用goto确保锁被释放
-        // 获取状态失败，也需要重新绑定
-        // LOG("[CAN]%s failed to get controller state, need rebind\n", can_name);
-        // need_rebind = true;
+        if (check_can_state_detailed(can_name) <= 0)
+        {
+            LOG("[CAN]%s physical link is DOWN, need rebind\n", can_name);
+            need_rebind = true;
+        }
+        else
+        {
+            // printf("[CAN]%s physical link is UP, not need rebind\n", can_name);
+            ret = 0;
+            goto unlock; // 使用goto确保锁被释放
+        }
     }
 
     // 如果需要重新绑定

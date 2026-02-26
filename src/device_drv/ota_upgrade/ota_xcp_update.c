@@ -64,7 +64,6 @@ signed char XCPCANOTAMSGParse(struct can_frame *pCANMsg, XCPStatus *pXCPStatus)
         LOG("[OTA] pCANMsg->Data[3]: %x\r",pCANMsg->data[3]);
         LOG("[OTA] pCANMsg->Data[4]: %x\r",pCANMsg->data[4]);
         LOG("[OTA] pCANMsg->Data[5]: %x\r",pCANMsg->data[5]);
-        LOG("[OTA] pCANMsg->Data[6]: %x\r",pCANMsg->data[6]);
 
 		if(memcmp(cmpbuf, pCANMsg->data, 6) == 0)
 		{
@@ -306,6 +305,7 @@ static int XcpTryConnectDevice(XCPStatus *xcpstatus)
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -2; // 超时错误
     }  
+    return -3;
 }
 
 #if 1
@@ -361,34 +361,9 @@ static int XcpTryQueryStatusOnce(XCPStatus *xcpstatus)
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -2; // 超时错误
     }
+    return -3;
 }
    #endif
-/**
-@brief 
-@param rfile 
-@param FileBuff 
-@param FileCount 
-@param totalpack 
-@param i 
-@return 
-*
-*/
-
-static bool ReadFileData(FILE *rfile, unsigned char *FileBuff, unsigned char *FileCount, unsigned int totalpack, unsigned int i) {
-    size_t rnum = 0;
-    if (*FileCount == 0 || *FileCount >= 70) {
-        int remaining_data = (totalpack - i) * 7;
-        int bytes_to_read = (remaining_data < sizeof(FileBuff)) ? remaining_data : sizeof(FileBuff);
-        rnum = fread(FileBuff, 1, bytes_to_read, rfile);
-
-        if (rnum < 7) {
-            LOG("[OTA] file read 7 byte data failed! rnum: %zu\n", rnum);
-            return false;
-        }
-        *FileCount = 0;
-    }
-    return true;
-}
 
 static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcpstatus, unsigned int i, unsigned int totalpack)
 {
@@ -451,6 +426,7 @@ static int SendLastPacket(FILE*rfile, unsigned char lastpackdatanum, XCPStatus *
         LOG("[OTA] file read %d byte data failed!\r\n", lastpackdatanum);
         xcpstatus->ErrorReg |= 1 << 6;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
+        return -1;
     } else {
         LOG("[OTA] file read %d byte data success!\r\n", rnum);
     }
@@ -553,7 +529,9 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                 memcpy(buf, &FileBuff[FileCount * 7], 7);
                 rnum = 7;
                 FileCount++;
-                SendOTACommand(buf, 7, xcpstatus, i, totalpack);
+                if(SendOTACommand(buf, 7, xcpstatus, i, totalpack) != 0){
+                    return 1;
+                }
                 if(xcpstatus->ErrorReg != 0)
                 {
                     LOG("[OTA] if(xcpstatus.ErrorReg != 0)");
@@ -609,7 +587,9 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                 memcpy(buf, &FileBuff[FileCount * 7], 7);
                 rnum = 7;
                 FileCount++;
-                SendOTACommand(buf, 7, xcpstatus, i, totalpack);
+                if(SendOTACommand(buf, 7, xcpstatus, i, totalpack) != 0){
+                    return 1;
+                }
                 ProgramProgress = (int)((float)i/totalpack*100);
 
                 if(ProgramProgress != PrvProgramProgress)
@@ -699,7 +679,8 @@ static int HandleXcpCommunication( XCPStatus *xcpstatus) {
         else{
             return  0;
         }       
-    }  
+    } 
+    return -3;
 }
 
 
@@ -756,6 +737,7 @@ signed char XcpProgramResetHandler(XCPStatus *xcpstatus)
         return -2; // 超时错误
      
     }
+    return -3;
 }
 void XCP_OTA(int count)
 {
@@ -869,22 +851,6 @@ void XCP_OTA(int count)
             LOG("[OTA] ERROR_Fifth_XcpProgramResetHandler, error code %d\r\n", ret);
              goto xcpcleanup;
         }
-
-        // if(xcpstatus.ErrorReg == 0)
-        // {
-        //     LOG("[OTA] can id 0x%x device ota success!\r\n", get_ota_deviceID());
-        //     xcpstatus.DeviceProgramOkFlag = 1;
-        //     if(get_ota_deviceType() == BCU)
-        //     {
-        //         set_modbus_reg_val(OTAPPROGRESSREGADDR, 100);//0124,升级进度
-        //         set_modbus_reg_val(OTASTATUSREGADDR, OTASUCCESS);
-        //     }
-        // }
-        // else
-        // {
-        //     LOG("[OTA] can id 0x%x device ota failed, error register val 0x%x!\r\n", get_ota_deviceID(), xcpstatus.ErrorReg);
-        //     set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-        // }
 xcpcleanup:
         if(rfile != NULL)
         {

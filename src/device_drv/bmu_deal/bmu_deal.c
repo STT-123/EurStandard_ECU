@@ -10,11 +10,22 @@ my_event_data_t bmuCanEventData = {
     .call_back = NULL
 };
 
+// 最新值覆盖策略：队列满时清空历史，仅保留当前最新帧
+static void bmu_queue_post_latest(const struct can_frame *frame)
+{
+    if (queue_post(&Queue_BMURevData, (unsigned char *)frame, sizeof(*frame)) == 0) {
+        return;
+    }
+    queue_clear(&Queue_BMURevData);
+    if (queue_post(&Queue_BMURevData, (unsigned char *)frame, sizeof(*frame)) != 0) {
+        LOG("[BMU CAN] Queue overwrite failed\n");
+    } 
+}
+
 
 static void bmu_can_epoll_msg_transmit(void *arg)
 {
     struct can_frame can_rev;
-    static uint32_t bmu_drop_cnt_can = 0;// 队列满：直接丢弃本帧并记录计数/日志
     memset(&can_rev, 0, sizeof(struct can_frame));
 
     if(BMU_CAN_FD < 0){
@@ -39,40 +50,26 @@ static void bmu_can_epoll_msg_transmit(void *arg)
 
             if ((effective_id & id_prefix_mask) == expected_prefix) {
                 // 在OTA 的过程中，可以根据CAN ID进行过滤放在消息队列中，避免在OTA浪费计算
-                if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0){
-                    bmu_drop_cnt_can++;
-                    // 连续丢包超过阈值时清空队列
-                    if (bmu_drop_cnt_can >= QUEUE_DEEPTH) {  // 连续10次丢包
-                        LOG("[BMU CAN] Queue full for QUEUE_DEEPTH times, clearing queue\n");
-                        queue_destroy(&Queue_BMURevData);
-                        queue_init(&Queue_BMURevData);
-                        bmu_drop_cnt_can = 0;
-                        
-                        // 尝试重新放入当前帧
-                        if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0) {
-                            LOG("[BMU CAN] Still failed after queue clear\n");
-                        }
-                    } else {
-                    }
-                }     
+                bmu_queue_post_latest(&can_rev);
             }
         }
         else
         {
-            if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0){
-                bmu_drop_cnt_can++;
-                // 连续丢包超过阈值时清空队列
-                if (bmu_drop_cnt_can >= QUEUE_DEEPTH) {  // 连续10次丢包
-                    LOG("[BMU CAN] Queue full for QUEUE_DEEPTH times, clearing queue\n");
-                    queue_destroy(&Queue_BMURevData);
-                    queue_init(&Queue_BMURevData);
-                    bmu_drop_cnt_can = 0;
-                    
-                    // 尝试重新放入当前帧
-                    if (queue_post(&Queue_BMURevData, (unsigned char *)&can_rev, sizeof(can_rev)) != 0) {
-                        LOG("[BMU CAN] Still failed after queue clear\n");
-                    }
-                } else {
+            bmu_queue_post_latest(&can_rev);
+        }
+    }
+    else
+    {
+        if (errno == EBADF) 
+        {
+            static uint32_t bmu_ebadf_recover_cnt = 0;
+            int recover_ret = -1;
+            LOG("[BMU] CAN fd is bad, triggering recovery...\n");
+            recover_ret = Drv_can_auto_recover(BMU_CAN_DEVICE_NAME, BMU_CAN_BITRATE, &BMU_CAN_FD, bmu_can_epoll_msg_transmit);
+            if (recover_ret != 0) {
+                bmu_ebadf_recover_cnt++;
+                if ((bmu_ebadf_recover_cnt % 20) == 1) {
+                    LOG("[BMU] CAN recover failed(ret=%d), cnt=%u\n", recover_ret, bmu_ebadf_recover_cnt);
                 }
             }
         }
@@ -82,14 +79,15 @@ static void bmu_can_epoll_msg_transmit(void *arg)
 // 初始化
 bool bmu_Init(void)
 {
+    int bind_ret = 0;
     queue_init(&Queue_BMURevData); // 用于接收消息后存入
 
-    if(Drv_can_bind_interface(BMU_CAN_DEVICE_NAME, BMU_CAN_BITRATE ,&BMU_CAN_FD,bmu_can_epoll_msg_transmit))
+    bind_ret = Drv_can_bind_interface(BMU_CAN_DEVICE_NAME, BMU_CAN_BITRATE ,&BMU_CAN_FD,bmu_can_epoll_msg_transmit);
+    if (bind_ret != 0)
     {
         LOG("[BMU]%s initial bind failed\n", BMU_CAN_DEVICE_NAME);
         return false;
     }
-
     return true;
 }
 

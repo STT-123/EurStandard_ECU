@@ -63,13 +63,11 @@ void PHYlinktate();
 void ECUfault_process();
 void check_bcu_rx_timeout(void);
 void set_emcu_fault(unsigned char parameter, unsigned char status);
-int can_monitor_fun(void) ;
+void can_monitor_fun(void) ;
 int check_can_state_detailed(const char* can_if);
 void restart_can_interface_enhanced(const char* can_if);
 void get_BCU_FaultInfo(uint32_T faultValue_4H,uint32_T faultValue_3H,uint32_T faultValue_2H);
 int is_bcu_can_ready(void);
 int is_bmu_can_ready(void);
-
 int check_and_fix_ip(const char *if_name);
-int can_ping_host(const char *hostname, int timeout_sec) ;
 #endif
