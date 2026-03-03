@@ -126,14 +126,14 @@ int main(int argc, char **argv)
 
 
         // printf("data.get_usBatMaxTempCellIndex = %ld\n", get_usBatMaxTempCellIndex());
-        // printf("data. get_usBatCellTempMax( = %d\n",  get_usBatCellTempMax());
+        // printf("data. get_usBatCellTempMaxValue( = %d\n",  get_usBatCellTempMaxValue());
         // printf("data. get_usBatMinTempCellIndex( = %d\n",  get_usBatMinTempCellIndex());
-        // printf("data.get_usBatCellTempMin = %ld\n", get_usBatCellTempMin());
+        // printf("data.get_usBatCellTempMinValue = %ld\n", get_usBatCellTempMinValue());
 
         // printf("data. get_usBatMaxVoltCellIndex( = %d\n",  get_usBatMaxVoltCellIndex());
-        // printf("data.get_usBatCellVoltMax = %ld\n", get_usBatCellVoltMax());
+        // printf("data.get_usBatCellVoltMaxValue = %ld\n", get_usBatCellVoltMaxValue());
         // printf("data.get_usBatMinVoltCellIndex = %ld\n", get_usBatMinVoltCellIndex());
-        // printf("data.get_usBatCellVoltMin = %ld\n", get_usBatCellVoltMin());
+        // printf("data.get_usBatCellVoltMinValue = %ld\n", get_usBatCellVoltMinValue());
 
         // printf("get_ota_UpDating(): %d\r\n",get_ota_UpDating());
         // printf("get_BCUFD() = %d\r\n",get_BCU_CAN_FD());

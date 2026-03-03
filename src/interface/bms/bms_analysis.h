@@ -162,13 +162,13 @@ unsigned long long get_BCU_ullNegEleQuantity(void) ;
 
 uint16_T get_BCU_usAirState(void);
 uint16_T get_BCU_usAirPumpState(void);
-uint16_T get_BCU_usAirCompressorSt(void);
+uint16_T get_BCU_usAirCompressorSta(void);
 uint16_T get_BCU_uiAirErrorfaultCode(void);
 
-uint16_T get_usBmuH2MaxConcentration(void);
-uint16_T get_usBmuCOMaxConcentration(void);
-uint16_T get_usBmuPressureMax(void);
-uint16_T get_usBmuLightMax(void);
+uint16_T get_usBmuH2MaxValue(void);
+uint16_T get_usBmuCOMaxValue(void);
+uint16_T get_usBmuPressureMaxValue(void);
+uint16_T get_usBmuLightMaxValue(void);
 uint16_T get_usBmuH2MaxIndex(void);
 uint16_T get_usBmuCOMaxIndex(void);
 uint16_T get_usBmuPressureMaxIndex(void);
@@ -184,10 +184,10 @@ uint16_T get_usBatMaxVoltCellIndex();
 uint16_T get_usBatMinVoltCellIndex();
 uint16_T get_usBatMaxTempCellIndex();
 uint16_T get_usBatMinTempCellIndex();
-uint16_T get_usBatCellVoltMax();
-uint16_T get_usBatCellVoltMin();
-uint16_T get_usBatCellTempMax();
-uint16_T get_usBatCellTempMin();
+uint16_T get_usBatCellVoltMaxValue();
+uint16_T get_usBatCellVoltMinValue();
+uint16_T get_usBatCellTempMaxValue();
+uint16_T get_usBatCellTempMinValue();
 void Log_Bcu_Data(const CAN_FD_MESSAGE *msg);
 /*========================================*/
 void init_can_buffer(void) ;

@@ -61,7 +61,7 @@ bool can_band_init(const char *device, int *fd)
 		return false; // 设置`CAN FD`模式失败
 	}
 
-	strcpy(m_ifr.ifr_name, device);
+	snprintf(m_ifr.ifr_name, IFNAMSIZ, "%s", device);
 	if (ioctl(*fd, SIOCGIFINDEX, &m_ifr) < 0)
 	{
 		close(*fd);	  // 关闭套接字
@@ -86,7 +86,9 @@ bool can_band_init(const char *device, int *fd)
 bool HAL_canfd_write(int fd, struct canfd_frame *pFrame)
 {
 	int len;
-
+	if(pFrame == NULL){
+		return false;
+	}
 	len = write(fd, pFrame, CANFD_MTU);
 
 	if (len == sizeof(struct canfd_frame)){
@@ -121,7 +123,9 @@ bool HAL_canfd_write(int fd, struct canfd_frame *pFrame)
 bool HAL_can_write(int fd, struct can_frame *pFrame)
 {
 	int len;
-
+	if(pFrame == NULL){
+		return false;
+	}
 	len = write(fd, pFrame, CAN_MTU);
 
 	if (len == sizeof(struct can_frame)){
@@ -157,7 +161,11 @@ bool HAL_can_write(int fd, struct can_frame *pFrame)
 
 int HAL_canfd_read(int fd, struct canfd_frame *pFrame, unsigned int msTimeout)
 {
+	if(pFrame == NULL){
+		return -1;
+	}
 	int len = read(fd, pFrame, sizeof(struct canfd_frame));
+	
 	if (len == sizeof(struct can_frame))
 	{
 
@@ -170,24 +178,25 @@ int HAL_canfd_read(int fd, struct canfd_frame *pFrame, unsigned int msTimeout)
 	}
 	else
 	{
-		if (len == -1 && errno == EAGAIN)
+		if (len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 		{
 			// 非阻塞下没有数据，epoll误触发或数据已读完
-			// printf("HAL_can_read timeout\n");
-			return 0;  // 你可以换成 return true; 但说明没数据
+			return 0; // 无数据
 		}
 		else
 		{
 			perror("HAL_canfd_read failed");
 			LOG("HAL_canfd_read fd = %d\r\n",fd);
-			return 0;
+			return -1; // 真实错误，交给上层触发恢复
 		}
 	}
-	return 0;
 }
 
 int HAL_can_read(int fd, struct can_frame *pFrame, unsigned int msTimeout)
 {
+	if(pFrame == NULL){
+		return -1;
+	}
 	int len = read(fd, pFrame, sizeof(struct can_frame));
 	if (len == sizeof(struct can_frame))
 	{
@@ -195,16 +204,16 @@ int HAL_can_read(int fd, struct can_frame *pFrame, unsigned int msTimeout)
 	}
 	else
 	{
-		if (len == -1 && errno == EAGAIN)
+		if (len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 		{
-			// printf("HAL_can_read timeout (no data)\n");
-			return 0; // 非阻塞无数据
+			// 非阻塞下没有数据，epoll误触发或数据已读完
+			return 0; // 无数据
 		}
 		else
 		{
 			perror("HAL_can_read failed");
-			LOG("[CAN] HAL_can_read fd = %d\r\n",fd);
-			return 0; // 读取失败
+			LOG("HAL_can_read fd = %d\r\n",fd);
+			return -1; // 真实错误，交给上层触发恢复
 		}
 	}
 }
@@ -217,12 +226,14 @@ int HAL_can_read(int fd, struct can_frame *pFrame, unsigned int msTimeout)
  */
 void HAL_can_closeEx(int *fd)
 {
+	if(fd == NULL){
+		return;
+	}
 	if (*fd >= 0)
 	{
 		close(*fd);
 		*fd = -1;
 	}
 }
-
 
 

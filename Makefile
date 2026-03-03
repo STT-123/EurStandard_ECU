@@ -69,4 +69,8 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
+# 安装到目标板（需要配置目标板IP）
+install: $(TARGET)
+	scp $(TARGET) edge@192.168.1.110:/opt/xcharge
+	@echo "=== 已复制到目标板 /opt/xcharge ==="
 .PHONY: all clean

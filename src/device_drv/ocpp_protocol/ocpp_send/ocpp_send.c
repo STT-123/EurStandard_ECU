@@ -74,10 +74,10 @@ void update_bat_data(sqlite3 *db)
         data.uiAirErrorLv3 |= (1U << faultCode);
     }
 
-    data.usBmuH2MaxConcentration = get_usBmuH2MaxConcentration();
-    data.usBmuCOMaxConcentration = get_usBmuCOMaxConcentration();
-    data.usBmuPressureMax = get_usBmuPressureMax();
-    data.usBmuLightMax = get_usBmuLightMax();
+    data.usBmuH2MaxValue = get_usBmuH2MaxValue();
+    data.usBmuCOMaxValue = get_usBmuCOMaxValue();
+    data.usBmuPressureMaxValue = get_usBmuPressureMaxValue();
+    data.usBmuLightMaxValue = get_usBmuLightMaxValue();
 
     data.usBmuH2MaxIndex = get_usBmuH2MaxIndex();
     data.usBmuCOMaxIndex = get_usBmuCOMaxIndex();
@@ -96,10 +96,10 @@ void update_bat_data(sqlite3 *db)
     data.usBatMaxTempCellIndex = get_usBatMaxTempCellIndex();
     data.usBatMinTempCellIndex = get_usBatMinTempCellIndex();
 
-    data.usBatCellVoltMax = get_usBatCellVoltMax();
-    data.usBatCellVoltMin = get_usBatCellVoltMin();
-    data.usBatCellTempMax = get_usBatCellTempMax();
-    data.usBatCellTempMin =get_usBatCellTempMin();
+    data.usBatCellVoltMaxValue = get_usBatCellVoltMaxValue();
+    data.usBatCellVoltMinValue = get_usBatCellVoltMinValue();
+    data.usBatCellTempMaxValue = get_usBatCellTempMaxValue();
+    data.usBatCellTempMinValue = get_usBatCellTempMinValue();
 
     // struct tm utc_timeinfo;
     // utc_timeinfo.tm_year = get_BCU_TimeYearValue() + 100; // BCU年是如24，tm_year从1900起

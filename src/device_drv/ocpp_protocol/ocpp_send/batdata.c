@@ -33,14 +33,14 @@ void convert_tBatData_to_big_endian(tBatData *dst, const tBatData *src) {
     dst->usTempOutside = htons(src->usTempOutside);
     dst->usHumidityInside = htons(src->usHumidityInside);
 
-    dst->usBmuH2MaxConcentration = htons(src->usBmuH2MaxConcentration);
-    dst->usBmuH2MinConcentration = htons(src->usBmuH2MinConcentration);
-    dst->usBmuCOMaxConcentration = htons(src->usBmuCOMaxConcentration);
-    dst->usBmuCOMinConcentration = htons(src->usBmuCOMinConcentration);
-    dst->usBmuPressureMax = htons(src->usBmuPressureMax);
-    dst->usBmuPressureMin = htons(src->usBmuPressureMin);
-    dst->usBmuLightMax = htons(src->usBmuLightMax);
-    dst->usBmuLightMin = htons(src->usBmuLightMin);
+    dst->usBmuH2MaxValue = htons(src->usBmuH2MaxValue);
+    dst->usBmuH2MinValue = htons(src->usBmuH2MinValue);
+    dst->usBmuCOMaxValue = htons(src->usBmuCOMaxValue);
+    dst->usBmuCOMinValue = htons(src->usBmuCOMinValue);
+    dst->usBmuPressureMaxValue = htons(src->usBmuPressureMaxValue);
+    dst->usBmuPressureMinValue = htons(src->usBmuPressureMinValue);
+    dst->usBmuLightMaxValue = htons(src->usBmuLightMaxValue);
+    dst->usBmuLightMinValue = htons(src->usBmuLightMinValue);
     dst->usBmuH2MaxIndex = htons(src->usBmuH2MaxIndex);
     dst->usBmuH2MinIndex = htons(src->usBmuH2MinIndex);
     dst->usBmuCOMaxIndex = htons(src->usBmuCOMaxIndex);
@@ -61,12 +61,12 @@ void convert_tBatData_to_big_endian(tBatData *dst, const tBatData *src) {
     dst->usBatMinVoltCellIndex = htons(src->usBatMinVoltCellIndex);
     dst->usBatMaxTempCellIndex = htons(src->usBatMaxTempCellIndex);
     dst->usBatMinTempCellIndex = htons(src->usBatMinTempCellIndex);
-    dst->usBatCellVoltMax = htons(src->usBatCellVoltMax);
-    dst->usBatCellVoltMin = htons(src->usBatCellVoltMin);
+    dst->usBatCellVoltMaxValue = htons(src->usBatCellVoltMaxValue);
+    dst->usBatCellVoltMinValue = htons(src->usBatCellVoltMinValue);
     dst->usBatMaxTempCellVolt = htons(src->usBatMaxTempCellVolt);
     dst->usBatMinTempCellVolt = htons(src->usBatMinTempCellVolt);
-    dst->usBatCellTempMax = htons(src->usBatCellTempMax);
-    dst->usBatCellTempMin = htons(src->usBatCellTempMin);
+    dst->usBatCellTempMaxValue = htons(src->usBatCellTempMaxValue);
+    dst->usBatCellTempMinValue = htons(src->usBatCellTempMinValue);
     dst->usBatMaxVoltCellTemp = htons(src->usBatMaxVoltCellTemp);
     dst->usBatMinVoltCellTemp = htons(src->usBatMinVoltCellTemp);
 }

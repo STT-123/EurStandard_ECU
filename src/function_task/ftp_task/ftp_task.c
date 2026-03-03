@@ -15,10 +15,9 @@ static void *ftp_service_thread_func(void *arg)
     struct timeval timeout;
 
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sock < 0)
-    {
+    if (server_sock < 0){
         LOG("[FTP] Failed to create socket\n");
-        return;
+        return NULL;
     }
 
     memset(&server_addr, 0, sizeof(server_addr));
@@ -27,25 +26,22 @@ static void *ftp_service_thread_func(void *arg)
     server_addr.sin_port = htons(port);
 
     // Set socket options
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
-    {
+    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0){
         close(server_sock);
-        return;
+        return NULL;
     }
 
     // Bind socket to address
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-    {
+    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
         LOG("[FTP] Failed to bind socket\n");
         close(server_sock);
-        return;
+        return NULL;
     }
 
     // Start listening for incoming connections
-    if (listen(server_sock, 2) < 0)
-    {
+    if (listen(server_sock, 2) < 0){
         close(server_sock);
-        return;
+        return NULL; 
     }
 
     while (1)
@@ -85,9 +81,8 @@ static void *ftp_service_thread_func(void *arg)
         // 主线程只需要处理连接级别的清理
         if (state.control_sock >= 0) {
             close(state.control_sock);
+            state.control_sock = -1;
         }
-
-        close(state.control_sock);
     }
 
     close(server_sock);

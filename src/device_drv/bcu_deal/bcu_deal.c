@@ -6,6 +6,7 @@
 #include "device_drv/sd_store/sd_store.h"
 
 static int BCU_CAN_FD = -1;
+#define BCU_FD_LOAD() __atomic_load_n(&BCU_CAN_FD, __ATOMIC_ACQUIRE)
 queue_t Queue_BCURevData;
 queue_t Queue_BCURevData_FD;
 /*======================================静态函数==================================================*/
@@ -49,10 +50,11 @@ static void bcu_can_epoll_msg_transmit(void *arg)
     memset(&canfd_rev, 0, sizeof(struct canfd_frame));
     memset(&can_rev, 0, sizeof(struct can_frame));
 
-    if(BCU_CAN_FD <0){
+    int can_fd = BCU_FD_LOAD();
+    if (can_fd < 0) {
         return;
     }
-    int frame_type = HAL_canfd_read(BCU_CAN_FD, &canfd_rev, 1);
+    int frame_type = HAL_canfd_read(can_fd, &canfd_rev, 1);
 
     if (frame_type == 1 || frame_type == 2) {time(&g_last_bcu_rx_time);}
     if (frame_type == 1)//1 表示CAN 数据-8
@@ -113,10 +115,11 @@ int Drv_bcu_can_send(CAN_MESSAGE *pFrame)
     Convert_CAN_MESSAGE_to_can_frame(pFrame, &can_frame);
     while (retryCount < maxRetries)
     {
-        if(BCU_CAN_FD <0){
+        int can_fd = BCU_FD_LOAD();
+        if (can_fd < 0) {
             return -1;
         }
-        if (HAL_can_write(BCU_CAN_FD, &can_frame))
+        if (HAL_can_write(can_fd, &can_frame))
         {
             return 0;
         }
@@ -143,10 +146,11 @@ int Drv_bcu_canfd_send(CAN_FD_MESSAGE_BUS *pFrame)
 
     while (retryCount < maxRetries)
     {
-        if(BCU_CAN_FD <0){
+        int can_fd = BCU_FD_LOAD();
+        if (can_fd < 0) {
             return -1;
         }
-        if (HAL_canfd_write(BCU_CAN_FD, &canfd_frame))
+        if (HAL_canfd_write(can_fd, &canfd_frame))
         {
             return 0;
         }
@@ -297,5 +301,5 @@ unlock:
 }
 
 int get_BCU_CAN_FD(void){
-    return BCU_CAN_FD;
+    return BCU_FD_LOAD();
 }

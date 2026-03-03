@@ -3,6 +3,7 @@
 #include <features.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 #include "interface/log/log.h"
 #include "interface/bms/bms_analysis.h"
 #include "device_drv/abncheck/abncheck.h"
@@ -29,6 +30,7 @@ ecu_fault_t ecu_fault ={0};
 ecu_fault_t ecu_fault_last = {0};
 static int g_bcu_can_ready = 0;
 static int g_bmu_can_ready = 0;
+static pthread_mutex_t g_can_monitor_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*----------------------*/
 struct timespec lasttimes ;
 struct timespec lastCheckTick = {0};
@@ -287,7 +289,31 @@ void check_bcu_rx_timeout(void)
 /**
  * 检测CAN 是否异常函数
 */
+static void restart_can_interface_locked(const char* can_if) {
+    struct can_ctrlmode cm = {0};
+    
+    // 0. 先停止接口
+    can_do_stop(can_if);
+    
+    // 1. 尝试设置CAN FD模式（在接口DOWN状态下）
+    if (can_get_ctrlmode(can_if, &cm) != 0) {
+        LOG("can_get_ctrlmode failed");
+    }
+
+    // 2. 设置比特率和采样点
+    if (can_set_canfd_bitrates_samplepoint(can_if, 500000, 0, 500000, 0) != 0) {
+        LOG("Failed to set CAN FD bitrates");
+    }
+    
+    // 3. 启动接口
+    if (can_do_start(can_if) != 0) {
+        LOG("Failed to start CAN interface");
+    }
+}
+
 void can_monitor_fun(void) {
+    pthread_mutex_lock(&g_can_monitor_mutex);
+
     // ============ can2 处理 ============
     int bcu_can_state = check_can_state_detailed(BCU_CAN_DEVICE_NAME);
     
@@ -301,7 +327,7 @@ void can_monitor_fun(void) {
         if (now - last_restart_time_can2 > 5) 
         {          
             LOG("[CHECK] Restarting can2...\n");
-            restart_can_interface_enhanced(BCU_CAN_DEVICE_NAME);
+            restart_can_interface_locked(BCU_CAN_DEVICE_NAME);
             last_restart_time_can2 = now;
             
             // 重置标志，等待恢复
@@ -333,7 +359,7 @@ void can_monitor_fun(void) {
         if (now - last_restart_time_can3 > 5) 
         {           
             LOG("[CHECK] Restarting can3...\n");
-            restart_can_interface_enhanced(BMU_CAN_DEVICE_NAME);
+            restart_can_interface_locked(BMU_CAN_DEVICE_NAME);
             last_restart_time_can3 = now;
             
             // 重置标志，等待恢复
@@ -351,27 +377,13 @@ void can_monitor_fun(void) {
         }
         g_bmu_can_ready = 1;
     }
+    
+    pthread_mutex_unlock(&g_can_monitor_mutex);
 }
 void restart_can_interface_enhanced(const char* can_if) {
-    struct can_ctrlmode cm = {0};
-    
-    // 0. 先停止接口
-    can_do_stop(can_if);
-    
-    // 1. 尝试设置CAN FD模式（在接口DOWN状态下）
-    if (can_get_ctrlmode(can_if, &cm) != 0) {
-        LOG("can_get_ctrlmode failed");
-    }
-
-    // 2. 设置比特率和采样点
-    if (can_set_canfd_bitrates_samplepoint(can_if, 500000, 0, 500000, 0) != 0) {
-        LOG("Failed to set CAN FD bitrates");
-    }
-    
-    // 3. 启动接口
-    if (can_do_start(can_if) != 0) {
-        LOG("Failed to start CAN interface");
-    }
+    pthread_mutex_lock(&g_can_monitor_mutex);
+    restart_can_interface_locked(can_if);
+    pthread_mutex_unlock(&g_can_monitor_mutex);
 }
 
 int check_can_state_detailed(const char* can_if) {
@@ -389,10 +401,18 @@ int check_can_state_detailed(const char* can_if) {
 
 // 主业务判断函数
 int is_bcu_can_ready(void) {
-    return g_bcu_can_ready;
+    int ready = 0;
+    pthread_mutex_lock(&g_can_monitor_mutex);
+    ready = g_bcu_can_ready;
+    pthread_mutex_unlock(&g_can_monitor_mutex);
+    return ready;
 }
 int is_bmu_can_ready(void) {
-    return g_bmu_can_ready;
+    int ready = 0;
+    pthread_mutex_lock(&g_can_monitor_mutex);
+    ready = g_bmu_can_ready;
+    pthread_mutex_unlock(&g_can_monitor_mutex);
+    return ready;
 }
 
 

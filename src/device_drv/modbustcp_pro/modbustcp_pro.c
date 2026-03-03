@@ -17,9 +17,11 @@ pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBu
 
   	static unsigned char last_data_power = 0xFF;
 	static unsigned char last_data_ecomode = 0xFF;
-
+	if(ctx == NULL){
+		return;
+	}
     header_length = modbus_get_header_length(ctx); // 获取数据长度
-    if ((req_length < 12) || (header_length >= MODBUS_TCP_MAX_ADU_LENGTH)){return; }// 长度不够直接退出
+	if (req_length < header_length + 5) return;
     if (query[header_length] == 0x06) // 功能码
     {
         // 获取目标地址和数据

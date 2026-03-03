@@ -38,14 +38,14 @@ typedef struct
     unsigned short          usHumidityInside;      /*机箱内部湿度*/
     /*消防板bmu数据共32字节*/
     /* 消防数据共32字节 */
-    unsigned short usBmuH2MaxConcentration;        /* 消防H2最大浓度 (1ppm) */
-    unsigned short usBmuH2MinConcentration;        /* 消防H2最小浓度 (1ppm) */
-    unsigned short usBmuCOMaxConcentration;        /* 消防CO最大浓度 (1ppm) */
-    unsigned short usBmuCOMinConcentration;        /* 消防CO最小浓度 (1ppm) */
-    unsigned short usBmuPressureMax;               /* 消防最大气压 (1kPa) */
-    unsigned short usBmuPressureMin;               /* 消防最小气压 (1kPa) */
-    unsigned short usBmuLightMax;                  /* 消防最大光照强度 (1℃) */
-    unsigned short usBmuLightMin;                  /* 消防最小光照强度 (1℃) */
+    unsigned short usBmuH2MaxValue;        /* 消防H2最大浓度 (1ppm) */
+    unsigned short usBmuH2MinValue;        /* 消防H2最小浓度 (1ppm) */
+    unsigned short usBmuCOMaxValue;        /* 消防CO最大浓度 (1ppm) */
+    unsigned short usBmuCOMinValue;        /* 消防CO最小浓度 (1ppm) */
+    unsigned short usBmuPressureMaxValue;               /* 消防最大气压 (1kPa) */
+    unsigned short usBmuPressureMinValue;               /* 消防最小气压 (1kPa) */
+    unsigned short usBmuLightMaxValue;                  /* 消防最大光照强度 (1℃) */
+    unsigned short usBmuLightMinValue;                  /* 消防最小光照强度 (1℃) */
     unsigned short usBmuH2MaxIndex;                /* H2最大浓度编号 */
     unsigned short usBmuH2MinIndex;                /* H2最小浓度编号 */
     unsigned short usBmuCOMaxIndex;                /* CO最大浓度编号 */
@@ -68,12 +68,12 @@ typedef struct
     unsigned short usBatMinVoltCellIndex;         /* 最小电压电池号 */
     unsigned short usBatMaxTempCellIndex;         /* 最大温度电池号 */
     unsigned short usBatMinTempCellIndex;         /* 最小温度电池号 */
-    unsigned short usBatCellVoltMax;              /* 单节电压最大值 (0.001V) */
-    unsigned short usBatCellVoltMin;              /* 单节电压最小值 (0.001V) */
+    unsigned short usBatCellVoltMaxValue;              /* 单节电压最大值 (0.001V) */
+    unsigned short usBatCellVoltMinValue;              /* 单节电压最小值 (0.001V) */
     unsigned short usBatMaxTempCellVolt;          /* 最大温度电池电压 (0.001V) */
     unsigned short usBatMinTempCellVolt;          /* 最小温度电池电压 (0.001V) */
-    unsigned short usBatCellTempMax;              /* 单节温度最大值 (1℃) */
-    unsigned short usBatCellTempMin;              /* 单节温度最小值 (1℃) */
+    unsigned short usBatCellTempMaxValue;              /* 单节温度最大值 (1℃) */
+    unsigned short usBatCellTempMinValue;              /* 单节温度最小值 (1℃) */
     unsigned short usBatMaxVoltCellTemp;          /* 最大电压电池温度 (1℃) */
     unsigned short usBatMinVoltCellTemp;          /* 最小电压电池温度 (1℃) */
 

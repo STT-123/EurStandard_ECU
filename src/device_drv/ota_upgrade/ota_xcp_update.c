@@ -762,7 +762,8 @@ void XCP_OTA(int count)
             char otafilenamestr1[OTAFILENAMEMAXLENGTH + 64] = {'\0'};
             char filenametmp[256];
 
-            strncpy(filenametmp, get_ota_OTAFilename(), sizeof(filenametmp));
+            strncpy(filenametmp, get_ota_OTAFilename(), sizeof(filenametmp) - 1);
+            filenametmp[sizeof(filenametmp) - 1] = '\0';
             
             char *dot = strrchr(filenametmp, '.');// 直接替换扩展名
             if (dot) {

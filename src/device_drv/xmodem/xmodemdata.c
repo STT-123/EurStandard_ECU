@@ -574,9 +574,10 @@ void *lwip_data_TASK(void *param)
 			else if(length == -1 || length == 0)
 			{
 			    errorCount++;
-
+				LOG("errorCount ++\r");
 			    if (errorCount >= 10)
 			    {
+					LOG("errorCount = 10\r\n");
 					setXmodemServerReceiveFileEnd(1);
 			        set_ota_UpDating(0);//1130
 			    }
@@ -759,7 +760,13 @@ signed char SaveOtaFile(char *name, unsigned char *buf, int totalpacknum, int cu
     return 0;
 }
 
-
+/*
+查表法就是当前字节数据的
+上一个字节的pre_hi和data++算出所以cur_index
+上一个字节的pre_lo和hi_table[cur_index]算出cur_hi
+lo_table[cur_index]算出cur_lo
+cur_crc = cur_hi | cur_lo
+*/
 
 unsigned short crcGet(unsigned char *ptr, int len)
 {

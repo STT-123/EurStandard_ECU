@@ -78,6 +78,7 @@ void *XmodemCommTask(void *arg)
                         if (pLwIPTCPListenTaskHandle == NULL || pLwIPTCPDataTaskHandle == NULL)
                         {
                             LOG("[Xmodem] TcpServerExample task malloc failed!\n");
+                            pthread_mutex_unlock(&task_mutex); // 解锁临界区
                             while (1)
                             {
                                 usleep(1000 * 10000);

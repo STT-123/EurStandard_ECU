@@ -41,7 +41,7 @@ void my_modbus_set_float_badc(float f, uint16_t *dest)
 void ConvertCANToBus(const struct can_frame *frame, CAN_FD_MESSAGE_BUS *msg)
 {
     if (!frame || !msg){
-        LOG("[BMS] eeee Raw can_id      : 0x%08lX\n", frame->can_id);
+        LOG("[BMS] ERROR frame or msg si NULL\r\n");
         return;
     }
 
@@ -71,7 +71,10 @@ void ConvertCANFDToBus(struct canfd_frame *frame, CAN_FD_MESSAGE_BUS *msg)
     msg->DLC = frame->len;
     msg->Reserved = 0;
     msg->Timestamp = 0;
-    memcpy(msg->Data, frame->data, frame->len);
+
+    if(frame->len <= 64){
+        memcpy(msg->Data, frame->data, frame->len);
+    }
 }
 
 void ConvertBusToCANFD(const CAN_FD_MESSAGE_BUS *msg, struct canfd_frame *frame)
@@ -203,7 +206,7 @@ void Convert_can_frame_to_CAN_MESSAGE(const struct can_frame *frame, CAN_MESSAGE
         msg->Length = 8;
     }
 
-    memcpy(msg->Data, frame->data, frame->can_dlc);
+    memcpy(msg->Data, frame->data, msg->Length);
 
 #ifndef TIMESTAMP_NOT_REQUIRED
     // 如果定义了时间戳字段，初始化为 0.0（无实际来源）
@@ -375,20 +378,20 @@ uint16_T get_BCU_uiAirErrorfaultCode(void){
     return Chiller_Fault;  /* xxxxxxxxxxx 待定*/
 }
 
-uint16_T get_usBmuH2MaxConcentration(){
+uint16_T get_usBmuH2MaxValue(){
     return BCU_FasH2MaxValue;  /* xxxxxxxxxxx 待定*/
 }
-uint16_T get_usBmuCOMaxConcentration(){
+uint16_T get_usBmuCOMaxValue(){
     return BCU_FasCOMaxValue;  /* xxxxxxxxxxx 待定*/
 }
-uint16_T get_usBmuPressureMax(){
+uint16_T get_usBmuPressureMaxValue(){
     return BCU_FasPressMaxValue;  /* xxxxxxxxxxx 待定*/
 }
-uint16_T get_usBmuLightMax(){
+uint16_T get_usBmuLightMaxValue(){
     return BCU_FasLightMaxValue;  /* xxxxxxxxxxx 待定*/
 }
 uint16_T get_usBmuH2MaxIndex(){
-    return BCU_FasLightMaxValue;  /* xxxxxxxxxxx 待定*/
+    return BCU_FasH2MaxIdx;  /* xxxxxxxxxxx 待定*/
 }
 uint16_T get_usBmuCOMaxIndex(){
     return BCU_FasCOMaxIdx;  /* xxxxxxxxxxx 待定*/
@@ -438,18 +441,18 @@ uint16_T  get_usBatMinTempCellIndex(){
     return BCU_TempMinIdx;
 }
 
-uint16_T get_usBatCellVoltMax(){
+uint16_T get_usBatCellVoltMaxValue(){
     return BCU_VoltMaxCellValue;
 }
-uint16_T get_usBatCellVoltMin(){
+uint16_T get_usBatCellVoltMinValue(){
     return BCU_VoltMinCellValue;
 }
 
-uint16_T get_usBatCellTempMax(){
+uint16_T get_usBatCellTempMaxValue(){
     return BCU_TempMaxValue;
 }
-uint16_T get_usBatCellTempMin(){
-    return BCU_VoltMinCellValue;
+uint16_T get_usBatCellTempMinValue(){
+    return BCU_TempMinValue;
 }
 
 // ==================== 辅助函数 ====================

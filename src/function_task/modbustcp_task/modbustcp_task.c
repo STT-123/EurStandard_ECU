@@ -48,16 +48,19 @@ void *ModbusTCPServerTask(void *arg)
     }
     
     ctx = modbus_new_tcp(modbus_ip, 502);//新建一个tcp服务端
+    if (ctx == NULL) { LOG("ctx = NULL"); return NULL; }
     LOG("[ModbusTcp] ctx =%d ,modbus ip =%s \r\n", ctx, modbus_ip);
 
     // 创建寄存器映射，只创建保持寄存器
     g_mb_mapping = modbus_mapping_new_start_address(0, 0, 0, 0, REGISTERS_START_ADDRESS, REGISTERS_NB, 0, 0);
     if (g_mb_mapping == NULL){
         LOG("[ModbusTcp] Failed to allocate the mapping: %s \r\n", modbus_strerror(errno));
-        modbus_free(ctx);
-        for (;;){
-            usleep(5000);
+        modbusBuff = NULL;
+        if (ctx != NULL) {
+            modbus_free(ctx);
+            ctx = NULL;
         }
+        return NULL;
     }
 
     modbusBuff = g_mb_mapping->tab_registers;// 全局 外部在用
@@ -70,6 +73,21 @@ void *ModbusTCPServerTask(void *arg)
     g_mb_mapping->tab_registers[MDBUS_ADDR_ECU_VERSION - REGISTERS_START_ADDRESS] = ECU_VERSION; // 版本号
 
     server_socket = modbus_tcp_listen(ctx, NB_CONNECTION);// 开启监听
+    if (server_socket < 0)
+    {
+        LOG("[ModbusTcp] modbus_tcp_listen failed: %s\n", modbus_strerror(errno));
+        modbusBuff = NULL;
+        if (g_mb_mapping != NULL) {
+            modbus_mapping_free(g_mb_mapping);
+            g_mb_mapping = NULL;
+        }
+        if(ctx != NULL) {
+            modbus_free(ctx);
+            ctx = NULL;
+        }
+        return NULL;
+    }
+
     FD_ZERO(&refset); //初始化集合为NULL
     FD_SET(server_socket, &refset); // 将服务器socket加入集合
     fdmax = server_socket;
@@ -82,7 +100,14 @@ void *ModbusTCPServerTask(void *arg)
 
         rdset = refset;// 复制参考集合到读集合    
         //一刀切，10内没有任何新连接或数据则关闭所有客户端
-        if (select(fdmax + 1, &rdset, NULL, NULL, &timeout) == 0)//阻塞10s
+        int sel = select(fdmax + 1, &rdset, NULL, NULL, &timeout);
+        if (sel < 0) {
+            LOG("[ModbusTcp] select error: %s\n", strerror(errno));
+            timeout_flag = 0;
+            usleep(1000);
+            continue;
+        }
+        else if(sel == 0)       
         {      
             timeout_flag = 1;// select超时处理
              // 清理所有客户端连接
@@ -94,7 +119,8 @@ void *ModbusTCPServerTask(void *arg)
                     if (master_socket == fdmax){ fdmax--;}  // 更新最大文件描述符
                 }
             }
-        }else{
+        }
+        else{
             timeout_flag = 0;
         }
 

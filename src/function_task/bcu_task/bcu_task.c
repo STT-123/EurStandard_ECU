@@ -53,7 +53,8 @@ void *bcu_DealTask(void *arg)
                 {
                     if(GetTimeDifference_ms(start_tick) >= 10000){
                         if (modbusBuff == NULL){
-                            continue;//如果modbusBuff为空，则不处理数据
+                            usleep(2 * 1000);//如果modbusBuff为空，则短暂休眠避免忙等
+                            continue;
                         }else{
                             CANFDRcvFcn_BCU_step();
                             CANFDSendFcn_BCU_step();

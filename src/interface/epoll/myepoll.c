@@ -25,7 +25,8 @@ static void *epoll_thread_func(void *arg)
 
     for (;;)
     {
-        num = epoll_wait(my_epollfd, events, epoll_count, -1);
+        // maxevents must be > 0 and must not exceed the events[] capacity.
+        num = epoll_wait(my_epollfd, events, MYMAX_TASTNUM, -1);
 
         if (num < 0)
         {
@@ -33,12 +34,23 @@ static void *epoll_thread_func(void *arg)
         }
         for (i = 0; i < num; i++) {
             my_event_data_t *ev_data = events[i].data.ptr;
+            if (ev_data == NULL) {
+                LOG("[EPOLL] NULL event data pointer, skip\n");
+                continue;
+            }
             // 根据事件类型调用处理函数
             if (events[i].events & (EPOLLPRI | EPOLLIN)) {
-                ev_data->fun_handle(ev_data);
+                if (ev_data->fun_handle != NULL) {
+                    ev_data->fun_handle(ev_data);
+                } else {
+                    LOG("[EPOLL] NULL event handler, fd=%d\n", ev_data->fd);
+                    continue;
+                }
             }
             // 无论何种事件类型，都需要清中断
-            lseek(ev_data->fd, 0, SEEK_SET);
+            if (ev_data->fd >= 0) {
+                lseek(ev_data->fd, 0, SEEK_SET);
+            }
         }
     }
 

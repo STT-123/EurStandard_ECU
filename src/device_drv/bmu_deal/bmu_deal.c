@@ -2,6 +2,7 @@
 #include "interface/epoll/myepoll.h"
 #include "device_drv/bcu_deal/bcu_deal.h"
 static int BMU_CAN_FD = -1;
+#define BMU_FD_LOAD() __atomic_load_n(&BMU_CAN_FD, __ATOMIC_ACQUIRE)
 queue_t Queue_BMURevData; // 分机消息队列，用于epoll接收数据存入，防止处理不过来所以用队列，内部使用
 my_event_data_t bmuCanEventData = {
     .fd = -1,  // 无效的文件描述符
@@ -28,11 +29,12 @@ static void bmu_can_epoll_msg_transmit(void *arg)
     struct can_frame can_rev;
     memset(&can_rev, 0, sizeof(struct can_frame));
 
-    if(BMU_CAN_FD < 0){
+    int can_fd = BMU_FD_LOAD();
+    if (can_fd < 0) {
         return;
     }
-
-    if (HAL_can_read(BMU_CAN_FD, &can_rev, 1) > 0) 
+    int hal_result = HAL_can_read(can_fd, &can_rev, 1);
+    if (hal_result > 0) 
     {
         if(get_ota_OTAStart() == 1){
             uint32_t can_id = can_rev.can_id;// 检查是否是扩展帧
@@ -60,7 +62,7 @@ static void bmu_can_epoll_msg_transmit(void *arg)
     }
     else
     {
-        if (errno == EBADF) 
+        if ((hal_result < 0) && (errno == EBADF)) 
         {
             static uint32_t bmu_ebadf_recover_cnt = 0;
             int recover_ret = -1;
@@ -100,10 +102,11 @@ int Drv_bmu_can_send(CAN_MESSAGE *pFrame)
     Convert_CAN_MESSAGE_to_can_frame(pFrame, &can_frame);
     while (retryCount < maxRetries)
     {
-        if(BMU_CAN_FD <0){
+        int can_fd = BMU_FD_LOAD();
+        if (can_fd < 0) {
             return -1;
         }
-        if (HAL_can_write(BMU_CAN_FD, &can_frame))
+        if (HAL_can_write(can_fd, &can_frame))
         {
             return 0;
         }
@@ -126,10 +129,11 @@ int Drv_bmu_canfd_send(struct canfd_frame *cansend_data)
 
     while (retryCount < maxRetries)
     {
-        if(BMU_CAN_FD <0){
+        int can_fd = BMU_FD_LOAD();
+        if (can_fd < 0) {
             return -1;
         }
-        if (HAL_canfd_write(BMU_CAN_FD, cansend_data))
+        if (HAL_canfd_write(can_fd, cansend_data))
         {
             return 0;
         }
