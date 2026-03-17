@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.251
+ * Model version                  : 5.252
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Wed Mar 11 17:16:29 2026
+ * C/C++ source code generated on : Wed Mar 11 18:11:46 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -8373,41 +8373,6 @@ void CANFDRcvFcn_BCU_step(void)
 
 /* Model initialize function */
 void CANFDRcvFcn_BCU_initialize(void)
-{
-  /*-----------S-Function Block: <S1>/CAN FD Unpack1 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack2 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack4 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack5 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack3 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack6 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack7 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack8 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack9 -----------------*/
-
-  /*-----------S-Function Block: <S1>/CAN FD Unpack10 -----------------*/
-}
-
-/* Model terminate function */
-void CANFDRcvFcn_BCU_terminate(void)
-{
-  /* (no terminate code required) */
-}
-
-/*
- * File trailer for generated code.
- *
- * [EOF]
- */
 {
   /*-----------S-Function Block: <S1>/CAN FD Unpack1 -----------------*/
 
