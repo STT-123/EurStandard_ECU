@@ -142,14 +142,14 @@ signed char  AcpDcUpgradesend(const char *filename,FILE *rfile)
             CanMes.Length = yushu;
             CanMes.ID = 0x03160000 + (yushu << 8) + zhengshu +1;
             memcpy(&CanMes.Data[0], &fileBuffer[4 + zhengshu * 8], (yushu));
-       	printf(" CanMes.Data[0]:%02x\r\n",CanMes.Data[0]);
-       	printf(" CanMes.Data[1]:%02x\r\n",CanMes.Data[1]);
-       	printf(" CanMes.Data[2]:%02x\r\n",CanMes.Data[2]);
-       	printf(" CanMes.Data[3]:%02x\r\n",CanMes.Data[3]);
-       	printf(" CanMes.Data[4]:%02x\r\n",CanMes.Data[4]);
-       	printf(" CanMes.Data[5]:%02x\r\n",CanMes.Data[5]);
-       	printf(" CanMes.Data[6]:%02x\r\n",CanMes.Data[6]);
-       	printf(" CanMes.Data[7]:%02x\r\n",CanMes.Data[7]);
+			printf(" CanMes.Data[0]:%02x\r\n",CanMes.Data[0]);
+			printf(" CanMes.Data[1]:%02x\r\n",CanMes.Data[1]);
+			printf(" CanMes.Data[2]:%02x\r\n",CanMes.Data[2]);
+			printf(" CanMes.Data[3]:%02x\r\n",CanMes.Data[3]);
+			printf(" CanMes.Data[4]:%02x\r\n",CanMes.Data[4]);
+			printf(" CanMes.Data[5]:%02x\r\n",CanMes.Data[5]);
+			printf(" CanMes.Data[6]:%02x\r\n",CanMes.Data[6]);
+			printf(" CanMes.Data[7]:%02x\r\n",CanMes.Data[7]);
             TStatus = Drv_bcu_can_send(&CanMes);
             if (TStatus != 0) {
             	LOG("yushu data send failed");

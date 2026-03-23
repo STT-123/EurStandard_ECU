@@ -157,7 +157,7 @@ void *ota_Upgrade_Task(void *arg)
                     {
 
                         CurrentOTADeviceCanID = ACOTACANID;
-                        set_ota_deviceID(ACPOTACANID);
+                        set_ota_deviceID(ACOTACANID);
                         set_ota_OTAStart(1) ;
                         udsstatus.ErrorReg = 0;
                         LOG("[OTA] ACP OTA failed, error ACPOtaFlag count:  %d\r\n", ACOtaFlag);

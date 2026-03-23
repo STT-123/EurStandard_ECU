@@ -1337,9 +1337,9 @@ void UDS_OTA(void)
                         char otafilenamestr1[OTAFILENAMEMAXLENGTH + 2] = {'\0'};
                         if(udsstatus.ErrorReg == 0)
                         {
-                            memcpy(&otafilenamestr1, get_ota_OTAUdsFilename(i), strlen(get_ota_OTAUdsFilename(i)));
+                            memcpy(&otafilenamestr1, get_ota_OTAUdsSblFilename(i), strlen(get_ota_OTAUdsSblFilename(i)));
                             printf("otafilenamestr1: %s\r\n", otafilenamestr1);
-                            printf("get_ota_OTAUdsFilename(i): %s\r\n", get_ota_OTAUdsFilename(i));
+                            printf("get_ota_OTAUdsSblFilename(i): %s\r\n", get_ota_OTAUdsSblFilename(i));
 
                         }
 
