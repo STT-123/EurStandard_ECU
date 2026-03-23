@@ -244,7 +244,7 @@ int Drv_can_bind_interface(const char *can_name, int bitrate, int *can_fd_ptr,
 
 /**
  * @brief 检测并自动恢复CAN接口状态
- * @param can_name CAN设备名（如 "can2"）
+ * @param can_name CAN设备名（如 "bcu"）
  * @param bitrate CAN比特率
  * @param can_fd_ptr 指向CAN文件描述符的指针
  * @param callback CAN消息回调函数

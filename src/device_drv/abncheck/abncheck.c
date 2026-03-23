@@ -314,66 +314,66 @@ static void restart_can_interface_locked(const char* can_if) {
 void can_monitor_fun(void) {
     pthread_mutex_lock(&g_can_monitor_mutex);
 
-    // ============ can2 处理 ============
+    // ============ bcu 处理 ============
     int bcu_can_state = check_can_state_detailed(BCU_CAN_DEVICE_NAME);
     
     // 分离逻辑：检测到任何异常都处理
     if (bcu_can_state <= 0)  // 0或负数都表示异常
     { 
-        static time_t last_restart_time_can2 = 0;
+        static time_t last_restart_time_bcu = 0;
         time_t now = time(NULL);
         
         // 避免频繁重启（至少间隔5秒）
-        if (now - last_restart_time_can2 > 5) 
+        if (now - last_restart_time_bcu > 5) 
         {          
-            LOG("[CHECK] Restarting can2...\n");
+            LOG("[CHECK] Restarting bcu...\n");
             restart_can_interface_locked(BCU_CAN_DEVICE_NAME);
-            last_restart_time_can2 = now;
+            last_restart_time_bcu = now;
             
             // 重置标志，等待恢复
             g_bcu_can_ready = 0;
         } else {
-            LOG("[CHECK] can2 abnormal but restart cooldown (%lds)\n",
-                5 - (now - last_restart_time_can2));
+            LOG("[CHECK] bcu abnormal but restart cooldown (%lds)\n",
+                5 - (now - last_restart_time_bcu));
         }
     } 
     else 
     {
         // 正常状态
         if (g_bcu_can_ready == 0) {
-            LOG("[CHECK] can2 recovered\n");
+            LOG("[CHECK] bcu recovered\n");
         }
         g_bcu_can_ready = 1;
     }
 
-    // ============ can3 处理（统一逻辑） ============
+    // ============ BMU 处理（统一逻辑） ============
     int bmu_can_state = check_can_state_detailed(BMU_CAN_DEVICE_NAME);
     
-    // 使用完全相同的逻辑处理can3
+    // 使用完全相同的逻辑处理BMU
     if (bmu_can_state <= 0)  // 0或负数都表示异常
     { 
-        static time_t last_restart_time_can3 = 0;
+        static time_t last_restart_time_bmu= 0;
         time_t now = time(NULL);
         
         // 避免频繁重启（至少间隔5秒）
-        if (now - last_restart_time_can3 > 5) 
+        if (now - last_restart_time_bmu > 5) 
         {           
-            LOG("[CHECK] Restarting can3...\n");
+            LOG("[CHECK] Restarting bmu...\n");
             restart_can_interface_locked(BMU_CAN_DEVICE_NAME);
-            last_restart_time_can3 = now;
+            last_restart_time_bmu = now;
             
             // 重置标志，等待恢复
             g_bmu_can_ready = 0;
         } else {
-            LOG("[CHECK] can3 abnormal but restart cooldown (%lds)\n",
-                5 - (now - last_restart_time_can3));
+            LOG("[CHECK] bmu abnormal but restart cooldown (%lds)\n",
+                5 - (now - last_restart_time_bmu));
         }
     } 
     else 
     {
         // 正常状态
         if (g_bmu_can_ready == 0) {
-            LOG("[CHECK] can3 recovered\n");
+            LOG("[CHECK] bmu recovered\n");
         }
         g_bmu_can_ready = 1;
     }

@@ -13,7 +13,7 @@
 
 #include "interface/bms/bms_analysis.h"
 
-#define BCU_CAN_DEVICE_NAME "can2"
+#define BCU_CAN_DEVICE_NAME "can3"
 
 #define BCU_CAN_BITRATE 500000
 #define BCU_OTA_ID 0x101

@@ -17,7 +17,7 @@ extern queue_t Queue_BMURevData; // 分机消息队列，用于epoll接收数据
 
 
 
-#define BMU_CAN_DEVICE_NAME "can3"
+#define BMU_CAN_DEVICE_NAME "can2"
 
 #define BMU_CAN_BITRATE 500000
 #define BMU_OTA_ID 0x102

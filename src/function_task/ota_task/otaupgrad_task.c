@@ -194,9 +194,9 @@ void *ota_Upgrade_Task(void *arg)
                         usleep(200*1000);
                     }                 
 
-                    // 主业务判断：检查CAN2是否就绪
+                    // 主业务判断：检查BCU是否就绪
                     if (!is_bcu_can_ready()) {
-                        LOG("[OTA] CAN2 not ready, waiting...\n");// 可以等待几秒或直接报错
+                        LOG("[OTA] BCU not ready, waiting...\n");// 可以等待几秒或直接报错
                         int wait_count = 0;
                         while (!is_bcu_can_ready() && wait_count < 10) {
                             usleep(500000); // 500ms
@@ -237,7 +237,7 @@ void *ota_Upgrade_Task(void *arg)
                             LOG("[OTA] CAN ID 0x%x BCU OTA Failed \r\n");
                         }
                     }else{
-                        LOG("[OTA] CAN2 is not ready\r\n");
+                        LOG("[OTA] bcu is not ready\r\n");
                     }
                 }
                 else if (get_ota_deviceType() == BMU)
@@ -247,9 +247,9 @@ void *ota_Upgrade_Task(void *arg)
                     unsigned int end_percent = 100;
                     
                     can_monitor_fun();//检查CAN 状态
-                    // 主业务判断：检查CAN3是否就绪
+                    // 主业务判断：检查bmu是否就绪
                     if (!is_bmu_can_ready()) {
-                        LOG("[OTA] CAN3 not ready, waiting...\n");
+                        LOG("[OTA] bmu not ready, waiting...\n");
                         // 可以等待几秒或直接报错
                         int wait_count = 0;
                         while (!is_bmu_can_ready() && wait_count < 10) {
@@ -310,7 +310,7 @@ void *ota_Upgrade_Task(void *arg)
 
                         }
                     }else{
-                        LOG("[OTA] CAN3 is not ready\r\n");
+                        LOG("[OTA] bmu is not ready\r\n");
                     }                    
                 }
                 FinshhBCUBMUOtaAndCleanup();    
