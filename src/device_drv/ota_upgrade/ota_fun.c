@@ -29,6 +29,15 @@ pthread_mutex_t ota_mutex = PTHREAD_MUTEX_INITIALIZER;//多读一写适合读写
     atomic_store(&g_otactrl.deviceID, value);
 }
 
+unsigned int get_ota_acOTAFlag(void) {
+    return atomic_load(&g_otactrl.acOTAFlag);
+}
+
+ void set_ota_acOTAFlag(unsigned int value) {
+    atomic_store(&g_otactrl.acOTAFlag, value);
+}
+
+
  unsigned char get_ota_deviceType(void) {
     return atomic_load(&g_otactrl.deviceType);
 }

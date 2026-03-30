@@ -138,6 +138,7 @@ void *lwip_data_TASK(void *param)
 									else if( sblfilenumber == 1)//AC
 									{
 										LOG("[Xmodem] sblfilenumber = %d\r\n",sblfilenumber);
+										set_ota_acOTAFlag(1);//AC_Flag
 										set_ota_UpDating(1);//1130
 
 									}
@@ -330,6 +331,7 @@ void *lwip_data_TASK(void *param)
 										LOG("[Xmodem] APP_index ...  %d \r\n",APP_index);
 										LOG("[Xmodem] sblfilenumber...%d\r\n",sblfilenumber);
 										LOG("[Xmodem] appfilenumber...%d\r\n",appfilenumber);
+										LOG(" AC   set_ota_OTAStart(1)\r\n");
 										set_ota_deviceID(ACOTACANID);
 										set_ota_deviceType(AC);
 										set_ota_OTAStart(1);

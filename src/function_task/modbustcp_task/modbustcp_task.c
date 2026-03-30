@@ -40,7 +40,7 @@ void *ModbusTCPServerTask(void *arg)
     }
 
     // 使用新的组合函数，既设置临时IP又更新永久配置
-    int ret = set_ip_address(MODBUS_ETH_NUM, modbus_ip);
+    int ret = check_and_fix_ip(MODBUS_ETH_NUM);//检测ip地址是否被修改并自动更正
     if (ret != 0) {
         LOG("[ModbusTcp] IP setting failed, but continued to attempt to create Modbus context\n");
     } else {

@@ -31,6 +31,7 @@ ecu_fault_t ecu_fault_last = {0};
 static int g_bcu_can_ready = 0;
 static int g_bmu_can_ready = 0;
 static pthread_mutex_t g_can_monitor_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t ip_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*----------------------*/
 struct timespec lasttimes ;
 struct timespec lastCheckTick = {0};
@@ -500,10 +501,12 @@ static int get_interface_ipv4(const char *if_name, char *ip_buf, size_t ip_buf_l
 
 int check_and_fix_ip(const char *if_name)
 {
+    // 加锁
+    pthread_mutex_lock(&ip_mutex);
 	char expected_ip[16] = {0};
     char current_ip[16] = {0};
     int need_fix = 1;
-    
+    int ret = 0;
     //LOG("[IP自动修复] 检查接口 %s 的IP状态\n", if_name);
 
 
@@ -514,7 +517,8 @@ int check_and_fix_ip(const char *if_name)
                     g_ipsetting.ip & 0xFF);
     if (len < 0 || (size_t)len >= sizeof(expected_ip)) {
         LOG("Failed to format IP address\n");
-        return -1;
+        ret = -1;
+        goto clean_ip;
     }
     // 检测当前IP（避免shell命令拼接，杜绝注入风险）
     if (get_interface_ipv4(if_name, current_ip, sizeof(current_ip)) == 0) {
@@ -543,19 +547,26 @@ int check_and_fix_ip(const char *if_name)
             if (get_interface_ipv4(if_name, current_ip, sizeof(current_ip)) == 0) {
                 if (strcmp(current_ip, expected_ip) == 0) {
                     LOG("[IP] Verified successfully after modification\n");
-                    return 0;
+                    ret = 0;
+                    goto clean_ip;
                 }
                 LOG("[IP] Verification failed after modification. Current IP address: %s\n", current_ip);
-                return -1;
+                ret = -1;
+                goto clean_ip;
             }
             
             LOG("[IP] Modified successfully but unable to verify\n");
-            return 0;
+            ret = 0;
+            goto clean_ip;
         } else {
             LOG("[IP] IP modification failed\n");
-            return -1;
+            ret = -1;
+            goto clean_ip;
         }
     }
-    
-    return 0; // IP正确，无需修改
+clean_ip:
+    // 解锁
+    pthread_mutex_unlock(&ip_mutex);  
+    return ret; // IP正确，无需修改
+
 }

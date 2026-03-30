@@ -138,57 +138,136 @@ void set_system_time_from_bcu(void)
 }
 
 
+// int set_ip_address(const char *if_name, const char *ip_addr)
+// {
+//     int fd;
+//     struct ifreq ifr;
+//     struct sockaddr_in sin;
+
+//     fd = socket(AF_INET, SOCK_DGRAM, 0);
+//     if (fd < 0)
+//     {
+//         LOG("[set_ip_address] socket创建失败: %s\n", strerror(errno));
+//         return -1;
+//     }
+//     memset(&ifr, 0, sizeof(ifr));
+//     strncpy(ifr.ifr_name, if_name, IFNAMSIZ - 1);
+
+//     memset(&sin, 0, sizeof(struct sockaddr_in));
+//     sin.sin_family = AF_INET;
+    
+//     if (inet_pton(AF_INET, ip_addr, &sin.sin_addr) <= 0) {
+//         LOG("[set_ip_address] IP地址转换失败: %s\n", strerror(errno));
+//         close(fd);
+//         return -1;
+//     }
+    
+//     memcpy(&ifr.ifr_addr, &sin, sizeof(struct sockaddr));
+
+//     // 设置IP地址
+//     if (ioctl(fd, SIOCSIFADDR, &ifr) < 0)
+//     {
+//         LOG("[set_ip_address] SIOCSIFADDR失败: %s\n", strerror(errno));
+//         close(fd);
+//         return -1;
+//     }
+
+//     // 获取当前网卡标志
+//     if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0)
+//     {
+//         LOG("[set_ip_address] SIOCGIFFLAGS失败: %s\n", strerror(errno));
+//         close(fd);
+//         return -1;
+//     }
+
+//     // 设置网口状态为 up
+//     ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+
+//     if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0)
+//     {
+//         LOG("[set_ip_address] SIOCSIFFLAGS失败: %s\n", strerror(errno));
+//         close(fd);
+//         return -1;
+//     }
+//     close(fd);
+//     return 0;
+// }
+
 int set_ip_address(const char *if_name, const char *ip_addr)
 {
     int fd;
     struct ifreq ifr;
     struct sockaddr_in sin;
-
+    struct sockaddr_in mask;
+    const char *netmask = "255.255.255.0";
+    
     fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd < 0)
-    {
-        LOG("[set_ip_address] socket创建失败: %s\n", strerror(errno));
+    if (fd < 0) {
+        LOG("[set_ip_address] socket create failed %s\n", strerror(errno));
         return -1;
     }
+    
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, if_name, IFNAMSIZ - 1);
-
+    
+    // 1. 先关闭网卡
+    if (ioctl(fd, SIOCGIFFLAGS, &ifr) == 0) {
+        ifr.ifr_flags &= ~IFF_UP;
+        ioctl(fd, SIOCSIFFLAGS, &ifr);
+        usleep(500000);  // 等待500ms
+    }
+    
+    // 2. 设置IP地址（这时网卡是down的）
     memset(&sin, 0, sizeof(struct sockaddr_in));
     sin.sin_family = AF_INET;
     
     if (inet_pton(AF_INET, ip_addr, &sin.sin_addr) <= 0) {
-        LOG("[set_ip_address] IP地址转换失败: %s\n", strerror(errno));
+        LOG("[set_ip_address] IP addr failed: %s\n", strerror(errno));
         close(fd);
         return -1;
     }
     
     memcpy(&ifr.ifr_addr, &sin, sizeof(struct sockaddr));
-
-    // 设置IP地址
-    if (ioctl(fd, SIOCSIFADDR, &ifr) < 0)
-    {
-        LOG("[set_ip_address] SIOCSIFADDR失败: %s\n", strerror(errno));
+    
+    if (ioctl(fd, SIOCSIFADDR, &ifr) < 0) {
+        LOG("[set_ip_address] SIOCSIFADDR failed: %s\n", strerror(errno));
         close(fd);
         return -1;
     }
-
-    // 获取当前网卡标志
-    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0)
-    {
-        LOG("[set_ip_address] SIOCGIFFLAGS失败: %s\n", strerror(errno));
+    
+    // 3. 设置子网掩码
+    memset(&mask, 0, sizeof(struct sockaddr_in));
+    mask.sin_family = AF_INET;
+    
+    if (inet_pton(AF_INET, netmask, &mask.sin_addr) <= 0) {
+        LOG("[set_ip_address] mark failed %s\n", strerror(errno));
         close(fd);
         return -1;
     }
-
-    // 设置网口状态为 up
-    ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
-
-    if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0)
-    {
-        LOG("[set_ip_address] SIOCSIFFLAGS失败: %s\n", strerror(errno));
+    
+    memcpy(&ifr.ifr_netmask, &mask, sizeof(struct sockaddr));
+    
+    if (ioctl(fd, SIOCSIFNETMASK, &ifr) < 0) {
+        LOG("[set_ip_address] SIOCSIFNETMASK failed: %s\n", strerror(errno));
         close(fd);
         return -1;
     }
+    
+    // 4. 重新开启网卡
+    if (ioctl(fd, SIOCGIFFLAGS, &ifr) == 0) {
+        ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+        if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0) {
+            LOG("[set_ip_address] start eth1 failed: %s\n", strerror(errno));
+            close(fd);
+            return -1;
+        }
+    }
+    
     close(fd);
+    
+    // 5. 刷新路由和ARP
+    system("ip neigh flush all 2>/dev/null");
+    
+    LOG("[set_ip_address] IP set ok %s, mark: %s\n", ip_addr, netmask);
     return 0;
 }

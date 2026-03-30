@@ -27,8 +27,9 @@ void *bcu_DealTask(void *arg)
     {
         // usleep(200*1000);
 
-        if ((get_ota_OTAStart() == 0) || (get_ota_deviceType() == AC))
+        if ((get_ota_OTAStart() == 0) && (get_ota_acOTAFlag() == 0))
         {
+            // printf("get_ota_acOTAFlag() = %d\r\n",get_ota_acOTAFlag());
             if (call_count == 0) {
                 CANFDSendFcn_BCU_step();
                 record_tcu_send_frame();

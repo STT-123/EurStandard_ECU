@@ -409,6 +409,7 @@ void FinishACPOtaAndCleanup(void)
 	delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
     independentStatus.CANStartOTA = 0;
     set_ota_UpDating(0);               // 升级结束标志
+	set_ota_acOTAFlag(0);
 	set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
     set_modbus_reg_val(OTASTATUSREGADDR, OTAIDLE); // 设置状态寄存器为 IDLE
 	CANFDSendFcn_BCU_step();//发送TCU 信息
