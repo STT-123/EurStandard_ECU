@@ -193,6 +193,8 @@ void set_system_time_from_bcu(void)
 //     return 0;
 // }
 
+
+
 int set_ip_address(const char *if_name, const char *ip_addr)
 {
     int fd;
@@ -209,16 +211,10 @@ int set_ip_address(const char *if_name, const char *ip_addr)
     
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, if_name, IFNAMSIZ - 1);
-    
-    // 1. 先关闭网卡
-    if (ioctl(fd, SIOCGIFFLAGS, &ifr) == 0) {
-        ifr.ifr_flags &= ~IFF_UP;
-        ioctl(fd, SIOCSIFFLAGS, &ifr);
-        usleep(500000);  // 等待500ms
-    }
-    
-    // 2. 设置IP地址（这时网卡是down的）
-    memset(&sin, 0, sizeof(struct sockaddr_in));
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+
+    // 1. 直接设置IP地址，不先down网卡
+    memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
     
     if (inet_pton(AF_INET, ip_addr, &sin.sin_addr) <= 0) {
@@ -235,12 +231,12 @@ int set_ip_address(const char *if_name, const char *ip_addr)
         return -1;
     }
     
-    // 3. 设置子网掩码
-    memset(&mask, 0, sizeof(struct sockaddr_in));
+    // 2. 设置子网掩码
+    memset(&mask, 0, sizeof(mask));
     mask.sin_family = AF_INET;
     
     if (inet_pton(AF_INET, netmask, &mask.sin_addr) <= 0) {
-        LOG("[set_ip_address] mark failed %s\n", strerror(errno));
+        LOG("[set_ip_address] mask failed %s\n", strerror(errno));
         close(fd);
         return -1;
     }
@@ -253,21 +249,25 @@ int set_ip_address(const char *if_name, const char *ip_addr)
         return -1;
     }
     
-    // 4. 重新开启网卡
+    // 3. 只设置IFF_UP，不设置IFF_RUNNING
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) == 0) {
-        ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+        ifr.ifr_flags |= IFF_UP;
         if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0) {
-            LOG("[set_ip_address] start eth1 failed: %s\n", strerror(errno));
+            LOG("[set_ip_address] start %s failed: %s\n", if_name, strerror(errno));
             close(fd);
             return -1;
         }
+    } else {
+        LOG("[set_ip_address] SIOCGIFFLAGS failed: %s\n", strerror(errno));
+        close(fd);
+        return -1;
     }
     
     close(fd);
     
-    // 5. 刷新路由和ARP
+    // 4. 刷新ARP
     system("ip neigh flush all 2>/dev/null");
     
-    LOG("[set_ip_address] IP set ok %s, mark: %s\n", ip_addr, netmask);
+    LOG("[set_ip_address] IP set ok %s, mask: %s\n", ip_addr, netmask);
     return 0;
 }

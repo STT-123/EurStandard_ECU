@@ -537,7 +537,7 @@ int check_and_fix_ip(const char *if_name)
 		}
         LOG("[IP] IP incorrect, start modifying...\n");
         
-        int ret = set_ip_address(if_name, expected_ip);// 调用set_ip_address函数修改IP
+        ret = set_ip_address(if_name, expected_ip);// 调用set_ip_address函数修改IP
 
         if (ret == 0) {
             LOG("[IP] IP modification successful\n");
