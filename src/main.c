@@ -139,8 +139,8 @@ int main(int argc, char **argv)
         // printf("get_BCUFD() = %d\r\n",get_BCU_CAN_FD());
         // printf("main printf sleep(1) \r\n");
         // set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
-        // index1 = 0x3419 - 0x3000;
-        // printf("Mobud[0x3419] = 0x %x\r\n",modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x5001 - 0x3000;
+        // printf("Mobud[0x5001] = 0x %x\r\n",modbusBuff[index1]);//ota上载寄存器判断
         // index1 = 0x341A - 0x3000;
         // printf("Mobud[0x341A] =  0x%x\r\n",modbusBuff[index1]);//ota上载寄存器判断
         // printf("BCU_SystemWorkMode = %x\r\n",BCU_SystemWorkMode);//ota上载寄存器判断

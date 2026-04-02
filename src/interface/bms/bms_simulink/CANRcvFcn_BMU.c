@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANRcvFcn_BMU'.
  *
- * Model version                  : 5.11
+ * Model version                  : 5.13
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Mon Dec 22 13:30:31 2025
+ * C/C++ source code generated on : Thu Apr  2 15:40:59 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -141,8 +141,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function1' */
-  CFunction1 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E4_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E4_o1);
+  CFunction1 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E4_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E4_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E2' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -223,8 +223,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function2' */
-  CFunction2 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E2_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E2_o1);
+  CFunction2 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E2_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E2_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E1' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -305,8 +305,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function3' */
-  CFunction3 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E1_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E1_o1);
+  CFunction3 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E1_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E1_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E5' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -387,8 +387,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function4' */
-  CFunction4 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E5_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E5_o1);
+  CFunction4 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E5_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E5_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E3' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -469,8 +469,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function5' */
-  CFunction5 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E3_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E3_o1);
+  CFunction5 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E3_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E3_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E7' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -633,8 +633,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function7' */
-  CFunction7 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E6_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E6_o1);
+  CFunction7 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E6_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E6_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E9' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -715,8 +715,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function8' */
-  CFunction8 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E9_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E9_o1);
+  CFunction8 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E9_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E9_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E8' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -797,8 +797,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function9' */
-  CFunction9 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E8_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E8_o1);
+  CFunction9 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E8_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E8_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E11' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -879,8 +879,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function10' */
-  CFunction10 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E11_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E11_o1);
+  CFunction10 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E11_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E11_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E10' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -961,8 +961,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function11' */
-  CFunction11 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E10_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E10_o1);
+  CFunction11 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E10_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E10_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E13' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -1043,8 +1043,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function12' */
-  CFunction12 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E13_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E13_o1);
+  CFunction12 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E13_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E13_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E12' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -1125,8 +1125,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function13' */
-  CFunction13 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E12_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E12_o1);
+  CFunction13 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E12_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E12_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E15' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -1207,8 +1207,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function14' */
-  CFunction14 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E15_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E15_o1);
+  CFunction14 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E15_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E15_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E14' incorporates:
    *  Inport: '<Root>/CANMsg'
@@ -1289,8 +1289,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function15' */
-  CFunction15 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E14_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E14_o1);
+  CFunction15 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E14_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E14_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E16' incorporates:
    *  Inport: '<Root>/CANMsg'
