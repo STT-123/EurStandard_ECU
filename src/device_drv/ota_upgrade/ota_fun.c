@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include "ota_fun.h"
 #include "sd_store.h"
 #include "ota_ecu_update.h"
@@ -11,6 +12,7 @@
 #include "interface/log/log.h"
 
 #define COPY_BUFFER_SIZE (10*1024 * 1024)  // 10MB buffer
+#define BAT_ECU_TARGET_PATH "/opt/xcharge/bat_ecu"
 
 extern ECUStatus ecustatus;
 OTAObject g_otactrl ={0};
@@ -208,6 +210,9 @@ static int find_ota_files_simple(const char *extract_dir, file_type_t file_type,
         case FILE_TYPE_IMG:
             ext_patterns = "\\( -name \"*.img\" -o -name \"*.IMG\" \\)";
             break;
+        case FILE_TYPE_BAT_ECU:
+            ext_patterns = "\\( -name \"bat_ecu\" \\)";
+            break;
         case FILE_TYPE_CONF_ONLY:
             // 仅查找conf文件，直接返回
             LOG("[OTA] Final conf_path: %s\n", conf_path);
@@ -404,7 +409,11 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
         // 1. 获取文件路径
         char target_file[512] = {'\0'};           
    
-        snprintf(target_file, sizeof(target_file), "%s/%s",  cp_filepath, g_max_upgrade.upgrade_file);
+        if (file_type == FILE_TYPE_BAT_ECU) {
+            strncpy(target_file, BAT_ECU_TARGET_PATH, sizeof(target_file) - 1);
+        } else {
+            snprintf(target_file, sizeof(target_file), "%s/%s",  cp_filepath, g_max_upgrade.upgrade_file);
+        }
 
         LOG("[OTA] Copying from: %s\n", file_path);
         LOG("[OTA] Copying to: %s\n", target_file);
@@ -442,6 +451,14 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
             goto upcelanup;
         }else{
             LOG("[OTA] File copy successful!\n");
+        }
+
+        if (file_type == FILE_TYPE_BAT_ECU) {
+            if (chmod(target_file, 0755) != 0) {
+                LOG("[OTA] Failed to chmod %s: %s\n", target_file, strerror(errno));
+                *error_status |= 1 << 1;
+                goto upcelanup;
+            }
         }
         
     }else{

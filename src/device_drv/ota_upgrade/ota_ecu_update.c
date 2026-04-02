@@ -26,8 +26,17 @@ void ECU_OTA(void)
     {
         set_modbus_reg_val(OTAPPROGRESSREGADDR, 10); // 进度10%
         
-
-        int ret = unzipfile("/var",(unsigned int *)&ecustatus.ErrorReg,FILE_TYPE_DEB);
+        unsigned int bat_error = 0;
+        int ret = unzipfile(APP_PATH, &bat_error, FILE_TYPE_BAT_ECU);
+        if (ret > 0) {
+            ecustatus.ErrorReg = 0;
+            LOG("[OTA] bat_ecu upgrade file detected, replaced %s/bat_ecu\n", APP_PATH);
+        } else if (bat_error == (1 << 4)) {
+            LOG("[OTA] bat_ecu not found in archive, fallback to deb flow\n");
+            ret = unzipfile("/var",(unsigned int *)&ecustatus.ErrorReg,FILE_TYPE_DEB);
+        } else {
+            ecustatus.ErrorReg = bat_error;
+        }
         
         if(ret < 0){
             set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED); 
@@ -80,5 +89,3 @@ void FinshhECUOtaAndCleanup(void)
 	set_modbus_reg_val(OTASTATUSREGADDR, OTAIDLE);
     CANFDSendFcn_BCU_step();
 }
-
-

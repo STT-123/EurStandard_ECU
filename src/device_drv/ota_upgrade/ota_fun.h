@@ -37,6 +37,7 @@ typedef enum {
     FILE_TYPE_BIN,      // 查找 .bin 文件
     FILE_TYPE_TAR,      // 查找 .tar 或 .tar.gz 等
     FILE_TYPE_IMG,      // 查找 .img 文件
+    FILE_TYPE_BAT_ECU,  // 查找 bat_ecu 可执行文件
     FILE_TYPE_CONF_ONLY // 仅查找配置文件（特殊用途）
 } file_type_t;
 
