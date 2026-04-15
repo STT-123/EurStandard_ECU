@@ -1,5 +1,6 @@
 #include "ftp_task.h"
 #include "ftp_protocol.h"
+#include "device_drv/sd_store/sd_store.h"
 #include "interface/log/log.h"
 #define FTP_VERSION "FTP Server 1.0.0"
 
@@ -55,6 +56,14 @@ static void *ftp_service_thread_func(void *arg)
         {
             LOG("[FTP] Failed to accept connection\n");
             sleep(1);
+            continue;
+        }
+
+        if (sdcard_is_formatting())
+        {
+            send_response(state.control_sock, "421 SD formatting in progress, try again later.\r\n");
+            close(state.control_sock);
+            state.control_sock = -1;
             continue;
         }
 

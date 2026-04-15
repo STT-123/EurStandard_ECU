@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANRcvFcn_BMU'.
  *
- * Model version                  : 5.13
+ * Model version                  : 5.14
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Thu Apr  2 15:40:59 2026
+ * C/C++ source code generated on : Wed Apr 15 15:41:57 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -551,8 +551,8 @@ void CANRcvFcn_BMU_step(void)
   }
 
   /* CFunction: '<S2>/C Function6' */
-  CFunction6 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E7_o2 << 8) |
-    CANRcvFcn_BMU_B.ux180110E7_o1);
+  CFunction6 = (uint16_T)((uint32_T)(CANRcvFcn_BMU_B.ux180110E7_o1 << 8) |
+    CANRcvFcn_BMU_B.ux180110E7_o2);
 
   /* S-Function (scanunpack): '<S2>/0x180110E6' incorporates:
    *  Inport: '<Root>/CANMsg'

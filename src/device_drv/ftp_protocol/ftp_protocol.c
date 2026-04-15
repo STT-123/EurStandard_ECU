@@ -7,6 +7,9 @@
 pthread_mutex_t ftp_file_io_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int is_safe_path(const char *path);
 static int build_safe_filepath(const FTPState *state, const char *name, char *filepath, size_t filepath_size);
+static int ftp_storage_ready(FTPState *state);
+static void build_ftp_display_path(const char *path, char *display_path, size_t display_path_size);
+
 
 // 安全关闭文件的辅助函数
 static void safe_close_file(FILE **file_ptr) {
@@ -83,27 +86,30 @@ static void handle_pass_command(FTPState *state, char *args)
     update_last_activity(state);
     state->logged_in = 0;
 
-    // 切换到 U 盘挂载目录
-    if (chdir(USB_MOUNT_POINT) != 0)
+    if (sdcard_is_formatting()) {
+        send_response(state->control_sock, "450 Storage temporarily unavailable.\r\n");
+        return;
+    }
+
+    if (access(USB_MOUNT_POINT, F_OK) != 0)
     {
-        LOG("Failed to change to USB directory: %s\n", strerror(errno));
+        LOG("Failed to access USB directory: %s\n", strerror(errno));
         send_response(state->control_sock, "550 Failed to access USB directory.\r\n");
         return;
     }
 
-    if (getcwd(state->path, sizeof(state->path)) == NULL)
-    {
-        LOG("Failed to get USB directory path: %s\n", strerror(errno));
-        send_response(state->control_sock, "550 Failed to access USB directory.\r\n");
-        return;
-    }
-
+    strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
+    state->path[sizeof(state->path) - 1] = '\0';
     state->logged_in = 1;
     send_response(state->control_sock, "230 Login successful.\r\n");
 }
 
 static void handle_pasv_command(FTPState *state)
 {
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
+
     update_last_activity(state);
 
     struct timeval timeout;
@@ -176,6 +182,10 @@ static void handle_pasv_command(FTPState *state)
 
 static void handle_port_command(FTPState *state, char *args)
 {
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
+
     update_last_activity(state);
 
     int ip[4];
@@ -239,40 +249,37 @@ static void handle_port_command(FTPState *state, char *args)
 
 static void handle_list_command(FTPState *state, char *args)
 {
+    int client_data_sock = -1;
+    DIR *dir = NULL;
+
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
+
+    pthread_mutex_lock(&ftp_file_io_mutex);
     update_last_activity(state);
     send_response(state->control_sock, "150 Here comes the directory listing.\r\n");
-
-    int client_data_sock = accept(state->data_sock, (struct sockaddr *)&state->client_addr, &state->client_addr_len);
+    client_data_sock = accept(state->data_sock, (struct sockaddr *)&state->client_addr, &state->client_addr_len);
 
     if (client_data_sock < 0)
     {
         LOG("Failed to accept data connection: errno=%d, %s\n", errno, strerror(errno));
         send_response(state->control_sock, "425 Can't open data connection.\r\n");
         close(state->data_sock);
+        pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
 
-    DIR *dir;
     struct dirent *entry;
     char buffer[FTP_BUFFER_SIZE] = {0};
-    char cwd[FTP_BUFFER_SIZE] = {0};
-
-    if (getcwd(cwd, sizeof(cwd)) == NULL)
-    {
-        LOG("Failed to get current working directory\n");
-        send_response(state->control_sock, "550 Failed to get current directory.\r\n");
-        close(client_data_sock);
-        close(state->data_sock);
-        return;
-    }
-
-    dir = opendir(cwd);
+    dir = opendir(state->path);
     if (!dir)
     {
         LOG("Failed to open directory: %s\n", strerror(errno));
         send_response(state->control_sock, "550 Failed to open directory.\r\n");
         close(client_data_sock);
         close(state->data_sock);
+        pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
 
@@ -285,7 +292,7 @@ static void handle_list_command(FTPState *state, char *args)
         }
 
         char fullpath[FTP_BUFFER_SIZE];
-        snprintf(fullpath, sizeof(fullpath), "%s/%s", cwd, entry->d_name);
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", state->path, entry->d_name);
 
         struct stat st;
         if (stat(fullpath, &st) == -1)
@@ -310,6 +317,7 @@ static void handle_list_command(FTPState *state, char *args)
             closedir(dir);
             close(client_data_sock);
             close(state->data_sock);
+            pthread_mutex_unlock(&ftp_file_io_mutex);
             return;
         }
 
@@ -320,6 +328,7 @@ static void handle_list_command(FTPState *state, char *args)
     close(client_data_sock);
     close(state->data_sock);
     state->data_sock = -1;
+    pthread_mutex_unlock(&ftp_file_io_mutex);
 
     send_response(state->control_sock, "226 Directory send OK.\r\n");
 }
@@ -351,6 +360,10 @@ static void handle_retr_command(FTPState *state, char *filename) {
     int client_data_sock = -1;
     int result = -1;
     char filepath[512] = {0};
+
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
 
     if (build_safe_filepath(state, filename, filepath, sizeof(filepath)) != 0) {
         send_response(state->control_sock, "550 Invalid filename.\r\n");
@@ -388,6 +401,11 @@ static void handle_retr_command(FTPState *state, char *filename) {
         result = 0;
 
         while ((bytes_read = fread(buffer, 1, sizeof(buffer), state->file)) > 0) {
+            if (sdcard_is_formatting()) {
+                result = -2;
+                break;
+            }
+
             update_last_activity(state);
             
             if (send(client_data_sock, buffer, bytes_read, 0) < 0) {
@@ -407,7 +425,10 @@ static void handle_retr_command(FTPState *state, char *filename) {
     pthread_mutex_unlock(&ftp_file_io_mutex);
 
     // 发送最终响应
-    if (result == 0) {
+    if (result == -2) {
+        send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
+        state->quit_requested = 1;
+    } else if (result == 0) {
         send_response(state->control_sock, "226 Transfer complete.\r\n");
     } else {
         send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
@@ -420,11 +441,16 @@ static void handle_stor_command(FTPState *state, char *filename) {
     int result = -1;
     char filepath[512] = {0};
 
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
+
     if (build_safe_filepath(state, filename, filepath, sizeof(filepath)) != 0) {
         send_response(state->control_sock, "550 Invalid filename.\r\n");
         return;
     }
     
+    pthread_mutex_lock(&ftp_file_io_mutex);
     send_response(state->control_sock, "150 Opening data connection.\r\n");
 
     do {
@@ -452,6 +478,11 @@ static void handle_stor_command(FTPState *state, char *filename) {
         result = 0;
 
         while ((bytes_received = recv(client_data_sock, buffer, sizeof(buffer), 0)) > 0) {
+            if (sdcard_is_formatting()) {
+                result = -2;
+                break;
+            }
+
             update_last_activity(state);
 
             size_t bytes_written = fwrite(buffer, 1, bytes_received, file);
@@ -468,9 +499,13 @@ static void handle_stor_command(FTPState *state, char *filename) {
     safe_close_file(&file);
     safe_close_socket(&client_data_sock);
     safe_close_socket(&state->data_sock);
+    pthread_mutex_unlock(&ftp_file_io_mutex);
 
     // 发送最终响应
-    if (result == 0) {
+    if (result == -2) {
+        send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
+        state->quit_requested = 1;
+    } else if (result == 0) {
         send_response(state->control_sock, "226 Transfer complete.\r\n");
     } else {
         send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
@@ -481,12 +516,17 @@ static void handle_mget_command(FTPState *state, char *args)
 {
     char filepath[512] = {0};
 
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
+
     if (build_safe_filepath(state, args, filepath, sizeof(filepath)) != 0)
     {
         send_response(state->control_sock, "550 Invalid filename.\r\n");
         return;
     }
 
+    pthread_mutex_lock(&ftp_file_io_mutex);
     send_response(state->control_sock, "150 Opening data connection.\r\n");
 
     int client_data_sock = accept(state->data_sock, (struct sockaddr *)&state->client_addr, &state->client_addr_len);
@@ -495,6 +535,7 @@ static void handle_mget_command(FTPState *state, char *args)
         LOG("Failed to accept data connection: %s\n", strerror(errno));
         send_response(state->control_sock, "425 Can't open data connection.\r\n");
         close(state->data_sock);
+        pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
 
@@ -505,6 +546,7 @@ static void handle_mget_command(FTPState *state, char *args)
         send_response(state->control_sock, "550 File not found.\r\n");
         close(client_data_sock);
         close(state->data_sock);
+        pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
 
@@ -513,6 +555,19 @@ static void handle_mget_command(FTPState *state, char *args)
 
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
     {
+        if (sdcard_is_formatting())
+        {
+            send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
+            fclose(file);
+            state->file = NULL;
+            close(client_data_sock);
+            close(state->data_sock);
+            state->data_sock = -1;
+            pthread_mutex_unlock(&ftp_file_io_mutex);
+            state->quit_requested = 1;
+            return;
+        }
+
         update_last_activity(state);
         if (send(client_data_sock, buffer, bytes_read, 0) < 0)
         {
@@ -523,6 +578,7 @@ static void handle_mget_command(FTPState *state, char *args)
             state->file = NULL; 
             close(client_data_sock);
             close(state->data_sock);
+            pthread_mutex_unlock(&ftp_file_io_mutex);
             return;
         }
     }
@@ -533,24 +589,23 @@ static void handle_mget_command(FTPState *state, char *args)
     close(client_data_sock);
     close(state->data_sock);
     state->data_sock = -1;
+    pthread_mutex_unlock(&ftp_file_io_mutex);
 
     send_response(state->control_sock, "226 Transfer complete.\r\n");
 }
 
 static void handle_pwd_command(FTPState *state)
 {
-    char cwd[FTP_BUFFER_SIZE];
+    char response[FTP_BUFFER_SIZE];
+    char display_path[FTP_BUFFER_SIZE];
 
-    if (getcwd(cwd, sizeof(cwd)) != NULL)
-    {
-        char response[FTP_BUFFER_SIZE];
-        snprintf(response, sizeof(response), "257 \"%s\" is the current directory.\r\n", cwd);
-        send_response(state->control_sock, response);
+    if (ftp_storage_ready(state) != 0) {
+        return;
     }
-    else
-    {
-        send_response(state->control_sock, "550 Failed to get current directory.\r\n");
-    }
+
+    build_ftp_display_path(state->path, display_path, sizeof(display_path));
+    snprintf(response, sizeof(response), "257 \"%s\" is the current directory.\r\n", display_path);
+    send_response(state->control_sock, response);
 }
 
 static void handle_syst_command(FTPState *state)
@@ -561,43 +616,36 @@ static void handle_syst_command(FTPState *state)
 
 static void handle_cdup_command(FTPState *state)
 {
+    char parent_path[sizeof(state->path)] = {0};
+    char *last_sep = NULL;
+
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
+
     update_last_activity(state);
 
-    // 获取当前目录
-    char cwd[FTP_BUFFER_SIZE];
-    if (getcwd(cwd, sizeof(cwd)) == NULL)
-    {
-        LOG("Failed to get current directory\n");
-        send_response(state->control_sock, "550 Failed to get current directory.\r\n");
-        return;
+    strncpy(parent_path, state->path[0] ? state->path : USB_MOUNT_POINT, sizeof(parent_path) - 1);
+    parent_path[sizeof(parent_path) - 1] = '\0';
+
+    if (strcmp(parent_path, USB_MOUNT_POINT) != 0) {
+        last_sep = strrchr(parent_path, '/');
+        if (last_sep) {
+            if (last_sep == parent_path) {
+                strncpy(parent_path, USB_MOUNT_POINT, sizeof(parent_path) - 1);
+                parent_path[sizeof(parent_path) - 1] = '\0';
+            } else {
+                *last_sep = '\0';
+            }
+        }
     }
 
-    // 改变目录到上级目录
-    if (chdir("..") != 0)
-    {
-        LOG("Failed to change to parent directory\n");
-        send_response(state->control_sock, "550 Failed to change directory.\r\n");
-        return;
-    }
-
-    if (getcwd(cwd, sizeof(cwd)) == NULL)
-    {
-        LOG("Failed to get current directory after CDUP\n");
-        chdir(USB_MOUNT_POINT);
-        strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
-        state->path[sizeof(state->path) - 1] = '\0';
-        send_response(state->control_sock, "550 Failed to change directory.\r\n");
-        return;
-    }
-
-    if (!is_safe_path(cwd))
-    {
-        chdir(state->path[0] ? state->path : USB_MOUNT_POINT);
+    if (!is_safe_path(parent_path)) {
         send_response(state->control_sock, "550 Access denied.\r\n");
         return;
     }
 
-    strncpy(state->path, cwd, sizeof(state->path) - 1);
+    strncpy(state->path, parent_path, sizeof(state->path) - 1);
     state->path[sizeof(state->path) - 1] = '\0';
     send_response(state->control_sock, "200 Directory successfully changed.\r\n");
 }
@@ -645,6 +693,50 @@ static int build_safe_filepath(const FTPState *state, const char *name, char *fi
     return 0;
 }
 
+static int ftp_storage_ready(FTPState *state)
+{
+    if (!state || !state->logged_in) {
+        if (state) {
+            send_response(state->control_sock, "530 Please login with USER and PASS.\r\n");
+        }
+        return -1;
+    }
+
+    if (sdcard_is_formatting()) {
+        send_response(state->control_sock, "450 Storage temporarily unavailable.\r\n");
+        return -1;
+    }
+
+    if (state->path[0] == '\0') {
+        strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
+        state->path[sizeof(state->path) - 1] = '\0';
+    }
+
+    return 0;
+}
+
+static void build_ftp_display_path(const char *path, char *display_path, size_t display_path_size)
+{
+    if (!display_path || display_path_size == 0) {
+        return;
+    }
+
+    if (!path || strcmp(path, USB_MOUNT_POINT) == 0) {
+        snprintf(display_path, display_path_size, "/");
+        return;
+    }
+
+    if (strncmp(path, USB_MOUNT_POINT, strlen(USB_MOUNT_POINT)) == 0) {
+        snprintf(display_path, display_path_size, "%s", path + strlen(USB_MOUNT_POINT));
+        if (display_path[0] == '\0') {
+            snprintf(display_path, display_path_size, "/");
+        }
+        return;
+    }
+
+    snprintf(display_path, display_path_size, "%s", path);
+}
+
 // 改进的CWD命令处理
 static void handle_cwd_command(FTPState *state, const char *args) {
     update_last_activity(state);
@@ -655,6 +747,12 @@ static void handle_cwd_command(FTPState *state, const char *args) {
     }
 
     char target_path[512] = {0};
+    char resolved_path[PATH_MAX] = {0};
+    struct stat st;
+
+    if (ftp_storage_ready(state) != 0) {
+        return;
+    }
 
     // 处理绝对路径
     if (args[0] == '/') {
@@ -677,22 +775,22 @@ static void handle_cwd_command(FTPState *state, const char *args) {
         return;
     }
 
-    // 尝试切换目录
-    if (chdir(target_path) == 0) {
-        if (getcwd(state->path, sizeof(state->path)) != NULL) {
-            state->path[sizeof(state->path) - 1] = '\0';
-            LOG("Changed to directory: %s\n", state->path);
-            send_response(state->control_sock, "250 Directory changed.\r\n");
-        } else {
-            // 回退到安全目录
-            chdir(USB_MOUNT_POINT);
-            strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
-            send_response(state->control_sock, "550 Internal error.\r\n");
-        }
-    } else {
+    if (!realpath(target_path, resolved_path)) {
+        LOG("Failed to resolve directory: %s (target_path=%s)\n", strerror(errno), target_path);
+        send_response(state->control_sock, "550 Failed to change directory.\r\n");
+        return;
+    }
+
+    if (!is_safe_path(resolved_path) || stat(resolved_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
         LOG("Failed to change directory: %s (target_path=%s)\n", strerror(errno), target_path);
         send_response(state->control_sock, "550 Failed to change directory.\r\n");
+        return;
     }
+
+    strncpy(state->path, resolved_path, sizeof(state->path) - 1);
+    state->path[sizeof(state->path) - 1] = '\0';
+    LOG("Changed to directory: %s\n", state->path);
+    send_response(state->control_sock, "250 Directory changed.\r\n");
 }
 
 
@@ -715,13 +813,12 @@ static void handle_type_command(FTPState *state, char *args)
 
 static void handle_size_command(FTPState *state, char *filename)
 {
-    update_last_activity(state);
-
-    if (!state->logged_in)
+    if (ftp_storage_ready(state) != 0)
     {
-        send_response(state->control_sock, "530 Please login with USER and PASS.\r\n");
         return;
     }
+
+    update_last_activity(state);
 
     if (!filename || strlen(filename) == 0)
     {
@@ -790,6 +887,15 @@ int handle_ftp_commands(FTPState *state) {
     update_last_activity(state);
 
     while (1) {
+        if (sdcard_is_formatting()) {
+            if (state->control_sock >= 0) {
+                send_response(state->control_sock, "421 SD formatting in progress, closing control connection.\r\n");
+            }
+            state->quit_requested = 1;
+            cleanup_ftp_state(state);
+            return -5;
+        }
+
         // 检查是否有待处理的超时
         if (state->timeout_pending) {
             LOG("Processing pending timeout\n");

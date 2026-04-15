@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <limits.h>
 typedef struct {
 	uint32_t last_activity;
     int control_sock;

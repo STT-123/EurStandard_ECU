@@ -139,8 +139,68 @@ int main(int argc, char **argv)
         // printf("get_BCUFD() = %d\r\n",get_BCU_CAN_FD());
         // printf("main printf sleep(1) \r\n");
         // set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
-        // index1 = 0x5001 - 0x3000;
-        // printf("Mobud[0x5001] = 0x %x\r\n",modbusBuff[index1]);//ota上载寄存器判断
+        // for(int i = (0x6002-0x3000);i< (0x601F-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
+
+        // for(int i = (0x6097-0x3000);i<= (0x6099-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
+
+
+        // index1 = 0x60a4 - 0x3000;
+        // printf("Mobud[0x60a4] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
+
+
+        // for(int i = (0x6105-0x3000);i< (0x6107-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
+
+        // for(int i = (0x6060-0x3000);i< (0x6088-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
+        // index1 = 0x6200 - 0x3000;
+        // printf("Mobud[0x6200] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+
+        // index1 = 0x6400 - 0x3000;
+        // printf("Mobud[0x6400] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+
+        // for(int i = (0x3460-0x3000);i< (0x3469-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
+
+        // for(int i = (0x4B20-0x3000);i< (0x4B35-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
+        // index1 = 0x4B31 - 0x3000;
+        // printf("Mobud[0x4B31] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // // index1 = 0x3460 - 0x3000;
+        // // printf("Mobud[0x3460] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // // index1 = 0x3461 - 0x3000;
+        // // printf("Mobud[0x3461] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x6080 - 0x3000;
+        // printf("Mobud[0x6080] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x6081 - 0x3000;
+        // printf("Mobud[0x6081] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x6082 - 0x3000;
+        // printf("Mobud[0x6082] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // // index1 = 0x4B25 - 0x3000;
+        // // printf("Mobud[0x4B25] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x3466 - 0x3000;
+        // printf("Mobud[0x3466] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x3467 - 0x3000;
+        // printf("Mobud[0x3466] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        // index1 = 0x4B21 - 0x3000;
+        // printf("Mobud[0x4B21] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断
+        //     index1 = 0x6051 - 0x3000;
+        //     printf("Mobud[0x6051] =  0x%x\r\n",modbusBuff[index1]);//ota上载寄存器判断
+        //     printf("Mobud[0x6051] modbusBuff[index1] >> 8) & 0xFF) HHHH =  0x%x\r\n", (uint8_t)((modbusBuff[index1] >> 8) & 0xFF));//ota上载寄存器判断
+        //     printf("Mobud[0x6051] modbusBuff[index1]) & 0xFF) LLLL =  0x%x\r\n", (uint8_t)((modbusBuff[index1]) & 0xFF));//ota上载寄存器判断
+        //     index1 = 0x6052 - 0x3000;
+        //     printf("Mobud[0x6052] =  0x%x\r\n",modbusBuff[index1]);//ota上载寄存器判断
+        //     printf("Mobud[0x6052] modbusBuff[index1] >> 8) & 0xFF) HHHH =  0x%x\r\n", (uint8_t)((modbusBuff[index1] >> 8) & 0xFF));//ota上载寄存器判断
+        //     printf("Mobud[0x6052] modbusBuff[index1]) & 0xFF) LLLL =  0x%x\r\n", (uint8_t)((modbusBuff[index1]) & 0xFF));//ota上载寄存器判断
+        // }
         // index1 = 0x341A - 0x3000;
         // printf("Mobud[0x341A] =  0x%x\r\n",modbusBuff[index1]);//ota上载寄存器判断
         // printf("BCU_SystemWorkMode = %x\r\n",BCU_SystemWorkMode);//ota上载寄存器判断

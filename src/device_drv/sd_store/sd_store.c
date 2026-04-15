@@ -6,7 +6,10 @@
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
 #include <time.h>
 #include <ftw.h>
+#include <sys/mount.h>
+#include <sys/wait.h>
 
+extern pthread_mutex_t ftp_file_io_mutex;
 
 /*===*/
 static struct timespec last_store_time = {0};
@@ -35,6 +38,54 @@ static uint32_t CAN_IDs[] = {
 
 static struct timeval first_tv = {0, 0};
 static int first_time_captured = 0;
+static pthread_mutex_t sd_format_state_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool sd_format_in_progress = false;
+
+static void set_sd_format_in_progress(bool in_progress)
+{
+    pthread_mutex_lock(&sd_format_state_mutex);
+    sd_format_in_progress = in_progress;
+    pthread_mutex_unlock(&sd_format_state_mutex);
+}
+
+bool sdcard_is_formatting(void)
+{
+    bool in_progress = false;
+
+    pthread_mutex_lock(&sd_format_state_mutex);
+    in_progress = sd_format_in_progress;
+    pthread_mutex_unlock(&sd_format_state_mutex);
+
+    return in_progress;
+}
+
+static void leave_mount_point_if_needed(const char *mount_point)
+{
+    char cwd[PATH_MAX] = {0};
+    size_t mount_len = 0;
+
+    if (!mount_point) {
+        return;
+    }
+
+    if (!getcwd(cwd, sizeof(cwd))) {
+        return;
+    }
+
+    mount_len = strlen(mount_point);
+    if (strncmp(cwd, mount_point, mount_len) != 0) {
+        return;
+    }
+
+    if (cwd[mount_len] != '\0' && cwd[mount_len] != '/') {
+        return;
+    }
+
+    if (chdir("/") != 0) {
+        LOG("[SD Card] chdir / failed before umount: %s\n", strerror(errno));
+    }
+}
+
 /*检查U盘是否可用   0正常 1不正常*/
 static char* find_sd_card_simple(void) {
     // 按优先级尝试的设备列表
@@ -57,23 +108,97 @@ static char* find_sd_card_simple(void) {
     // LOG("[SD] 未找到SD卡设备\n");
     return NULL;
 }
+
+static int is_mount_point_active(const char *mount_point)
+{
+    FILE *fp = fopen("/proc/mounts", "r");
+    if (!fp) {
+        return 0;
+    }
+
+    char line[256];
+    int mounted = 0;
+    while (fgets(line, sizeof(line), fp)) {
+        if (strstr(line, mount_point)) {
+            mounted = 1;
+            break;
+        }
+    }
+
+    fclose(fp);
+    return mounted;
+}
+
+static int unmount_sdcard_if_needed(const char *mount_point)
+{
+    int attempt = 0;
+
+    if (!is_mount_point_active(mount_point)) {
+        return 0;
+    }
+
+    leave_mount_point_if_needed(mount_point);
+    sync();
+
+    for (attempt = 0; attempt < 3; ++attempt) {
+        if (umount2(mount_point, 0) == 0) {
+            LOG("[SD Card] umount %s success\n", mount_point);
+            return 0;
+        }
+
+        if (errno != EBUSY) {
+            LOG("[SD Card] umount %s failed: %s\n", mount_point, strerror(errno));
+            return -1;
+        }
+
+        usleep(100 * 1000);
+    }
+
+    LOG("[SD Card] umount %s failed after retries: %s\n", mount_point, strerror(errno));
+    return -1;
+}
+
+static int format_sdcard_ext4(const char *device)
+{
+    if (!device) {
+        return -1;
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        LOG("[SD Card] fork mkfs.ext4 failed: %s\n", strerror(errno));
+        return -1;
+    }
+
+    if (pid == 0) {
+        execlp("mkfs.ext4", "mkfs.ext4", "-F", device, (char *)NULL);
+        _exit(127);
+    }
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) {
+        LOG("[SD Card] waitpid mkfs.ext4 failed: %s\n", strerror(errno));
+        return -1;
+    }
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        LOG("[SD Card] mkfs.ext4 failed for %s, status=%d\n", device, status);
+        return -1;
+    }
+
+    LOG("[SD Card] mkfs.ext4 success: %s\n", device);
+    return 0;
+}
 // 检查设备是否已经挂载
 // 最简单实用的SD卡挂载函数
-int mount_sdcard_fat32(void) {
-    char *device = NULL;
+int mount_sdcard_ext4(void) {
+
     int ret;
+    char *device = NULL;
     
     // 先检查/proc/mounts
-    FILE *fp = fopen("/proc/mounts", "r");
-    if (fp) {
-        char line[256];
-        while (fgets(line, sizeof(line), fp)) {
-            if (strstr(line, USB_MOUNT_POINT)) {
-                fclose(fp);
-                return 0;  // 已经挂载了，直接返回成功
-            }
-        }
-        fclose(fp);
+    if (is_mount_point_active(USB_MOUNT_POINT)) {
+        return 0;  // 已经挂载了，直接返回成功
     }
 
     // 1. 查找SD卡设备
@@ -93,19 +218,11 @@ int mount_sdcard_fat32(void) {
     }
     
     // 3. 尝试挂载
-    // mount - 挂载文件系统（核心API）
-    // 先尝试带UTF8支持
-    ret = mount(device, USB_MOUNT_POINT, "vfat", 0, "iocharset=utf8");
+    ret = mount(device, USB_MOUNT_POINT, "ext4", MS_RELATIME, NULL);
     
     if (ret != 0) {
-        // 如果失败，尝试不带参数
-        LOG("[SD_Card]  Mounting with parameters failed. Trying simple mounting...\n");
-        ret = mount(device, USB_MOUNT_POINT, "vfat", 0, NULL);
-    }
-    
-    if (ret != 0) {
-        LOG("[SD] Mount failed: %s\n", strerror(errno));
         free(device);
+        LOG("[SD] Mount failed: %s\n", strerror(errno));
         return -1;
     }
     
@@ -917,6 +1034,10 @@ void Drv_write_buffer_to_file(void)
 
     GetNowTime(&nowTimeInfo);// 获取当前时间
 
+    if (sdcard_is_formatting()) {
+        return;
+    }
+
     if (newFileNeeded) {
         // 丢弃旧文件尾巴，重置时间戳基准
         Drv_reset_timestamp_and_clear_buffers(drb);
@@ -938,7 +1059,7 @@ void Drv_write_buffer_to_file(void)
         return;
     }
     
-    if (mount_sdcard_fat32() != 0)// 先检查存储器状态 不存在 标记错误 直接退出
+    if (mount_sdcard_ext4() != 0)// 先检查存储器状态 不存在 标记错误 直接退出
     {
         LOG("[SD Card] SD_FAULT\r\n");
         set_emcu_fault(SD_FAULT, SET_ERROR);
@@ -1057,22 +1178,46 @@ QUIT_FLAG:
 }
 int SD_Initialize(void)
 {
-    int res;
-    const char *mount_point = USB_MOUNT_POINT;
-    char cmd[256];
+    char *device = NULL;
+    int result = -1;
+    int log_resume_result = 0;
 
-    // 直接删除所有文件（假设设备已经挂载）
-    if(clean_directory(USB_MOUNT_POINT) <= 0){
-        LOG("[SD Card] Clean files ERROR\n");       
+    set_sd_format_in_progress(true);
+    log_pause_for_sd_format();
+    pthread_mutex_lock(&ftp_file_io_mutex);
+
+    device = find_sd_card_simple();
+    if (!device) {
+        LOG("[SD Card] No SD device found for format\n");
+        goto EXIT;
     }
-    LOG("[SD Card] Clean files completed\n");
-    if (chdir(USB_MOUNT_POINT) != 0) {
-        LOG("[SD Card] chdir to %s failed: %s\n", USB_MOUNT_POINT, strerror(errno));
-        return -1;
+
+    if (unmount_sdcard_if_needed(USB_MOUNT_POINT) != 0) {
+        goto EXIT;
     }
+
+    if (format_sdcard_ext4(device) != 0) {
+        goto EXIT;
+    }
+
+    if (mount_sdcard_ext4() != 0) {
+        goto EXIT;
+    }
+
     usleep(100 * 1000);
     newFileNeeded = true;
-    return 0;
+    result = 0;
+
+EXIT:
+    free(device);
+    set_sd_format_in_progress(false);
+    pthread_mutex_unlock(&ftp_file_io_mutex);
+    log_resume_result = log_resume_after_sd_format();
+    if (log_resume_result != 0) {
+        printf("[SD Card] log_resume_after_sd_format failed: %d\n", log_resume_result);
+    }
+    LOG("[SD Card] SD card format finished, result=%d\n", result);
+    return result;
 }
 
 // 回调函数：删除每个文件/目录

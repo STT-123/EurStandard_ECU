@@ -4,19 +4,72 @@
 #include <string.h>
 #include <sys/types.h>    // 必须包含
 #include <sys/stat.h>     // 必须包含，定义了struct stat
+#include <pthread.h>
+
+static pthread_mutex_t g_log_output_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool g_log_file_output_enabled = true;
+static bool g_log_initialized = false;
+static bool g_log_paused = false;
+
+bool log_file_output_enabled(void)
+{
+    bool enabled = true;
+
+    pthread_mutex_lock(&g_log_output_mutex);
+    enabled = g_log_file_output_enabled;
+    pthread_mutex_unlock(&g_log_output_mutex);
+
+    return enabled;
+}
+
+void log_pause_for_sd_format(void)
+{
+    bool should_fini = false;
+
+    pthread_mutex_lock(&g_log_output_mutex);
+    g_log_file_output_enabled = false;
+    if (!g_log_paused) {
+        g_log_paused = true;
+        should_fini = g_log_initialized;
+        g_log_initialized = false;
+    }
+    pthread_mutex_unlock(&g_log_output_mutex);
+
+    if (should_fini) {
+        zlog_fini();
+    }
+
+    log_printf = NULL;
+    log_record = NULL;
+    log_csv = NULL;
+}
+
+int log_resume_after_sd_format(void)
+{
+    pthread_mutex_lock(&g_log_output_mutex);
+    if (!g_log_paused) {
+        g_log_file_output_enabled = true;
+        pthread_mutex_unlock(&g_log_output_mutex);
+        return 0;
+    }
+    g_log_paused = false;
+    pthread_mutex_unlock(&g_log_output_mutex);
+
+    return log_init();
+}
 // 0 成功
 // -1 配置文件不对
 // -2 初始化失败
 int log_init()
 {
-    int ret;
-       
+    int rc = 0;
+
     if (F_OK != access(ZLOG_DATA_FILE_PATH, 0))
     {
         system("mkdir " ZLOG_DATA_FILE_PATH); // 创建文件夹
     }
 
-    int rc = zlog_init(ZLOG_CONF_FILE_PATH);
+    rc = zlog_init(ZLOG_CONF_FILE_PATH);
     if (rc)
     {
         printf("zlog init failed \n");
@@ -47,6 +100,11 @@ int log_init()
         return -4;
     }
 
+    pthread_mutex_lock(&g_log_output_mutex);
+    g_log_initialized = true;
+    g_log_paused = false;
+    g_log_file_output_enabled = true;
+    pthread_mutex_unlock(&g_log_output_mutex);
     return 0;
 }
 

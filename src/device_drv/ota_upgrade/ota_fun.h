@@ -80,6 +80,10 @@ extern OTAObject g_otactrl;
  unsigned char get_ota_multDeviceOTANum(void);
  void set_ota_multDeviceOTANum(unsigned char value);
 
+// acOTAFlag 操作
+ unsigned int get_ota_acOTAFlag(void);
+ void set_ota_acOTAFlag(unsigned int value);
+
 // UpDating 操作
  unsigned char get_ota_UpDating(void);
  void set_ota_UpDating(unsigned char value);
