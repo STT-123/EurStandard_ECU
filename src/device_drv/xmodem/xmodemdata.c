@@ -68,6 +68,7 @@ void *lwip_data_TASK(void *param)
 	unsigned char otadeviceType = 0;
 	static int filenormalflag =0;
 	int errorCount = 0;
+	int fileVersionflag = 0;
 	while (1)
 	{
 		if(otasock1 > 0)
@@ -91,17 +92,41 @@ void *lwip_data_TASK(void *param)
 						if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]),otafilenamestr, &filesize, &xmodempacknum) == 0)
 						{
 							LOG("[Xmodem] File name %s filesize %d packnum %d\r\n", otafilenamestr, filesize, xmodempacknum);
-							findfirstpack = 1;
-							curpackno = 0;
-							prvpackno = 0;
-							packidoverflownum = 0;  //lx
-							snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
-	
+							if(strstr(otafilenamestr, "BCU") != NULL)
+							{
+								int ota_ver_h = -1;
+								char *p = strchr(otafilenamestr, 'V');
+
+								printf("[Xmodem] *p  = %d ,  get_BCU_Version_H() = %d \r\n", (*(p + 1) - '0'), get_BCU_Version_H());
+
+								if ((p != NULL) && (*(p + 1) >= '0') && (*(p + 1) <= '9')){
+									ota_ver_h = *(p + 1) - '0';   // 例如 V501 -> 5, V685 -> 6
+								}
+								else{
+									LOG("[Xmodem] Invalid OTA file name: %s\r\n", otafilenamestr);
+									setXmodemServerEnd(1);
+									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+									fileVersionflag = 1;
+								}
+
+								if (ota_ver_h != get_BCU_Version_H()){
+									LOG("[Xmodem] OTA version mismatch! file=%s, ota_ver_h=%d, bcu_ver_h=%d\r\n",
+									otafilenamestr, ota_ver_h, get_BCU_Version_H());
+									setXmodemServerEnd(1);
+									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+									fileVersionflag = 1;
+								}
+								findfirstpack = 1;
+								curpackno = 0;
+								prvpackno = 0;
+								packidoverflownum = 0;  //lx
+								snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
+							}
 						}
 					}
 					else  //文件数据帧
 					{
-						if(findfirstpack)
+						if( (findfirstpack) && (fileVersionflag == 0))
 						{
 							curpackno = tcp_server_recvbuf[1];//系列号
 
@@ -600,8 +625,8 @@ void *lwip_data_TASK(void *param)
 		{
 			LOG("[Xmodem] wait XmodemServerReceiveEOT over !\r\n");
 			setXmodemServerEnd(1);
-			setXmodemServerReceiveEOT(0);
-			setXmodemServerReceiveFileEnd(0);
+			setXmodemServerReceiveEOT(0); //无意义
+			setXmodemServerReceiveFileEnd(0); //无意义
 		}
 		usleep(5*1000);
 	}

@@ -134,6 +134,10 @@ uint8_T get_BCU_TimeHourValue(void) ;
 uint8_T get_BCU_TimeMinuteValue(void) ;
 uint8_T get_BCU_TimeSencondValue(void) ;
 
+
+uint8_T get_BCU_Version_H(void) ;
+uint8_T get_BCU_Version_L(void) ;
+uint16_T get_BCU_Version(void) ;
 uint32_T get_BCU_FaultInfoLv1Value(void) ;
 uint32_T get_BCU_FaultInfoLv2Value(void) ;
 uint32_T get_BCU_FaultInfoLv3Value(void) ;

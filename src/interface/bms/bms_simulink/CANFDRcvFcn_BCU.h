@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.251
+ * Model version                  : 5.258
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Wed Mar 11 17:16:29 2026
+ * C/C++ source code generated on : Mon Apr 20 15:28:47 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -70,7 +70,7 @@ typedef struct {
   uint16_T CANFDUnpack1_o18;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o19;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o20;           /* '<S1>/CAN FD Unpack1' */
-  uint16_T CANFDUnpack1_o28;           /* '<S1>/CAN FD Unpack1' */
+  uint16_T CANFDUnpack1_o29;           /* '<S1>/CAN FD Unpack1' */
   uint16_T BCU_Curr2_H;                /* '<S1>/U32_to_Folat_Curr' */
   uint16_T BCU_Curr2_L;                /* '<S1>/U32_to_Folat_Curr' */
   uint16_T CANFDUnpack2_o3;            /* '<S1>/CAN FD Unpack2' */
@@ -131,7 +131,8 @@ typedef struct {
   uint16_T DCDC_Ver_Major;             /* '<S1>/CAN FD Unpack10' */
   uint16_T DCDC_Ver_Minor;             /* '<S1>/CAN FD Unpack10' */
   int16_T CANFDUnpack1_o27;            /* '<S1>/CAN FD Unpack1' */
-  int16_T CANFDUnpack1_o29;            /* '<S1>/CAN FD Unpack1' */
+  int16_T CANFDUnpack1_o28;            /* '<S1>/CAN FD Unpack1' */
+  int16_T CANFDUnpack1_o30;            /* '<S1>/CAN FD Unpack1' */
   int16_T CANFDUnpack2_o19;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o24;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o25;            /* '<S1>/CAN FD Unpack2' */
@@ -218,8 +219,6 @@ typedef struct {
   int16_T AmbientTemp;                 /* '<S1>/CAN FD Unpack3' */
   int16_T InWaterTemp;                 /* '<S1>/CAN FD Unpack3' */
   int16_T OutWaterTemp;                /* '<S1>/CAN FD Unpack3' */
-  uint8_T CANFDUnpack2_o1;             /* '<S1>/CAN FD Unpack2' */
-  uint8_T CANFDUnpack2_o2;             /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o28;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o29;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o31;            /* '<S1>/CAN FD Unpack2' */
@@ -343,6 +342,9 @@ extern RT_MODEL_CANFDRcvFcn_BCU_T *const CANFDRcvFcn_BCU_M;
 /* Exported data declaration */
 
 /* Declaration for custom storage class: Default */
+extern uint16_T BCU_BCUVersion;        /* '<S1>/C Function14' */
+extern uint8_T BCU_BCUVersion_H;       /* '<S1>/CAN FD Unpack2' */
+extern uint8_T BCU_BCUVersion_L;       /* '<S1>/CAN FD Unpack2' */
 extern uint16_T BCU_Curr;              /* '<S1>/Data Type Conversion46' */
 extern uint32_T BCU_EngryAccumulateChrg;/* '<S1>/Data Type Conversion18' */
 extern uint32_T BCU_EngryAccumulateDisChrg;/* '<S1>/Data Type Conversion20' */
@@ -458,14 +460,17 @@ extern uint16_T usSingleBatVal[240];   /* '<S4>/MATLAB Function2' */
  * '<S51>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement43'
  * '<S52>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement44'
  * '<S53>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement45'
- * '<S54>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement5'
- * '<S55>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement6'
- * '<S56>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement7'
- * '<S57>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement8'
- * '<S58>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement9'
- * '<S59>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginTemp/MATLAB Function'
- * '<S60>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginVolt/MATLAB Function2'
- * '<S61>'  : 'CANFDRcvFcn_BCU/BCU_Info/Get_CompressorStatus/Compare To Constant'
+ * '<S54>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement46'
+ * '<S55>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement47'
+ * '<S56>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement48'
+ * '<S57>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement5'
+ * '<S58>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement6'
+ * '<S59>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement7'
+ * '<S60>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement8'
+ * '<S61>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement9'
+ * '<S62>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginTemp/MATLAB Function'
+ * '<S63>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginVolt/MATLAB Function2'
+ * '<S64>'  : 'CANFDRcvFcn_BCU/BCU_Info/Get_CompressorStatus/Compare To Constant'
  */
 #endif                                 /* CANFDRcvFcn_BCU_h_ */
 

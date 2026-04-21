@@ -326,7 +326,11 @@ uint8_T get_BCU_TimeHourValue(void) { return BCU_TimeHour; }
 uint8_T get_BCU_TimeMinuteValue(void) { return BCU_TimeMinute; }
 uint8_T get_BCU_TimeSencondValue(void) { return BCU_TimeSencond; }
 
-
+uint8_T get_BCU_Version_H(void) { return BCU_BCUVersion_H; }
+uint8_T get_BCU_Version_L(void) { return BCU_BCUVersion_L; }
+uint16_T get_BCU_Version(void) {
+    return (get_BCU_Version_H() << 8) | get_BCU_Version_L();
+};
 
 uint32_T get_BCU_FaultInfoLv1Value(void) { return BCU_FaultInfoLv1; }
 uint32_T get_BCU_FaultInfoLv2Value(void) { return BCU_FaultInfoLv2; }
