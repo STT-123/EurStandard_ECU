@@ -91,6 +91,7 @@ void *lwip_data_TASK(void *param)
 						setXmodemServerReceiveSOH(1);
 						if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]),otafilenamestr, &filesize, &xmodempacknum) == 0)
 						{
+							fileVersionflag = 0;
 							LOG("[Xmodem] File name %s filesize %d packnum %d\r\n", otafilenamestr, filesize, xmodempacknum);
 							if(strstr(otafilenamestr, "BCU") != NULL)
 							{
@@ -116,12 +117,13 @@ void *lwip_data_TASK(void *param)
 									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
 									fileVersionflag = 1;
 								}
-								findfirstpack = 1;
-								curpackno = 0;
-								prvpackno = 0;
-								packidoverflownum = 0;  //lx
-								snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
+
 							}
+							findfirstpack = 1;
+							curpackno = 0;
+							prvpackno = 0;
+							packidoverflownum = 0;  //lx
+							snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
 						}
 					}
 					else  //文件数据帧
@@ -656,7 +658,7 @@ signed char GetOTAFILEInfo(unsigned char *databuf, char *name, int *filesize, in
 			idx++;
 		}else{
 		}
-		if(idx == 1)//根据实际代码可以看出，起始和结束都有0x00标志开始，所以判断idx 1、3、5
+		if(idx == 1)//根据实际代码可以看出，结束都有0x00标志开始，所以判断idx 1、3、5
 		{
 			idx1 = i;
 			for(int j = 0; j < idx1 + 2; j++)//idx1 + 2长度
