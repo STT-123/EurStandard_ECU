@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.258
+ * Model version                  : 5.263
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Mon Apr 20 15:28:47 2026
+ * C/C++ source code generated on : Fri Apr 24 16:02:27 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -14,11 +14,11 @@
  */
 
 #include "CANFDRcvFcn_BCU.h"
+#include "rtwtypes.h"
+#include "CANFDRcvFcn_BCU_private.h"
 #include <math.h>
 #include <string.h>
 #include "CANFDRcvFcn_BCU_types.h"
-#include "rtwtypes.h"
-#include "CANFDRcvFcn_BCU_private.h"
 
 /* Exported block signals */
 CAN_FD_MESSAGE_BUS CANFDRcvMsg;        /* '<Root>/CANFDRcvMsg' */
@@ -86,11 +86,27 @@ uint16_T ThermCtrl_Fault;              /* '<S5>/C Function11' */
 uint16_T usSingleBatTemp[120];         /* '<S3>/MATLAB Function' */
 uint16_T usSingleBatVal[240];          /* '<S4>/MATLAB Function2' */
 
+/*
+ * Output and update for atomic system:
+ *    '<S1>/SocProcess'
+ *    '<S1>/SocProcess1'
+ */
+void CANFDRcvFcn_BCU_SocProcess(uint16_T rtu_soc, uint16_T *rty_soc_process)
+{
+  if ((rtu_soc > 0) && (rtu_soc < 100)) {
+    *rty_soc_process = 100U;
+  } else if ((rtu_soc > 9900) && (rtu_soc < 10000)) {
+    *rty_soc_process = 9900U;
+  } else {
+    *rty_soc_process = rtu_soc;
+  }
+}
+
 /* Model step function */
 void CANFDRcvFcn_BCU_step(void)
 {
   real_T tmp;
-  int32_T i_1;
+  int32_T i;
   real32_T u;
   real32_T v;
   uint32_T port_index;
@@ -107,25 +123,18 @@ void CANFDRcvFcn_BCU_step(void)
   uint16_T CFunction_o2;
   uint16_T b;
   uint16_T c;
-  uint16_T i;
   uint16_T rtb_DataTypeConversion29;
+  uint16_T rtb_DataTypeConversion33;
   uint8_T b_0;
-  uint8_T i_0;
+  uint8_T c_0;
   uint8_T rtb_Saturation2;
 
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack1' */
     if ((64 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((402723044 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x180110E4== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -151,14 +160,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 88
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = -3200.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -187,14 +189,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 104
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = -3200.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -223,14 +218,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 3 ------------------
-           *  startBit                = 16
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 3 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -259,14 +247,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 4 ------------------
-           *  startBit                = 32
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 4 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -295,14 +276,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 5 ------------------
-           *  startBit                = 248
-           *  length                  = 32
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 5 ------------------*/
           {
             uint32_T outValue = 0;
 
@@ -334,14 +308,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 6 ------------------
-           *  startBit                = 280
-           *  length                  = 32
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 6 ------------------*/
           {
             uint32_T outValue = 0;
 
@@ -373,14 +340,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 7 ------------------
-           *  startBit                = 312
-           *  length                  = 32
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 7 ------------------*/
           {
             uint32_T outValue = 0;
 
@@ -412,14 +372,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 8 ------------------
-           *  startBit                = 344
-           *  length                  = 32
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 8 ------------------*/
           {
             uint32_T outValue = 0;
 
@@ -451,14 +404,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 9 ------------------
-           *  startBit                = 376
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 9 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -486,14 +432,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 10 ------------------
-           *  startBit                = 392
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 10 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -521,14 +460,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 11 ------------------
-           *  startBit                = 408
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 11 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -556,14 +488,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 12 ------------------
-           *  startBit                = 506
-           *  length                  = 2
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 12 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -590,14 +515,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 13 ------------------
-           *  startBit                = 504
-           *  length                  = 2
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 13 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -624,14 +542,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 14 ------------------
-           *  startBit                = 508
-           *  length                  = 2
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 14 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -658,14 +569,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 15 ------------------
-           *  startBit                = 72
-           *  length                  = 24
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -8.388608E+6
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 15 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -696,14 +600,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 16 ------------------
-           *  startBit                = 168
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 16 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -731,14 +628,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 17 ------------------
-           *  startBit                = 184
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 17 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -766,14 +656,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 18 ------------------
-           *  startBit                = 216
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 18 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -801,14 +684,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 19 ------------------
-           *  startBit                = 200
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 19 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -836,14 +712,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 20 ------------------
-           *  startBit                = 511
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 20 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -870,14 +739,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 21 ------------------
-           *  startBit                = 510
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 21 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -904,14 +766,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 22 ------------------
-           *  startBit                = 120
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 22 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -940,14 +795,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 23 ------------------
-           *  startBit                = 136
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 23 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -976,14 +824,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 24 ------------------
-           *  startBit                = 152
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 24 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1012,14 +853,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 25 ------------------
-           *  startBit                = 48
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 25 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1048,14 +882,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 26 ------------------
-           *  startBit                = 448
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 26 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -1081,14 +908,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 27 ------------------
-           *  startBit                = 456
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 27 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -1115,14 +935,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 28 ------------------
-           *  startBit                = 464
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 28 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1148,14 +961,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 29 ------------------
-           *  startBit                = 472
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 29 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -1189,44 +995,37 @@ void CANFDRcvFcn_BCU_step(void)
   BCU_Curr = (uint16_T)(u < 0.0F ? (int32_T)(uint16_T)-(int16_T)(uint16_T)-u :
                         (int32_T)(uint16_T)u);
   CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_value =
-    CANFDRcvFcn_BCU_B.CANFDUnpack1_o3; // 锟斤拷锟斤拷转锟斤拷锟斤拷
+    CANFDRcvFcn_BCU_B.CANFDUnpack1_o3; // ����ת����
 
-  // 锟斤拷锟斤拷1锟斤拷使锟斤拷 memcpy锟斤拷锟斤拷锟斤拷指锟斤拷锟斤拷锟斤拷锟斤拷猓拷萍锟斤拷锟�
+  // ����1��ʹ�� memcpy������ָ��������⣬�Ƽ���
   memcpy(&CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits,
          &CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_value, sizeof(float));
 
-  // 锟斤拷锟斤拷2锟斤拷直锟斤拷指锟斤拷转锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟较革拷锟斤拷锟斤拷锟斤拷猓拷锟斤拷萍锟斤拷锟�
+  // ����2��ֱ��ָ��ת�����������ϸ�������⣬���Ƽ���
   // float_bits = *(uint32_t *)&float_value;
 
-  // 锟斤拷取锟街节ｏ拷锟斤拷锟斤拷锟� DCBA锟斤拷
+  // ��ȡ�ֽڣ������ DCBA��
   CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteD =
-    (CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits >> 24) & 0xFF;// 锟斤拷锟斤拷锟叫э拷纸锟�
+    (CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits >> 24) & 0xFF;// �����Ч�ֽ�
   CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteC =
     (CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits >> 16) & 0xFF;
   CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteB =
     (CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits >> 8) & 0xFF;
   CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteA =
-    CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits & 0xFF;// 锟斤拷锟斤拷锟叫э拷纸锟�
+    CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_float_bits & 0xFF;// �����Ч�ֽ�
 
-  // 锟斤拷铣锟斤拷锟斤拷锟� 16 位锟侥达拷锟斤拷
+  // ��ϳ����� 16 λ�Ĵ���
   CANFDRcvFcn_BCU_B.BCU_Curr2_H = (CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteD <<
-    8) | CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteC;// DC 锟侥达拷锟斤拷
+    8) | CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteC;// DC �Ĵ���
   CANFDRcvFcn_BCU_B.BCU_Curr2_L = (CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteB <<
-    8) | CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteA;// BA 锟侥达拷锟斤拷
+    8) | CANFDRcvFcn_BCU_DW.U32_to_Folat_Curr_byteA;// BA �Ĵ���
 
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack2' */
     if ((64 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((402788580 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x180210E4== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -1252,14 +1051,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 8
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -1285,14 +1077,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 16
-           *  length                  = 8
-           *  desiredSignalByteLayout = LITTLEENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1318,14 +1103,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 3 ------------------
-           *  startBit                = 32
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 3 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1353,14 +1131,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 4 ------------------
-           *  startBit                = 40
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 4 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1386,14 +1157,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 5 ------------------
-           *  startBit                = 48
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 5 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1419,14 +1183,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 6 ------------------
-           *  startBit                = 56
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 6 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1452,14 +1209,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 7 ------------------
-           *  startBit                = 64
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 7 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1485,14 +1235,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 8 ------------------
-           *  startBit                = 80
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 8 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1520,14 +1263,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 9 ------------------
-           *  startBit                = 96
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 9 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1555,14 +1291,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 10 ------------------
-           *  startBit                = 128
-           *  length                  = 32
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 10 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1595,14 +1324,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 11 ------------------
-           *  startBit                = 144
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 11 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1631,14 +1353,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 12 ------------------
-           *  startBit                = 160
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 12 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1667,14 +1382,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 13 ------------------
-           *  startBit                = 192
-           *  length                  = 32
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 13 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1707,14 +1415,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 14 ------------------
-           *  startBit                = 208
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 14 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1743,14 +1444,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 15 ------------------
-           *  startBit                = 224
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 15 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -1779,40 +1473,19 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 16 ------------------
-           *  startBit                = 232
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 16 ------------------*/
           /*
            * Signal is not connected or connected to terminator.
            * No unpacking code generated.
            */
 
-          /* --------------- START Unpacking signal 17 ------------------
-           *  startBit                = 240
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 17 ------------------*/
           /*
            * Signal is not connected or connected to terminator.
            * No unpacking code generated.
            */
 
-          /* --------------- START Unpacking signal 18 ------------------
-           *  startBit                = 488
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 18 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -1839,14 +1512,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 19 ------------------
-           *  startBit                = 264
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 19 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1872,14 +1538,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 20 ------------------
-           *  startBit                = 272
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 20 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1905,14 +1564,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 21 ------------------
-           *  startBit                = 280
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 21 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -1938,14 +1590,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 22 ------------------
-           *  startBit                = 248
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 22 ------------------*/
           {
             real_T outValue = 0;
 
@@ -1972,14 +1617,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 23 ------------------
-           *  startBit                = 256
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 23 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2006,14 +1644,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 24 ------------------
-           *  startBit                = 288
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 24 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2040,14 +1671,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 25 ------------------
-           *  startBit                = 296
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 25 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2074,14 +1698,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 26 ------------------
-           *  startBit                = 304
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 26 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2108,14 +1725,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 27 ------------------
-           *  startBit                = 312
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 27 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2141,14 +1751,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 28 ------------------
-           *  startBit                = 320
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 28 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2174,14 +1777,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 29 ------------------
-           *  startBit                = 328
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 29 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2208,14 +1804,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 30 ------------------
-           *  startBit                = 336
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 30 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2241,14 +1830,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 31 ------------------
-           *  startBit                = 344
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 31 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2274,14 +1856,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 32 ------------------
-           *  startBit                = 352
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 32 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2308,14 +1883,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 33 ------------------
-           *  startBit                = 360
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 33 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2342,14 +1910,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 34 ------------------
-           *  startBit                = 416
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 34 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2375,14 +1936,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 35 ------------------
-           *  startBit                = 392
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 35 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2408,14 +1962,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 36 ------------------
-           *  startBit                = 384
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 36 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -2441,14 +1988,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 37 ------------------
-           *  startBit                = 376
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 37 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -2476,14 +2016,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 38 ------------------
-           *  startBit                = 408
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 38 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -2511,14 +2044,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 39 ------------------
-           *  startBit                = 424
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 39 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2544,14 +2070,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 40 ------------------
-           *  startBit                = 432
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 40 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2577,14 +2096,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 41 ------------------
-           *  startBit                = 448
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 41 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -2612,14 +2124,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 42 ------------------
-           *  startBit                = 456
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 42 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2645,14 +2150,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 43 ------------------
-           *  startBit                = 464
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 43 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -2678,14 +2176,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 44 ------------------
-           *  startBit                = 480
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 44 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -2750,16 +2241,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack' */
     if ((64 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((402854116 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x180310E4== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2786,14 +2270,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 8
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2820,14 +2297,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 16
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2854,14 +2324,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 3 ------------------
-           *  startBit                = 24
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 3 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2888,14 +2351,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 4 ------------------
-           *  startBit                = 32
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 4 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2922,14 +2378,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 5 ------------------
-           *  startBit                = 40
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 5 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2956,14 +2405,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 6 ------------------
-           *  startBit                = 48
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 6 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -2990,14 +2432,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 7 ------------------
-           *  startBit                = 56
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 7 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3024,14 +2459,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 8 ------------------
-           *  startBit                = 64
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 8 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3058,14 +2486,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 9 ------------------
-           *  startBit                = 72
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 9 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3092,14 +2513,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 10 ------------------
-           *  startBit                = 80
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 10 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3126,14 +2540,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 11 ------------------
-           *  startBit                = 88
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 11 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3160,14 +2567,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 12 ------------------
-           *  startBit                = 96
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 12 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3194,14 +2594,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 13 ------------------
-           *  startBit                = 104
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 13 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3228,14 +2621,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 14 ------------------
-           *  startBit                = 112
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 14 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3262,14 +2648,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 15 ------------------
-           *  startBit                = 208
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 15 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3295,14 +2674,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 16 ------------------
-           *  startBit                = 200
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 16 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3330,14 +2702,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 17 ------------------
-           *  startBit                = 184
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 17 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3363,14 +2728,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 18 ------------------
-           *  startBit                = 176
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 18 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3398,14 +2756,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 19 ------------------
-           *  startBit                = 136
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 19 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3431,14 +2782,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 20 ------------------
-           *  startBit                = 128
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 20 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3466,14 +2810,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 21 ------------------
-           *  startBit                = 160
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 21 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3499,14 +2836,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 22 ------------------
-           *  startBit                = 152
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 22 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -3534,14 +2864,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 23 ------------------
-           *  startBit                = 216
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 23 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3567,14 +2890,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 24 ------------------
-           *  startBit                = 240
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 24 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3600,14 +2916,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 25 ------------------
-           *  startBit                = 248
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 25 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3633,14 +2942,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 26 ------------------
-           *  startBit                = 256
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 26 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3666,14 +2968,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 27 ------------------
-           *  startBit                = 232
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 27 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3699,14 +2994,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 28 ------------------
-           *  startBit                = 264
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 28 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3732,14 +3020,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 29 ------------------
-           *  startBit                = 224
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 29 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -3769,14 +3050,16 @@ void CANFDRcvFcn_BCU_step(void)
     }
   }
 
-  u = 0.00999999F * (real32_T)CANFDRcvFcn_BCU_B.CANFDUnpack1_o18;
+  CANFDRcvFcn_BCU_SocProcess(CANFDRcvFcn_BCU_B.CANFDUnpack1_o18,
+    &rtb_DataTypeConversion33);
+  u = 0.00999999F * (real32_T)rtb_DataTypeConversion33;
   if (u >= 0.5F) {
-    i_1 = (int32_T)floorf(u + 0.5F);
+    i = (int32_T)floorf(u + 0.5F);
   } else {
-    i_1 = 0;
+    i = 0;
   }
 
-  BCU_SOC = (uint16_T)fmodf((real32_T)i_1, 65536.0F);
+  BCU_SOC = (uint16_T)fmodf((real32_T)i, 65536.0F);
   BCU_BCUVersion = (uint16_T)((BCU_BCUVersion_H << 8) + BCU_BCUVersion_L);
   if (CANFDRcvFcn_BCU_B.CANFDUnpack2_o28 > 16) {
     b_0 = 16U;
@@ -3820,16 +3103,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack4' */
     if ((64 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((453054692 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x1B0110E4== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 8
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3856,14 +3132,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 16
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3890,14 +3159,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 24
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3924,14 +3186,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 3 ------------------
-           *  startBit                = 32
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 3 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3958,14 +3213,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 4 ------------------
-           *  startBit                = 40
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 4 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -3992,14 +3240,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 5 ------------------
-           *  startBit                = 48
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 5 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4026,14 +3267,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 6 ------------------
-           *  startBit                = 56
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 6 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4060,14 +3294,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 7 ------------------
-           *  startBit                = 64
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 7 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4094,14 +3321,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 8 ------------------
-           *  startBit                = 72
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 8 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4128,14 +3348,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 9 ------------------
-           *  startBit                = 80
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 9 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4162,14 +3375,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 10 ------------------
-           *  startBit                = 88
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 10 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4196,14 +3402,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 11 ------------------
-           *  startBit                = 96
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 11 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4230,14 +3429,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 12 ------------------
-           *  startBit                = 104
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 12 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4264,14 +3456,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 13 ------------------
-           *  startBit                = 112
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 13 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4298,14 +3483,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 14 ------------------
-           *  startBit                = 120
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 14 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4332,14 +3510,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 15 ------------------
-           *  startBit                = 128
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 15 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4366,14 +3537,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 16 ------------------
-           *  startBit                = 136
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 16 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4400,14 +3564,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 17 ------------------
-           *  startBit                = 144
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 17 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4434,14 +3591,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 18 ------------------
-           *  startBit                = 152
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 18 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4468,14 +3618,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 19 ------------------
-           *  startBit                = 160
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 19 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4502,14 +3645,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 20 ------------------
-           *  startBit                = 168
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 20 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4536,14 +3672,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 21 ------------------
-           *  startBit                = 176
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 21 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4570,14 +3699,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 22 ------------------
-           *  startBit                = 184
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 22 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4604,14 +3726,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 23 ------------------
-           *  startBit                = 192
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 23 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4638,14 +3753,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 24 ------------------
-           *  startBit                = 200
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 24 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4672,14 +3780,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 25 ------------------
-           *  startBit                = 208
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 25 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4706,14 +3807,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 26 ------------------
-           *  startBit                = 216
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 26 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4740,14 +3834,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 27 ------------------
-           *  startBit                = 224
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 27 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4774,14 +3861,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 28 ------------------
-           *  startBit                = 232
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 28 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4808,14 +3888,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 29 ------------------
-           *  startBit                = 240
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 29 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4842,14 +3915,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 30 ------------------
-           *  startBit                = 248
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 30 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4876,14 +3942,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 31 ------------------
-           *  startBit                = 256
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 31 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4910,14 +3969,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 32 ------------------
-           *  startBit                = 264
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 32 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4944,14 +3996,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 33 ------------------
-           *  startBit                = 272
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 33 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -4978,14 +4023,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 34 ------------------
-           *  startBit                = 280
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 34 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5012,14 +4050,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 35 ------------------
-           *  startBit                = 288
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 35 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5046,14 +4077,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 36 ------------------
-           *  startBit                = 296
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 36 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5080,14 +4104,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 37 ------------------
-           *  startBit                = 304
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 37 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5114,14 +4131,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 38 ------------------
-           *  startBit                = 312
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 38 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5148,14 +4158,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 39 ------------------
-           *  startBit                = 320
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 39 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5182,14 +4185,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 40 ------------------
-           *  startBit                = 328
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 40 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5216,14 +4212,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 41 ------------------
-           *  startBit                = 336
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 41 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5250,14 +4239,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 42 ------------------
-           *  startBit                = 344
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 42 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5284,14 +4266,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 43 ------------------
-           *  startBit                = 352
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 43 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5318,14 +4293,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 44 ------------------
-           *  startBit                = 360
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 44 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5352,14 +4320,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 45 ------------------
-           *  startBit                = 368
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 45 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5386,14 +4347,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 46 ------------------
-           *  startBit                = 376
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 46 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5420,14 +4374,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 47 ------------------
-           *  startBit                = 384
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 47 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5454,14 +4401,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 48 ------------------
-           *  startBit                = 392
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 48 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5488,14 +4428,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 49 ------------------
-           *  startBit                = 400
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 49 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5522,14 +4455,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 50 ------------------
-           *  startBit                = 408
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 50 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5556,14 +4482,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 51 ------------------
-           *  startBit                = 416
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 51 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5590,14 +4509,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 52 ------------------
-           *  startBit                = 424
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 52 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5624,14 +4536,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 53 ------------------
-           *  startBit                = 432
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 53 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5658,14 +4563,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 54 ------------------
-           *  startBit                = 440
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 54 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5692,14 +4590,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 55 ------------------
-           *  startBit                = 448
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 55 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5726,14 +4617,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 56 ------------------
-           *  startBit                = 456
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 56 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5760,14 +4644,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 57 ------------------
-           *  startBit                = 464
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 57 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5794,14 +4671,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 58 ------------------
-           *  startBit                = 472
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 58 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5828,14 +4698,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 59 ------------------
-           *  startBit                = 480
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 59 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -5862,14 +4725,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 60 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 60 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -6034,9 +4890,11 @@ void CANFDRcvFcn_BCU_step(void)
   port_len = port_len * 60U + 1U;
   b = (uint16_T)(port_index * 60U + 1U);
   c = (uint16_T)(port_index * 60U + 60U);
-  for (i = b; i <= c; i++) {
-    CANFDRcvFcn_BCU_DW.tmp_a[i - 1] = rtb_TmpSignalConversionAtSFun_a[i -
-      (int32_T)port_len];
+  for (rtb_DataTypeConversion33 = b; rtb_DataTypeConversion33 <= c;
+       rtb_DataTypeConversion33++) {
+    CANFDRcvFcn_BCU_DW.tmp_a[rtb_DataTypeConversion33 - 1] =
+      rtb_TmpSignalConversionAtSFun_a[rtb_DataTypeConversion33 - (int32_T)
+      port_len];
   }
 
   memcpy(&usSingleBatTemp[0], &CANFDRcvFcn_BCU_DW.tmp_a[0], 120U * sizeof
@@ -6045,16 +4903,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack5' */
     if ((64 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((436277476 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x1A0110E4== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 16
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6082,14 +4933,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 32
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6117,14 +4961,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 48
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6152,14 +4989,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 3 ------------------
-           *  startBit                = 64
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 3 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6187,14 +5017,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 4 ------------------
-           *  startBit                = 80
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 4 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6222,14 +5045,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 5 ------------------
-           *  startBit                = 96
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 5 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6257,14 +5073,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 6 ------------------
-           *  startBit                = 112
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 6 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6292,14 +5101,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 7 ------------------
-           *  startBit                = 128
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 7 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6327,14 +5129,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 8 ------------------
-           *  startBit                = 144
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 8 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6362,14 +5157,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 9 ------------------
-           *  startBit                = 160
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 9 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6397,14 +5185,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 10 ------------------
-           *  startBit                = 176
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 10 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6432,14 +5213,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 11 ------------------
-           *  startBit                = 192
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 11 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6467,14 +5241,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 12 ------------------
-           *  startBit                = 208
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 12 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6502,14 +5269,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 13 ------------------
-           *  startBit                = 224
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 13 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6537,14 +5297,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 14 ------------------
-           *  startBit                = 240
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 14 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6572,14 +5325,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 15 ------------------
-           *  startBit                = 256
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 15 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6607,14 +5353,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 16 ------------------
-           *  startBit                = 272
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 16 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6642,14 +5381,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 17 ------------------
-           *  startBit                = 288
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 17 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6677,14 +5409,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 18 ------------------
-           *  startBit                = 304
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 18 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6712,14 +5437,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 19 ------------------
-           *  startBit                = 320
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 19 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6747,14 +5465,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 20 ------------------
-           *  startBit                = 336
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 20 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6782,14 +5493,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 21 ------------------
-           *  startBit                = 352
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 21 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6817,14 +5521,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 22 ------------------
-           *  startBit                = 368
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 22 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6852,14 +5549,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 23 ------------------
-           *  startBit                = 384
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 23 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6887,14 +5577,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 24 ------------------
-           *  startBit                = 400
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 24 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6922,14 +5605,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 25 ------------------
-           *  startBit                = 416
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 25 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6957,14 +5633,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 26 ------------------
-           *  startBit                = 432
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 26 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -6992,14 +5661,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 27 ------------------
-           *  startBit                = 448
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 27 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7027,14 +5689,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 28 ------------------
-           *  startBit                = 464
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 28 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7062,14 +5717,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 29 ------------------
-           *  startBit                = 480
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 29 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7097,14 +5745,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 30 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 30 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -7202,10 +5843,10 @@ void CANFDRcvFcn_BCU_step(void)
     CANFDRcvFcn_BCU_B.CANFDUnpack5_o30) >> 19);
   port_len = rtb_Saturation2 * 30U + 1U;
   b_0 = (uint8_T)((uint8_T)(rtb_Saturation2 * 30) + 1);
-  rtb_Saturation2 = (uint8_T)((uint8_T)(rtb_Saturation2 * 30) + 30);
-  for (i_0 = b_0; i_0 <= rtb_Saturation2; i_0++) {
-    CANFDRcvFcn_BCU_DW.tmp[i_0 - 1] = rtb_TmpSignalConversionAtSFu_kh[i_0 -
-      (uint8_T)port_len];
+  c_0 = (uint8_T)((uint8_T)(rtb_Saturation2 * 30) + 30);
+  for (rtb_Saturation2 = b_0; rtb_Saturation2 <= c_0; rtb_Saturation2++) {
+    CANFDRcvFcn_BCU_DW.tmp[rtb_Saturation2 - 1] =
+      rtb_TmpSignalConversionAtSFu_kh[rtb_Saturation2 - (uint8_T)port_len];
   }
 
   memcpy(&usSingleBatVal[0], &CANFDRcvFcn_BCU_DW.tmp[0], 240U * sizeof(uint16_T));
@@ -7225,58 +5866,60 @@ void CANFDRcvFcn_BCU_step(void)
     ((CANFDRcvFcn_BCU_B.CANFDUnpack1_o29 != 0) << 4));
   ThermCtrl_Fault = (uint16_T)((ThermCtrl_Fault & 4294967263U) | (uint32_T)
     (CANFDRcvFcn_BCU_ConstB.DataTypeConversion38 << 5));
+  CANFDRcvFcn_BCU_SocProcess(CANFDRcvFcn_BCU_B.CANFDUnpack1_o17,
+    &rtb_DataTypeConversion33);
   CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_value =
-    CANFDRcvFcn_BCU_B.CANFDUnpack1_o16;// 锟斤拷锟斤拷转锟斤拷锟斤拷
+    CANFDRcvFcn_BCU_B.CANFDUnpack1_o16;// ����ת����
 
-  // 锟斤拷锟斤拷1锟斤拷使锟斤拷 memcpy锟斤拷锟斤拷锟斤拷指锟斤拷锟斤拷锟斤拷锟斤拷猓拷萍锟斤拷锟�
+  // ����1��ʹ�� memcpy������ָ��������⣬�Ƽ���
   memcpy(&CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits,
          &CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_value, sizeof(float));
 
-  // 锟斤拷锟斤拷2锟斤拷直锟斤拷指锟斤拷转锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟较革拷锟斤拷锟斤拷锟斤拷猓拷锟斤拷萍锟斤拷锟�
+  // ����2��ֱ��ָ��ת�����������ϸ�������⣬���Ƽ���
   // float_bits = *(uint32_t *)&float_value;
 
-  // 锟斤拷取锟街节ｏ拷锟斤拷锟斤拷锟� DCBA锟斤拷
+  // ��ȡ�ֽڣ������ DCBA��
   CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteD =
-    (CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits >> 24) & 0xFF;// 锟斤拷锟斤拷锟叫э拷纸锟�
+    (CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits >> 24) & 0xFF;// �����Ч�ֽ�
   CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteC =
     (CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits >> 16) & 0xFF;
   CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteB =
     (CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits >> 8) & 0xFF;
   CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteA =
-    CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits & 0xFF;// 锟斤拷锟斤拷锟叫э拷纸锟�
+    CANFDRcvFcn_BCU_DW.U32_to_F32_Power_float_bits & 0xFF;// �����Ч�ֽ�
 
-  // 锟斤拷铣锟斤拷锟斤拷锟� 16 位锟侥达拷锟斤拷
+  // ��ϳ����� 16 λ�Ĵ���
   CANFDRcvFcn_BCU_B.BCU_RealtimePower_H =
     (CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteD << 8) |
-    CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteC;// DC 锟侥达拷锟斤拷
+    CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteC;// DC �Ĵ���
   CANFDRcvFcn_BCU_B.BCU_RealtimePower_L =
     (CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteB << 8) |
-    CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteA;// BA 锟侥达拷锟斤拷
+    CANFDRcvFcn_BCU_DW.U32_to_F32_Power_byteA;// BA �Ĵ���
   CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_value = (uint32_T)
-    rtb_DataTypeConversion29 /10.0f;   // 锟斤拷锟斤拷转锟斤拷锟斤拷
+    rtb_DataTypeConversion29 /10.0f;   // ����ת����
 
-  // 锟斤拷锟斤拷1锟斤拷使锟斤拷 memcpy锟斤拷锟斤拷锟斤拷指锟斤拷锟斤拷锟斤拷锟斤拷猓拷萍锟斤拷锟�
+  // ����1��ʹ�� memcpy������ָ��������⣬�Ƽ���
   memcpy(&CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits,
          &CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_value, sizeof(float));
 
-  // 锟斤拷锟斤拷2锟斤拷直锟斤拷指锟斤拷转锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟较革拷锟斤拷锟斤拷锟斤拷猓拷锟斤拷萍锟斤拷锟�
+  // ����2��ֱ��ָ��ת�����������ϸ�������⣬���Ƽ���
   // float_bits = *(uint32_t *)&float_value;
 
-  // 锟斤拷取锟街节ｏ拷锟斤拷锟斤拷锟� DCBA锟斤拷
+  // ��ȡ�ֽڣ������ DCBA��
   CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteD =
-    (CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits >> 24) & 0xFF;// 锟斤拷锟斤拷锟叫э拷纸锟�
+    (CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits >> 24) & 0xFF;// �����Ч�ֽ�
   CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteC =
     (CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits >> 16) & 0xFF;
   CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteB =
     (CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits >> 8) & 0xFF;
   CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteA =
-    CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits & 0xFF;// 锟斤拷锟斤拷锟叫э拷纸锟�
+    CANFDRcvFcn_BCU_DW.U32_to_F32_V3_float_bits & 0xFF;// �����Ч�ֽ�
 
-  // 锟斤拷铣锟斤拷锟斤拷锟� 16 位锟侥达拷锟斤拷
+  // ��ϳ����� 16 λ�Ĵ���
   CANFDRcvFcn_BCU_B.BCU_V4_L = (CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteD << 8) |
-    CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteC;// DC 锟侥达拷锟斤拷
+    CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteC;// DC �Ĵ���
   CANFDRcvFcn_BCU_B.BCU_V4_H = (CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteB << 8) |
-    CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteA;// BA 锟侥达拷锟斤拷
+    CANFDRcvFcn_BCU_DW.U32_to_F32_V3_byteA;// BA �Ĵ���
   u = fmodf(floorf(CANFDRcvFcn_BCU_B.CANFDUnpack1_o21), 65536.0F);
   v = fmodf(floorf(CANFDRcvFcn_BCU_B.CANFDUnpack1_o22), 65536.0F);
 
@@ -7298,16 +5941,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack3' */
     if ((8 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((419414330 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x18FFC13A== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 24
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -7334,14 +5970,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 62
-           *  length                  = 2
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -7368,14 +5997,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 56
-           *  length                  = 6
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7402,14 +6024,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 3 ------------------
-           *  startBit                = 32
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 3 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -7436,14 +6051,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 4 ------------------
-           *  startBit                = 16
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 4 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -7470,14 +6078,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 5 ------------------
-           *  startBit                = 3
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 5 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -7504,14 +6105,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 6 ------------------
-           *  startBit                = 4
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 6 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -7538,14 +6132,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 7 ------------------
-           *  startBit                = 40
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 7 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -7572,14 +6159,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 8 ------------------
-           *  startBit                = 8
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = -40.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 8 ------------------*/
           {
             int16_T outValue = 0;
 
@@ -7606,14 +6186,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 9 ------------------
-           *  startBit                = 6
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 9 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -7640,14 +6213,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 10 ------------------
-           *  startBit                = 0
-           *  length                  = 3
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 10 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7674,14 +6240,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 11 ------------------
-           *  startBit                = 7
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 11 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7708,14 +6267,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 12 ------------------
-           *  startBit                = 48
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 0.1
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 12 ------------------*/
           {
             real32_T outValue = 0;
 
@@ -7756,16 +6308,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack6' */
     if ((8 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((419414331 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x18FFC13B== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 48
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7791,14 +6336,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 24
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7826,14 +6364,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 2 ------------------
-           *  startBit                = 40
-           *  length                  = 16
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 2 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7868,16 +6399,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack7' */
     if ((8 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((419414332 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x18FFC13C== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 16
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint8_T outValue = 0;
 
@@ -7903,14 +6427,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 25
-           *  length                  = 1
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7946,16 +6463,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack8' */
     if ((8 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((419414333 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x18FFC13D== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 56
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -7988,16 +6498,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack9' */
     if ((8 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((419096290 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x18FAE6E2== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -8023,14 +6526,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 8
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -8063,16 +6559,9 @@ void CANFDRcvFcn_BCU_step(void)
   {
     /* S-Function (scanfdunpack): '<S1>/CAN FD Unpack10' */
     if ((8 == CANFDRcvMsg.Length) && (CANFDRcvMsg.ID != INVALID_CAN_ID) ) {
-      if ((419068149 == CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
+      if ((0x18FA78F5== CANFDRcvMsg.ID) && (1U == CANFDRcvMsg.Extended) ) {
         {
-          /* --------------- START Unpacking signal 0 ------------------
-           *  startBit                = 8
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 0 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -8098,14 +6587,7 @@ void CANFDRcvFcn_BCU_step(void)
             }
           }
 
-          /* --------------- START Unpacking signal 1 ------------------
-           *  startBit                = 0
-           *  length                  = 8
-           *  desiredSignalByteLayout = BIGENDIAN
-           *  dataType                = UNSIGNED
-           *  factor                  = 1.0
-           *  offset                  = 0.0
-           * -----------------------------------------------------------------------*/
+          /* --------------- START Unpacking signal 1 ------------------*/
           {
             uint16_T outValue = 0;
 
@@ -8194,12 +6676,12 @@ void CANFDRcvFcn_BCU_step(void)
   rtb_TmpSignalConversionAtSFunct[40] = BCU_SOC;
   u = 0.00999999F * (real32_T)CANFDRcvFcn_BCU_B.CANFDUnpack1_o20;
   if (u >= 0.5F) {
-    i_1 = (int32_T)floorf(u + 0.5F);
+    i = (int32_T)floorf(u + 0.5F);
   } else {
-    i_1 = 0;
+    i = 0;
   }
 
-  rtb_TmpSignalConversionAtSFunct[41] = (uint16_T)fmodf((real32_T)i_1, 65536.0F);
+  rtb_TmpSignalConversionAtSFunct[41] = (uint16_T)fmodf((real32_T)i, 65536.0F);
   rtb_TmpSignalConversionAtSFunct[42] = BCU_BCUVersion;
   rtb_TmpSignalConversionAtSFunct[43] = CANFDRcvFcn_BCU_B.CANFDUnpack2_o9;
   tmp = fmod(floor(CANFDRcvFcn_BCU_B.CANFDUnpack2_o23), 65536.0);
@@ -8269,14 +6751,14 @@ void CANFDRcvFcn_BCU_step(void)
   rtb_TmpSignalConversionAtSFunct[425] = (uint16_T)
     CANFDRcvFcn_BCU_B.CANFDUnpack1_o27;
   rtb_TmpSignalConversionAtSFunct[426] = ThermCtrl_Fault;
-  u = 0.00999999F * (real32_T)CANFDRcvFcn_BCU_B.CANFDUnpack1_o17;
+  u = 0.00999999F * (real32_T)rtb_DataTypeConversion33;
   if (u >= 0.5F) {
-    i_1 = (int32_T)floorf(u + 0.5F);
+    i = (int32_T)floorf(u + 0.5F);
   } else {
-    i_1 = 0;
+    i = 0;
   }
 
-  rtb_TmpSignalConversionAtSFunct[427] = (uint16_T)fmodf((real32_T)i_1, 65536.0F);
+  rtb_TmpSignalConversionAtSFunct[427] = (uint16_T)fmodf((real32_T)i, 65536.0F);
   rtb_TmpSignalConversionAtSFunct[428] = (uint16_T)
     CANFDRcvFcn_BCU_B.CANFDUnpack2_o26;
   rtb_TmpSignalConversionAtSFunct[429] = (uint16_T)
@@ -8374,10 +6856,11 @@ void CANFDRcvFcn_BCU_step(void)
 
       rtb_DataTypeConversion40 = qY;
     } else {
-      i = 0U;
-      while (i < CANFDRcvFcn_BCU_ConstP.portDimensions_Value[port_index]) {
+      rtb_DataTypeConversion33 = 0U;
+      while (rtb_DataTypeConversion33 <
+             CANFDRcvFcn_BCU_ConstP.portDimensions_Value[port_index]) {
         q0 = CANFDRcvFcn_BCU_ConstP.index_Value[port_index];
-        qY = q0 + i;
+        qY = q0 + rtb_DataTypeConversion33;
         if (qY < q0) {
           qY = MAX_uint32_T;
         }
@@ -8390,12 +6873,12 @@ void CANFDRcvFcn_BCU_step(void)
         }
 
         rtb_DataTypeConversion40 = qY;
-        i_1 = i + 1;
-        if (i + 1 > 65535) {
-          i_1 = 65535;
+        i = rtb_DataTypeConversion33 + 1;
+        if (rtb_DataTypeConversion33 + 1 > 65535) {
+          i = 65535;
         }
 
-        i = (uint16_T)i_1;
+        rtb_DataTypeConversion33 = (uint16_T)i;
       }
     }
 
