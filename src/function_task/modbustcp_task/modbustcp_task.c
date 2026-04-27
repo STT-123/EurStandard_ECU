@@ -12,7 +12,7 @@
 // modbus服务器信息
 modbus_t *ctx = NULL;
 modbus_mapping_t *g_mb_mapping = NULL;
-unsigned char modbus_ip[16] = IP_ADDRESS;
+char modbus_ip[16] = IP_ADDRESS;
 const uint16_t REGISTERS_START_ADDRESS = 0x3000; // 寄存器起始地址
 extern unsigned short g_ota_flag;
 uint16_t *modbusBuff = NULL;
@@ -22,6 +22,101 @@ static int timeout_flag = 0;
 extern pthread_mutex_t modbus_reg_mutex;
 
 #define CONN_RESET_LOG_WINDOW_SEC 5
+
+static void close_socket_quickly(int socket_fd)
+{
+    struct linger linger_opt;
+
+    if (socket_fd < 0) {
+        return;
+    }
+
+    linger_opt.l_onoff = 1;
+    linger_opt.l_linger = 0;
+    setsockopt(socket_fd, SOL_SOCKET, SO_LINGER, &linger_opt, sizeof(linger_opt));
+    shutdown(socket_fd, SHUT_RDWR);
+    close(socket_fd);
+}
+
+static int count_connected_clients(const fd_set *refset, int server_socket, int fdmax)
+{
+    int socket_fd;
+    int client_count = 0;
+
+    if (refset == NULL) {
+        return 0;
+    }
+
+    for (socket_fd = 0; socket_fd <= fdmax; socket_fd++) {
+        if (FD_ISSET(socket_fd, refset) && socket_fd != server_socket) {
+            client_count++;
+        }
+    }
+
+    return client_count;
+}
+
+static void log_connected_clients(const fd_set *refset, int server_socket, int fdmax)
+{
+    int socket_fd;
+    int client_count = 0;
+    char socket_list[128] = {0};
+    int offset = 0;
+
+    if (refset == NULL) {
+        LOG("[ModbusTcp] Current connected clients: 0, sockets: []\n");
+        return;
+    }
+
+    offset += snprintf(socket_list + offset, sizeof(socket_list) - offset, "[");
+
+    for (socket_fd = 0; socket_fd <= fdmax; socket_fd++) {
+        if (FD_ISSET(socket_fd, refset) && socket_fd != server_socket) {
+            client_count++;
+            offset += snprintf(socket_list + offset,
+                               sizeof(socket_list) - offset,
+                               "%s%d",
+                               (client_count > 1) ? ", " : "",
+                               socket_fd);
+            if (offset >= (int)sizeof(socket_list)) {
+                break;
+            }
+        }
+    }
+
+    if (offset < (int)sizeof(socket_list)) {
+        snprintf(socket_list + offset, sizeof(socket_list) - offset, "]");
+    } else {
+        socket_list[sizeof(socket_list) - 2] = ']';
+        socket_list[sizeof(socket_list) - 1] = '\0';
+    }
+
+    LOG("[ModbusTcp] Current connected clients: %d, sockets: %s\n",
+        client_count, socket_list);
+}
+
+static void close_all_client_sockets(fd_set *refset, int server_socket, int *fdmax)
+{
+    int socket_fd;
+
+    if (refset == NULL || fdmax == NULL) {
+        return;
+    }
+
+    for (socket_fd = 0; socket_fd <= *fdmax; socket_fd++) {
+        if (FD_ISSET(socket_fd, refset) && socket_fd != server_socket) {
+            LOG("[ModbusTcp] Closing connection on socket %d\n", socket_fd);
+            FD_CLR(socket_fd, refset);
+            close_socket_quickly(socket_fd);
+        }
+    }
+
+    while (*fdmax > 0 && !FD_ISSET(*fdmax, refset)) {
+        (*fdmax)--;
+    }
+
+    log_connected_clients(refset, server_socket, *fdmax);
+}
 
 static void log_conn_reset_limited(int socket_fd)
 {
@@ -92,7 +187,7 @@ void *ModbusTCPServerTask(void *arg)
             sleep(1);
             continue;
         }
-        LOG("[ModbusTcp] ctx =%d ,modbus ip =%s \r\n", ctx, modbus_ip);
+        LOG("[ModbusTcp] ctx =%p ,modbus ip =%s \r\n", (void *)ctx, modbus_ip);
 
         // 创建寄存器映射，只创建保持寄存器
         g_mb_mapping = modbus_mapping_new_start_address(0, 0, 0, 0, REGISTERS_START_ADDRESS, REGISTERS_NB, 0, 0);
@@ -132,7 +227,6 @@ void *ModbusTCPServerTask(void *arg)
             sleep(1);
             continue;
         }
-
         FD_ZERO(&refset); //初始化集合为NULL
         FD_SET(server_socket, &refset); // 将服务器socket加入集合
         fdmax = server_socket;
@@ -154,15 +248,7 @@ void *ModbusTCPServerTask(void *arg)
             else if(sel == 0)
             {
                 timeout_flag = 1;// select超时处理
-                 // 清理所有客户端连接
-                for (master_socket = 0; master_socket <= fdmax; master_socket++){
-                    if (FD_ISSET(master_socket, &refset) && master_socket != server_socket){ //判断当前fd是否为refset中的集合
-                        LOG("[ModbusTcp] Closing connection on socket %d\n", master_socket);
-                        close(master_socket); // 关闭服务器套接字
-                        FD_CLR(master_socket, &refset);// 从集合中移除
-                        if (master_socket == fdmax){ fdmax--;}  // 更新最大文件描述符
-                    }
-                }
+                close_all_client_sockets(&refset, server_socket, &fdmax);
             }
             else{
                 timeout_flag = 0;
@@ -186,18 +272,7 @@ void *ModbusTCPServerTask(void *arg)
                         if (newfd == -1)
                         {
                             LOG("[ModbusTcp] Server accept() error: %s\n", strerror(errno));  // 出错时清理所有连接
-                            for (master_socket = 0; master_socket <= fdmax; master_socket++)
-                            {
-                                if (FD_ISSET(master_socket, &refset) && master_socket != server_socket)
-                                {
-                                    close(master_socket); // 关闭服务器套接字
-                                    FD_CLR(master_socket, &refset);
-                                    if (master_socket == fdmax)
-                                    {
-                                        fdmax--;
-                                    }
-                                }
-                            }
+                            close_all_client_sockets(&refset, server_socket, &fdmax);
                             need_restart = 1;
                             break;
                         }
@@ -208,7 +283,12 @@ void *ModbusTCPServerTask(void *arg)
                             {
                                 fdmax = newfd;// 更新最大fd
                             }
-                            LOG("[ModbusTcp] New connection from %s:%d on socket %d \r\n", inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port, newfd);
+                            LOG("[ModbusTcp] New connection from %s:%d on socket %d, current clients: %d\r\n",
+                                inet_ntoa(clientaddr.sin_addr),
+                                clientaddr.sin_port,
+                                newfd,
+                                count_connected_clients(&refset, server_socket, fdmax));
+                                log_connected_clients(&refset, server_socket, fdmax);
                         }
                     }
                     else
@@ -232,7 +312,7 @@ void *ModbusTCPServerTask(void *arg)
                             } else {
                                 LOG("[ModbusTcp] Connection closed or error on socket %d: %s\n", master_socket, modbus_strerror(errno));
                             }
-                            close(master_socket); // 关闭连接
+                            close_socket_quickly(master_socket); // 关闭连接
                             FD_CLR(master_socket, &refset); // 从集合移除
 
                             // 若该 socket 是当前最大值，更新 fdmax
@@ -243,6 +323,7 @@ void *ModbusTCPServerTask(void *arg)
                                     fdmax--;
                                 }
                             }
+                            log_connected_clients(&refset, server_socket, fdmax);
                         }
                     }
                 }
@@ -251,7 +332,7 @@ void *ModbusTCPServerTask(void *arg)
 
         for (master_socket = 0; master_socket <= fdmax; master_socket++) {
             if (FD_ISSET(master_socket, &refset)) {
-                close(master_socket);
+                close_socket_quickly(master_socket);
             }
         }
         modbusBuff = NULL;

@@ -5,8 +5,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <pthread.h>
 #include "interface/modbus/modbus.h"
 #include "interface/modbus/modbus-tcp.h"
+#include "device_drv/abncheck/abncheck.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -20,7 +22,7 @@ extern uint16_t *modbusBuff;
 
 #define NB_CONNECTION 3
 extern const uint16_t REGISTERS_START_ADDRESS;
-extern unsigned char modbus_ip[16];
+extern char modbus_ip[16];
 void modbusTcpServerTaskCreate(void);
 int get_timeout_flag();
 
