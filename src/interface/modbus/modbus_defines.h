@@ -50,8 +50,10 @@
 #define MDBUS_VOLCAL_VALUE     0x6735	//电压校准数值
 #define MDBUS_REALY_CTL        0x6736	//继电器控制
 
-#define MDBUS_ENERGYACCUM_POSVALUE         0x6723	//校准正电能值
-#define MDBUS_ENERGYACCUM_NEGVALUE         0x6724	//校准负电能值
+#define MDBUS_ENERGYACCUM_POSVALUE_H         0x6723	//校准正电能值_H
+#define MDBUS_ENERGYACCUM_POSVALUE_L         0x6724	//校准正电能值_L
+#define MDBUS_ENERGYACCUM_NEGVALUE_H         0x6725	//校准负电能值_H
+#define MDBUS_ENERGYACCUM_NEGVALUE_L         0x6726	//校准负电能值_L
 
 #define MDBUS_ADDR_PRODUCTION   0x3416  // ems 厂家
 #define MDBUS_ADDR_ECU_VERSION  0x3417 // ems 版本号

@@ -64,7 +64,7 @@ static void log_connected_clients(const fd_set *refset, int server_socket, int f
     int offset = 0;
 
     if (refset == NULL) {
-        LOG("[ModbusTcp] Current connected clients: 0, sockets: []\n");
+        LOG("[ModbusTcp] Current connected clients: 0, sockets: []");
         return;
     }
 

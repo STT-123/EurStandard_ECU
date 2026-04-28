@@ -93,10 +93,12 @@ pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBu
             {
                 VoltageCalibration_ModBus_Deal(address, data);
             }
-            else if ((address == MDBUS_SET_SOH) || (address == MDBUS_SET_SOC) ||(address == MDBUS_REALY_CTL) || (address == MDBUS_ENERGYACCUM_POSVALUE) ||(address == MDBUS_ENERGYACCUM_NEGVALUE))//SOHCmd,SOCMinCmd,SOCMaxCmd,RelayCtl
+            else if ((address == MDBUS_SET_SOH) || (address == MDBUS_SET_SOC) ||(address == MDBUS_REALY_CTL) || \
+					(address == MDBUS_ENERGYACCUM_POSVALUE_H) ||(address == MDBUS_ENERGYACCUM_POSVALUE_L) || \
+					(address == MDBUS_ENERGYACCUM_NEGVALUE_H) ||(address == MDBUS_ENERGYACCUM_NEGVALUE_L))//SOHCmd,SOCMinCmd,SOCMaxCmd,RelayCtl
             {
 				LOG("[ModbusTcp] address: 0x%x,data: 0x%x\r\n",address,data);
-				for(sencount = 0;sencount < 5;sencount++){
+				for(sencount = 0;sencount < 3;sencount++){
 					BatteryCalibration_ModBus_Deal(address, data);
 					usleep(5*1000);
 				}
@@ -283,27 +285,29 @@ static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 static int BatteryCalibration_ModBus_Deal(uint16_t address, uint16_t data)
 {
 	uint8_t SOHCmd, SOCMaxCmd, SOCMinCmd ,relayCtl = 0;
-	
-    static CAN_FD_MESSAGE bms_calibration_msg = {0}; // <-- 关键：static + 初始化一次,参考DBC文件，要是DBC 文件改了，这个也要动
+	CAN_FD_MESSAGE tx_msg = {0};
+	static int pos_high_received = 0;
+	static int pos_low_received = 0;
+	static int neg_high_received = 0;
+	static int neg_low_received = 0;
+	static uint8_t pos_bytes[4] = {0};
+	static uint8_t neg_bytes[4] = {0};
 	int needsend = 0;
+	int send_type = 0;
 
-    // 第一次调用时初始化结构体头（只做一次）
-    if (bms_calibration_msg.ID == 0) {
-        bms_calibration_msg.Extended = 1;
-        bms_calibration_msg.Length = 64U;
-        bms_calibration_msg.ID = 0x1824E410;
-        bms_calibration_msg.Remote = 0;
-        bms_calibration_msg.BRS = 1;
-        bms_calibration_msg.ProtocolMode = 1;
-        bms_calibration_msg.DLC = 15U;
-        // Data 数组默认为0，后续逐步填充
-    }
+	tx_msg.Extended = 1;
+	tx_msg.Length = 64U;
+	tx_msg.ID = 0x1824E410;
+	tx_msg.Remote = 0;
+	tx_msg.BRS = 1;
+	tx_msg.ProtocolMode = 1;
+	tx_msg.DLC = 15U;
 
 	if (address == MDBUS_SET_SOH)
 	{
 		SOHCmd = (data >> 8);
 
-		bms_calibration_msg.Data[9] = SOHCmd;
+		tx_msg.Data[9] = SOHCmd;
 		needsend = 1;
 	}
 	else if (address == MDBUS_SET_SOC)
@@ -311,44 +315,88 @@ static int BatteryCalibration_ModBus_Deal(uint16_t address, uint16_t data)
 		SOCMaxCmd = (data >> 8);
 		SOCMinCmd = (data & 0xff);
 
-		bms_calibration_msg.Data[6] = SOCMaxCmd;
-		bms_calibration_msg.Data[7] = SOCMinCmd;
+		tx_msg.Data[6] = SOCMaxCmd;
+		tx_msg.Data[7] = SOCMinCmd;
 		needsend = 1;
 	}
 	else if (address == MDBUS_REALY_CTL)
 	{
 		relayCtl = data;
 		// 清除 Data[0] 的 bit2~5（共4位），保留其他位
-    	bms_calibration_msg.Data[0] &= ~0x3C;  // 0x3C = 0b00111100，取反后为 ...11000011，即只更改Pos和Neg
-    	uint8_t shifted = (relayCtl & 0x0F) << 2;  // 只取低4位，然后左移2，将 relayCtl 的 bit0~3 左移 2 位，对齐到目标位置（bit2~5）
-		bms_calibration_msg.Data[0] |= shifted;// 写入到 Data[0]
+	    tx_msg.Data[0] &= ~0x3C;  // 0x3C = 0b00111100，取反后为 ...11000011，即只更改Pos和Neg
+	    uint8_t shifted = (relayCtl & 0x0F) << 2;  // 只取低4位，然后左移2，将 relayCtl 的 bit0~3 左移 2 位，对齐到目标位置（bit2~5）
+		tx_msg.Data[0] |= shifted;// 写入到 Data[0]
 		needsend = 1;
 	}
-	else if (address == MDBUS_ENERGYACCUM_POSVALUE)
+	else if (address == MDBUS_ENERGYACCUM_POSVALUE_H)
 	{
-		bms_calibration_msg.Data[13] = (uint8_t)((data & 0xFF00)>> 8);//大段序列，高字节高8位
-		bms_calibration_msg.Data[14] = (uint8_t)(data & 0xFF);
-		needsend = 1;
-	}	
-	else if (address == MDBUS_ENERGYACCUM_NEGVALUE)
+		pos_bytes[0] = (uint8_t)((data & 0xFF00)>> 8);
+		pos_bytes[1] = (uint8_t)(data & 0xFF);
+		pos_high_received = 1;
+		if (pos_low_received) {
+			needsend = 1;
+			send_type = 1;
+			pos_high_received = 0;
+			pos_low_received = 0;
+		}
+	}
+	else if (address == MDBUS_ENERGYACCUM_POSVALUE_L)
 	{
-		bms_calibration_msg.Data[15] = (uint8_t)((data & 0xFF00)>> 8);//大段序列，高字节高8位
-		bms_calibration_msg.Data[16] = (uint8_t)(data & 0xFF);
-		needsend = 1;
+		pos_bytes[2] = (uint8_t)((data & 0xFF00)>> 8);
+		pos_bytes[3] = (uint8_t)(data & 0xFF);
+		pos_low_received = 1;
+		if (pos_high_received) {
+			needsend = 1;
+			send_type = 1;
+			pos_high_received = 0;
+			pos_low_received = 0;
+		}
 	}	
+	else if (address == MDBUS_ENERGYACCUM_NEGVALUE_H)
+	{
+		neg_bytes[0] = (uint8_t)((data & 0xFF00)>> 8);
+		neg_bytes[1] = (uint8_t)(data & 0xFF);
+		neg_high_received = 1;
+		if (neg_low_received) {
+			needsend = 1;
+			send_type = 2;
+			neg_high_received = 0;
+			neg_low_received = 0;
+		}
+	}
+	else if (address == MDBUS_ENERGYACCUM_NEGVALUE_L)
+	{
+		neg_bytes[2] = (uint8_t)((data & 0xFF00)>> 8);
+		neg_bytes[3] = (uint8_t)(data & 0xFF);
+		neg_low_received = 1;
+		if (neg_high_received) {
+			needsend = 1;
+			send_type = 2;
+			neg_high_received = 0;
+			neg_low_received = 0;
+		}
+	}
 	if(needsend == 1){
+		if (send_type == 1) {
+			memcpy(&tx_msg.Data[14], pos_bytes, sizeof(pos_bytes));
+			memset(pos_bytes, 0, sizeof(pos_bytes));
+		} else if (send_type == 2) {
+			memcpy(&tx_msg.Data[18], neg_bytes, sizeof(neg_bytes));
+			memset(neg_bytes, 0, sizeof(neg_bytes));
+		}
+
 		char data_str[256] = {0}; // 64 字节 → 最多 "XX " * 64 + '\0' ≈ 192 字节
 		int offset = 0;
 		for (int i = 0; i < 64; i++) {
 			offset += snprintf(data_str + offset, sizeof(data_str) - offset,
-							"%02X%s", bms_calibration_msg.Data[i], (i < 64 - 1) ? " " : "");
+							"%02X%s", tx_msg.Data[i], (i < 64 - 1) ? " " : "");
 		}
-
-		LOG("[RECORD] TesterRly_Data, ID = 0x%x ,Data = %s\r", bms_calibration_msg.ID, data_str);
-
-		Drv_bcu_canfd_send(&bms_calibration_msg);
+	
+		LOG("[RECORD] TesterRly_Data, ID = 0x%x ,Data = %s\r", tx_msg.ID, data_str);
+	
+		Drv_bcu_canfd_send(&tx_msg);
 	}
-	memset(&bms_calibration_msg.Data[0], 0, sizeof(bms_calibration_msg.Data));
+
 	return 0;
 }
 
