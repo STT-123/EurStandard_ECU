@@ -8,6 +8,7 @@
 #include <ftw.h>
 #include <sys/mount.h>
 #include <sys/wait.h>
+#include <stdatomic.h>
 
 extern pthread_mutex_t ftp_file_io_mutex;
 
@@ -40,7 +41,7 @@ static struct timeval first_tv = {0, 0};
 static int first_time_captured = 0;
 static pthread_mutex_t sd_format_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool sd_format_in_progress = false;
-
+extern  atomic_int rtc_sync_pending ;
 static void set_sd_format_in_progress(bool in_progress)
 {
     pthread_mutex_lock(&sd_format_state_mutex);
@@ -259,6 +260,17 @@ static int GetNowTime(struct tm *nowTime)
 
     struct tm timeinfo = {0};
     time_t current_time = time(NULL);
+
+    if (atomic_exchange(&rtc_sync_pending, 0) == 1)
+    {
+        int ret = system("hwclock --systohc");
+        if (ret != 0){
+            LOG("hwclock --systohc failed, ret=%d\r\n", ret);
+            atomic_store(&rtc_sync_pending, 1);
+        }else{
+            LOG("hwclock --systohc success\r\n");
+        }
+    }
 
     if (get_BCU_TimeYearValue() != 0) 
     {

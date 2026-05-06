@@ -27,7 +27,6 @@ void *SDCardDataSaveTask(void *arg)
     while (1)
     {
         usleep(3000 * 1000);
-
         // 获取sd卡初始化标识
         get_modbus_reg_val(MDBUS_SD_FROMAT, &SD_INIT_flag);//接收上位机指令
         

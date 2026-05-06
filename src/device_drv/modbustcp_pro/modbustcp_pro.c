@@ -5,8 +5,24 @@
 #include "interface/log/log.h"
 #include "device_drv/ota_upgrade/ota_fun.h"
 #include "modbus_defines.h"
+#include <time.h>
+#include <stdint.h>
 extern unsigned short g_ota_flag;
 pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBuff寄存器的时候都会调用加锁
+atomic_int rtc_sync_pending = 0;
+//测试使用
+static uint64_t get_time_us(void)
+{
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+    {
+        return 0;
+    }
+
+    return (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
+}
+
 // modbus接收数据处理，只处理06的写入操作
  void modbus_write_reg_deal(modbus_t *ctx, const uint8_t *query, int req_length)
 {
@@ -100,7 +116,7 @@ pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBu
 				LOG("[ModbusTcp] address: 0x%x,data: 0x%x\r\n",address,data);
 				for(sencount = 0;sencount < 3;sencount++){
 					BatteryCalibration_ModBus_Deal(address, data);
-					usleep(5*1000);
+					usleep(2*1000);
 				}
             }
             else if (address == MDBUS_SD_FROMAT)//SD卡格式化
@@ -185,12 +201,36 @@ static int update_system_time(const Rtc_Ip_TimedateType *timeData)
 	// 转换为 time_t
 	time_t calibrated_time = mktime(&external_time);
 
-	if (calibrated_time == -1)
-	{
+	if (calibrated_time == -1){
 		perror("mktime failed");
 		return -1;
 	}
 
+    time_t local_time = time(NULL);
+    if (local_time == (time_t)-1) {
+        perror("time failed");
+        return -1;
+    }
+
+	long diff = labs((long)(calibrated_time - local_time));
+
+    if (diff > 2)
+    {
+        struct timespec ts;
+        ts.tv_sec = calibrated_time;
+        ts.tv_nsec = 0;
+
+        if (clock_settime(CLOCK_REALTIME, &ts) == -1){
+            perror("clock_settime failed");
+            return -1;
+        }
+        atomic_store(&rtc_sync_pending, 1);
+        LOG("System time updated, diff=%ld s, RTC sync pending\r\n", diff);
+    }
+    else
+    {
+        LOG("System time not updated, diff=%ld s\r\n", diff);
+    }
 	// 设置系统时间
 	struct timespec ts;
 	ts.tv_sec = calibrated_time;
@@ -201,10 +241,6 @@ static int update_system_time(const Rtc_Ip_TimedateType *timeData)
 		perror("clock_settime failed (need root?)");
 		return -1;
 	}
-
-	// 将系统时间写入 RTC
-	system("hwclock --systohc");
-
 	return 0;
 }
 
@@ -248,7 +284,7 @@ static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 	{
 		static uint8_t rtccount = 0;
 		TmData.seconds = (uint8_t)data;
-
+		// uint64_t t_start = get_time_us();
 		LOG("RTC Set Success!  \r\n");
 		set_TCU_TimeYear((TmData.year % 100));
 		set_TCU_TimeMonth(TmData.month);
@@ -258,7 +294,7 @@ static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 		set_TCU_TimeSecond(TmData.seconds);
 		set_TCU_TimeCalFlg(1);
 
-		update_system_time(&TmData);
+		int ret = update_system_time(&TmData);
 		LOG("[ModbusTcp] rtc_Modbus_Deal\r\n");
 		for (int i = 0; i < 3; i++)
 		{
@@ -266,6 +302,9 @@ static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 			usleep(1 * 1000);
 		}
 		set_TCU_TimeCalFlg(0); // RTC设置完毕标志位为0
+
+		// uint64_t t_end = get_time_us();
+		// LOG("update_system_time ret=%d, cost=%.3f ms\r\n",ret,(double)(t_end - t_start) / 1000.0);
 		return 1; // 完成
 	}
 	else
