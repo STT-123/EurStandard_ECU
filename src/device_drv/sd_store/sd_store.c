@@ -247,6 +247,25 @@ static void Drv_RTCGetTime(Rtc_Ip_TimedateType *rtcTime)
     rtcTime->minutes = tm_info->tm_min;
     rtcTime->seconds = tm_info->tm_sec;
 }
+
+static int FillLocalTime(struct tm *nowTime)
+{
+    struct tm timeinfo = {0};
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+
+    if (tm_info == NULL) {
+        LOG("[SD Card] localtime failed\n");
+        return -1;
+    }
+
+    timeinfo = *tm_info;
+    *nowTime = timeinfo;
+    LOG("[SD Card] Using local time: %d-%02d-%02d %02d:%02d:%02d",
+        timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+        timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    return 0;
+}
 /**
  * 获取当前时间
  * 
@@ -258,7 +277,6 @@ static int GetNowTime(struct tm *nowTime)
     static time_t last_bcu_update = 0;    // 上次BCU时间更新的时间戳（用于超时判断）
     const int BCU_TIMEOUT_SEC = 300;      // 5分钟超时，可调整
 
-    struct tm timeinfo = {0};
     time_t current_time = time(NULL);
 
     if (atomic_exchange(&rtc_sync_pending, 0) == 1)
@@ -287,7 +305,7 @@ static int GetNowTime(struct tm *nowTime)
         time_t bcu_time_t = mktime(&bcu_tm);
         if (bcu_time_t == (time_t)-1) {
             LOG("[SD Card] WARNING: mktime failed for BCU time\n");
-            goto use_local_time;
+            return FillLocalTime(nowTime);
         }
 
         // 检查BCU时间是否与上次相同（防陈旧）
@@ -295,7 +313,7 @@ static int GetNowTime(struct tm *nowTime)
             // 时间没变，可能是旧数据
             if (difftime(current_time, last_bcu_update) > BCU_TIMEOUT_SEC) {
                 LOG("[SD Card] BCU time unchanged for %d sec, treat as stale", BCU_TIMEOUT_SEC);
-                goto use_local_time;
+                return FillLocalTime(nowTime);
             } else {
                 // 时间没变，但在有效期内，继续使用（但不更新系统时间）
                 LOG("[SD Card] BCU time unchanged, skip update");
@@ -324,18 +342,7 @@ static int GetNowTime(struct tm *nowTime)
         return 0;
     }
 
-    use_local_time:
-    {
-        // 使用本地时间
-        time_t now = time(NULL);
-        struct tm *tm_info = localtime(&now);
-        timeinfo = *tm_info;
-        *nowTime = timeinfo;
-        LOG("[SD Card] Using local time: %d-%02d-%02d %02d:%02d:%02d",
-            timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-            timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-        return 0;
-    }
+    return FillLocalTime(nowTime);
 }
 /**
  * 

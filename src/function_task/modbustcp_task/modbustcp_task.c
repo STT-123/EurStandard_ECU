@@ -7,7 +7,7 @@
 #include "interface/setting/ip_setting.h"
 #include "interface/bms/bms_analysis.h"
 #include "device_drv/modbustcp_pro/modbustcp_pro.h"
-
+#include "device_drv/bcu_deal/bcu_deal.h"
 
 // modbus服务器信息
 modbus_t *ctx = NULL;
@@ -64,7 +64,7 @@ static void log_connected_clients(const fd_set *refset, int server_socket, int f
     int offset = 0;
 
     if (refset == NULL) {
-        LOG("[ModbusTcp] Current connected clients: 0, sockets: []");
+        LOG("[ModbusTcp] Current connected clients: NULL, sockets: [NULL]\r");
         return;
     }
 
@@ -91,7 +91,7 @@ static void log_connected_clients(const fd_set *refset, int server_socket, int f
         socket_list[sizeof(socket_list) - 1] = '\0';
     }
 
-    LOG("[ModbusTcp] Current connected clients: %d, sockets: %s\n",
+    LOG("[ModbusTcp] Current connected clients: %d, sockets: %s",
         client_count, socket_list);
 }
 
@@ -210,7 +210,10 @@ void *ModbusTCPServerTask(void *arg)
         }
         g_mb_mapping->tab_registers[MDBUS_ADDR_PRODUCTION - REGISTERS_START_ADDRESS] = LOGO;       // 智充
         g_mb_mapping->tab_registers[MDBUS_ADDR_ECU_VERSION - REGISTERS_START_ADDRESS] = ECU_VERSION; // 版本号
-
+        //测试使用，由于测试过程中BCU和BMU的CAN接反了，所以出现过两个硬件状态，所以软件要改动一下，稳定出场之后就之有一个硬件CAN状态了
+        if(BCU_CAN_DEVICE_NAME == "can2"){
+            g_mb_mapping->tab_registers[MDBUS_ADDR_ECU_VERSION - REGISTERS_START_ADDRESS] = (ECU_VERSION + 0x100); // 版本号
+        }
         server_socket = modbus_tcp_listen(ctx, NB_CONNECTION);// 开启监听
         if (server_socket < 0)
         {

@@ -56,78 +56,33 @@ static const fault_mapping_t fault_map_2H[] = {
 int CheckSinglePHYStatus(const char *ifname)
 {
 	FILE *fp;
-	char line[512];
-	char devname[32];
-	net_stats_t stats = {0};
-	static net_stats_t last_stats[2] = {0}; // 简单缓存上次统计
-	static int initialized = 0;
+	char carrier_path[128];
+	int carrier = 0;
 
-	fp = fopen("/proc/net/dev", "r");
+	snprintf(carrier_path, sizeof(carrier_path), "/sys/class/net/%s/carrier", ifname);
+
+	fp = fopen(carrier_path, "r");
 	if (!fp)
 	{
-		perror("fopen /proc/net/dev failed");
-		return 0; // 没有
+		LOG("[Abnormal] Failed to open %s\n", carrier_path);
+		return 0;
 	}
 
-	// 跳过前两行标题
-	fgets(line, sizeof(line), fp);
-	fgets(line, sizeof(line), fp);
-
-	while (fgets(line, sizeof(line), fp))
+	if (fscanf(fp, "%d", &carrier) != 1)
 	{
-        if (strlen(line) >= sizeof(line) - 1) {
-            LOG("[Abnormal] Line too long in /proc/net/dev\n");
-            continue;
-        }
-		// 解析接口统计信息
-		if (sscanf(line, "%31[^:]: %llu %llu %*u %*u %*u %*u %*u %*u %llu %llu",
-				   devname, &stats.rx_bytes, &stats.rx_packets,
-				   &stats.tx_bytes, &stats.tx_packets) >= 4)
-		{
-
-			// 去除接口名末尾的空格
-			char *p = devname;
-			while (*p == ' ')
-				p++;
-
-			if (strcmp(p, ifname) == 0)
-			{
-				fclose(fp);
-
-				// 检查是否有数据活动
-				int has_traffic = 0;
-
-				if (initialized)
-				{
-					// 比较当前统计和上次统计
-					net_stats_t *last = &last_stats[strcmp(ifname, "eth0") == 0 ? 0 : 1];
-					if (stats.rx_bytes > last->rx_bytes ||
-						stats.tx_bytes > last->tx_bytes ||
-						stats.rx_packets > last->rx_packets ||
-						stats.tx_packets > last->tx_packets)
-					{
-						has_traffic = 1;
-					}
-				}
-
-				// 更新缓存
-				net_stats_t *last = &last_stats[strcmp(ifname, "eth0") == 0 ? 0 : 1];
-				*last = stats;
-				initialized = 1;
-
-				return has_traffic;
-			}
-		}
+		LOG("[Abnormal] Failed to read carrier state for %s\n", ifname);
+		fclose(fp);
+		return 0;
 	}
 
 	fclose(fp);
-	return 0; // 接口未找到
+	return (carrier == 1) ? 1 : 0;
 }
 void PHYlinktate(void)
 {
     static struct timespec phy_last_check_tick = {0};
     static int initialized = 0;
-    static int pending_link_state = -1; // 1:有流量(认为链路正常), 0:无流量(认为异常)
+    static int pending_link_state = -1; // 1:物理链路正常, 0:物理链路断开
     static int reported_link_state = -1; // 1:已上报恢复, 0:已上报故障
 
     int eth1_status = CheckSinglePHYStatus(NET_ETH_1);
@@ -145,7 +100,7 @@ void PHYlinktate(void)
     }
 
     if (pending_link_state) {
-        // 连续正常达到恢复门限才清故障
+        // 连续物理链路正常达到恢复门限才清故障
         if (reported_link_state != 1 &&
             GetTimeDifference_ms(phy_last_check_tick) >= RECOVER_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_RECOVER);
@@ -153,7 +108,7 @@ void PHYlinktate(void)
             reported_link_state = 1;
         }
     } else {
-        // 连续异常达到故障门限才置故障
+        // 连续物理链路断开达到故障门限才置故障
         if (reported_link_state != 0 &&
             GetTimeDifference_ms(phy_last_check_tick) >= FAULT_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
