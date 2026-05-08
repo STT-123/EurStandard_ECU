@@ -65,13 +65,13 @@ void *ota_Upgrade_Task(void *arg)
                      ECU_OTA();
                      if(ecustatus.ErrorReg == 0)
                      {
-                        LOG("[OTA] CAN ID 0x%x BCU OTA success!\r\n", get_ota_deviceID());
+                        LOG("[OTA] CAN ID 0x%x ECU OTA success!\r\n", get_ota_deviceID());
                         break;
                      }
                      else
                      {
                         ECUOtaFlag++;
-                        LOG("[OTA] CAN ID 0x%x BCU OTA failed, retry count: %d\r\n", get_ota_deviceID(), ECUOtaFlag);
+                        LOG("[OTA] CAN ID 0x%x ECU OTA failed, retry count: %d\r\n", get_ota_deviceID(), ECUOtaFlag);
                      }
 
                 }

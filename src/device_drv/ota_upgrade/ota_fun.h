@@ -49,11 +49,11 @@ typedef struct
 	char OTAUdsFilename[MAX_FILE_COUNT][OTAFILENAMEMAXLENGTH];//专门给AC使用的
 	_Atomic unsigned int deviceID;//CAN 设备ID 
 	_Atomic unsigned char deviceType;	//设备类型
-	_Atomic unsigned char OTAStart;	//OTA 开始标志
+	_Atomic unsigned char OTAStart;	//OTA 烧文件开始标志
 	_Atomic unsigned char multDeviceOTA; //
 	_Atomic unsigned char multDeviceOTANum;	//
 	_Atomic unsigned char acOTAFlag; //
-	_Atomic unsigned char UpDating;	//上传更新文件开始标志。OTA顺序：上传更新文件+烧写文件
+	_Atomic unsigned char UpDating;	//OTA上传更新文件开始标志。OTA顺序：上传更新文件+烧写文件
 } OTAObject;
 
 extern OTAObject g_otactrl;

@@ -49,6 +49,22 @@ const unsigned int crc_table[256] = {
     0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0
 };
 
+static unsigned int xmodem_get_absolute_packno(unsigned char curpackno, unsigned char prvpackno, unsigned int *packbase)
+{
+    if ((prvpackno == 0xff) && (curpackno == 0x00))
+    {
+        *packbase += 256;
+        LOG("[Xmodem] Packet index wrapped: 0xFF -> 0x00, base=%u\r\n", *packbase);
+    }
+    else if ((prvpackno == 0xff) && (curpackno == 0x01))
+    {
+        *packbase += 255;
+        LOG("[Xmodem] Packet index wrapped: 0xFF -> 0x01, base=%u\r\n", *packbase);
+    }
+
+    return *packbase + curpackno;
+}
+
 
 void *lwip_data_TASK(void *param)
 {
@@ -63,15 +79,21 @@ void *lwip_data_TASK(void *param)
 	static unsigned char findfirstpack = 0;
 	unsigned char prvpackno = 0;
 	unsigned char curpackno = 0;
-	unsigned int packidoverflownum = 0;
+	unsigned int packbase = 0;
 	char otafilenamestr1[130] = {'\0'};
 	unsigned char otadeviceType = 0;
 	static int filenormalflag =0;
 	int errorCount = 0;
 	int fileVersionflag = 0;
+	unsigned char waitingForEOT = 0;
+	unsigned char transferCompletedWithoutEOT = 0;
+	unsigned char stopReadingAfterFileEnd = 0;
+	unsigned int expectedLastPackno = 0;
+	const char *lastPacketMode = "unknown";
+	int eofCount = 0;
 	while (1)
 	{
-		if(otasock1 > 0)
+		if ((otasock1 > 0) && (stopReadingAfterFileEnd == 0))
 		{
 			memset(tcp_server_recvbuf, 0, 2048);
 			int length = read(otasock1, tcp_server_recvbuf, 2048);
@@ -122,7 +144,14 @@ void *lwip_data_TASK(void *param)
 							findfirstpack = 1;
 							curpackno = 0;
 							prvpackno = 0;
-							packidoverflownum = 0;  //lx
+							packbase = 0;
+							waitingForEOT = 0;
+							transferCompletedWithoutEOT = 0;
+							stopReadingAfterFileEnd = 0;
+							expectedLastPackno = 0;
+							lastPacketMode = "unknown";
+							errorCount = 0;
+							eofCount = 0;
 							snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
 						}
 					}
@@ -131,13 +160,12 @@ void *lwip_data_TASK(void *param)
 						if( (findfirstpack) && (fileVersionflag == 0))
 						{
 							curpackno = tcp_server_recvbuf[1];//系列号
-
-							if(curpackno == 0x01 && prvpackno == 0xff)
+							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+							if (packno > xmodempacknum)
 							{
-								packidoverflownum++;//循环次数
+								LOG("[Xmodem] Packet count mismatch(128B): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
+									packno, xmodempacknum, curpackno, prvpackno);
 							}
-							packno = tcp_server_recvbuf[1] + packidoverflownum * 255;//总包数
-							// LOG("[Xmodem] recv packnum = %d,packidoverflownum = %d,tcp_server_recvbuf[1] = %d \r\n",packno,packidoverflownum,tcp_server_recvbuf[1]);
 							if(packno != xmodempacknum)
 							{
 								readdatanum = 128;//每次读取128字节
@@ -238,7 +266,15 @@ void *lwip_data_TASK(void *param)
 									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
 									set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
 								}
-								setXmodemServerReceiveFileEnd(1);//考虑后移动
+								else{
+									waitingForEOT = 1;
+									expectedLastPackno = xmodempacknum;
+									lastPacketMode = "128B";
+									errorCount = 0;
+									eofCount = 0;
+									LOG("[Xmodem] Last data packet received(128B): pack=%d/%d, waiting for EOT\r\n",
+										packno, xmodempacknum);
+								}
 								LOG("[Xmodem] get_ota_UpDating(): %d\r\n",get_ota_UpDating());
 								LOG("[Xmodem] otafilenamestr1111111 : %s\r\n",otafilenamestr1);
 								if((strstr(otafilenamestr, "bin") != NULL) || (strstr(otafilenamestr1, "bz2") != NULL) || (strstr(otafilenamestr1, "deb") != NULL) || (strstr(otafilenamestr1, "tar") != NULL))
@@ -248,8 +284,8 @@ void *lwip_data_TASK(void *param)
 									if(strstr(otafilenamestr, "ECU") != NULL)
 									{
 										set_ota_deviceType(otadeviceType);
-										LOG("[Xmodem] ECU_OTA_otadeviceType: %u\r\n");
-										LOG("[Xmodem] otafilenamestr: %u\r\n",otafilenamestr);
+										LOG("[Xmodem] ECU_OTA_otadeviceType: %d\r\n", otadeviceType);
+										LOG("[Xmodem] otafilenamestr: %s\r\n", otafilenamestr);
 										set_ota_OTAFilename(otafilenamestr);
 										set_ota_deviceID(0);
 										set_ota_OTAStart(1);
@@ -423,24 +459,24 @@ void *lwip_data_TASK(void *param)
 				if((tcp_server_recvbuf[0] == STX) && (crcGet(tcp_server_recvbuf, 1027) == (tcp_server_recvbuf[1025] << 8 | tcp_server_recvbuf[1026])))
 				{
 
-					errpacknum = 0;
-					tcp_server_Txbuf[0] = ACK;
-					write(otasock1, tcp_server_Txbuf, 1);
+						errpacknum = 0;
+						tcp_server_Txbuf[0] = ACK;
+						write(otasock1, tcp_server_Txbuf, 1);
 
-					if(findfirstpack)
-					{
-						curpackno = tcp_server_recvbuf[1];
-
-						if(curpackno == 0x01 && prvpackno == 0xff)
+						if(findfirstpack)
 						{
-							packidoverflownum++;
-						}
-						packno = tcp_server_recvbuf[1] + packidoverflownum * 255;
-						if(packno != xmodempacknum - 1)
-						{
-							readdatanum = 1024;
-							if(packno == 1)
+							curpackno = tcp_server_recvbuf[1];
+							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+							if (packno > xmodempacknum)
 							{
+								LOG("[Xmodem] Packet count mismatch(1K): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
+									packno, xmodempacknum, curpackno, prvpackno);
+							}
+							if(packno != xmodempacknum)
+							{
+								readdatanum = 1024;
+								if(packno == 1)
+								{
 								if(strstr(otafilenamestr, "ECU") != NULL)									
 								{
 									otadeviceType = ECU;
@@ -483,11 +519,11 @@ void *lwip_data_TASK(void *param)
 								set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
 							}
 						}
-						else
-						{
+							else
+							{
 
-							filesize%1024?(readdatanum = filesize%1024):(readdatanum = 1024);
-							LOG("[Xmodem] Receive the last pack , need read %d data from xmodem data area!\r\n", readdatanum);
+								filesize%1024?(readdatanum = filesize%1024):(readdatanum = 1024);
+								LOG("[Xmodem] Receive the last pack , need read %d data from xmodem data area!\r\n", readdatanum);
 							int err = SaveOtaFile(otafilenamestr, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
 							if(err != 0)
 							{
@@ -505,14 +541,23 @@ void *lwip_data_TASK(void *param)
 
 									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 								LOG("[Xmodem] Failed to write upgrade file\r\n");
-								setXmodemServerReceiveFileEnd(1);
-								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-								set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
-							}
-							setXmodemServerReceiveFileEnd(1);
+									setXmodemServerReceiveFileEnd(1);
+									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+									set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
+								}
+								if(err == 0)
+								{
+									waitingForEOT = 1;
+									expectedLastPackno = xmodempacknum;
+									lastPacketMode = "1K";
+									errorCount = 0;
+									eofCount = 0;
+									LOG("[Xmodem] Last data packet received(1K): pack=%d/%d, waiting for EOT\r\n",
+										packno, xmodempacknum);
+								}
 
-							if(strstr(otafilenamestr1, "bin") != NULL)
-							{
+								if(strstr(otafilenamestr1, "bin") != NULL)
+								{
 								set_ota_OTAFileType(0);
 								if(strstr(otafilenamestr1, "ECU") != NULL)
 								{
@@ -597,23 +642,75 @@ void *lwip_data_TASK(void *param)
 				LOG("[Xmodem] Rcv 1 byte data -> 0x%x\r\n", tcp_server_recvbuf[0]);
 				if(tcp_server_recvbuf[0] == EOT)
 				{
+					if (waitingForEOT)
+					{
+						LOG("[Xmodem] Received EOT after last packet(mode=%s, pack=%u/%d), ACK and finish transfer\r\n",
+							lastPacketMode, expectedLastPackno, xmodempacknum);
+					}
+					else
+					{
+						LOG("[Xmodem] Received EOT before last packet complete: last recv pack=%d, expected=%d\r\n",
+							packno, xmodempacknum);
+					}
+					tcp_server_Txbuf[0] = ACK;
+					write(otasock1, tcp_server_Txbuf, 1);
 					setXmodemServerReceiveEOT(1);
+					setXmodemServerReceiveFileEnd(1);
+					waitingForEOT = 0;
+					transferCompletedWithoutEOT = 0;
+					errorCount = 0;
+					eofCount = 0;
 				}
 			}
 			else if(length == -1 || length == 0)
 			{
 			    errorCount++;
-				LOG("errorCount ++\r");
-			    if (errorCount >= 10)
-			    {
-					LOG("errorCount = 10\r\n");
-					setXmodemServerReceiveFileEnd(1);
-			        set_ota_UpDating(0);//1130
-			    }
-			}
+				if (length == 0)
+				{
+					eofCount++;
+					if (waitingForEOT)
+					{
+						LOG("[Xmodem] Peer closed connection before EOT: eofCount=%d, last pack=%u/%d, mode=%s\r\n",
+							eofCount, expectedLastPackno, xmodempacknum, lastPacketMode);
+					}
+					else
+					{
+						LOG("[Xmodem] Peer closed connection before last packet complete: eofCount=%d, last recv pack=%d, expected=%d\r\n",
+							eofCount, packno, xmodempacknum);
+					}
+				}
+				else
+				{
+					LOG("[Xmodem] Socket read error while receiving%s: errno=%d(%s), errorCount=%d, last pack=%d/%d\r\n",
+						waitingForEOT ? " EOT" : " data", errno, strerror(errno), errorCount, packno, xmodempacknum);
+				}
+				    if (errorCount >= 10)
+				    {
+						if (waitingForEOT)
+						{
+							LOG("[Xmodem] EOT not received after last packet(mode=%s, pack=%u/%d), treat transfer as complete\r\n",
+								lastPacketMode, expectedLastPackno, xmodempacknum);
+							transferCompletedWithoutEOT = 1;
+						}
+						else
+						{
+							LOG("[Xmodem] Last packet not received: last recv pack=%d, expected=%d\r\n",
+								packno, xmodempacknum);
+							set_ota_UpDating(0);//1130
+						}
+						setXmodemServerReceiveFileEnd(1);
+						waitingForEOT = 0;
+				    }
+				}
 			else
 			{
 			    errorCount = 0;
+				eofCount = 0;
+				if (waitingForEOT)
+				{
+					LOG("[Xmodem] Unexpected payload while waiting for EOT: length=%d, firstByte=0x%02x, last pack=%u/%d\r\n",
+						length, tcp_server_recvbuf[0], expectedLastPackno, xmodempacknum);
+				}
 			}
 		}
 
@@ -625,10 +722,20 @@ void *lwip_data_TASK(void *param)
 
 		if(getXmodemServerReceiveFileEnd())
 		{
-			LOG("[Xmodem] wait XmodemServerReceiveEOT over !\r\n");
+			if (transferCompletedWithoutEOT)
+			{
+				LOG("[Xmodem] Transfer end without EOT: file already saved, receiveEOT=%d, last pack=%d/%d\r\n",
+					getXmodemServerReceiveEOT(), packno, xmodempacknum);
+			}
+			else
+			{
+				LOG("[Xmodem] Transfer end: receiveFileEnd=1, receiveEOT=%d, waitingForEOT=%d, last pack=%d/%d\r\n",
+					getXmodemServerReceiveEOT(), waitingForEOT, packno, xmodempacknum);
+			}
+			stopReadingAfterFileEnd = 1;
 			setXmodemServerEnd(1);
-			setXmodemServerReceiveEOT(0); //无意义
-			setXmodemServerReceiveFileEnd(0); //无意义
+			setXmodemServerReceiveEOT(0);
+			setXmodemServerReceiveFileEnd(0); 
 		}
 		usleep(5*1000);
 	}
@@ -695,7 +802,7 @@ signed char GetOTAFILEInfo(unsigned char *databuf, char *name, int *filesize, in
 	}
 	else
 	{
-		LOG("[Xmodem] filesize %s->%d error \r\n");
+		LOG("[Xmodem] filesize parse error: input='%s'\r\n", filesizebuf);
 		return -2;
 	}
 	if (sscanf(filepacknumbuf, "%d", xmodempacknum) == 1)
@@ -704,7 +811,7 @@ signed char GetOTAFILEInfo(unsigned char *databuf, char *name, int *filesize, in
 	}
 	else
 	{
-		LOG("[Xmodem] xmodempacknum %s->%d error \r\n");
+		LOG("[Xmodem] xmodempacknum parse error: input='%s'\r\n", filepacknumbuf);
 		return -3;
 	}
 

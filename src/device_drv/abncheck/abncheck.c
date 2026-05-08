@@ -217,27 +217,50 @@ void set_emcu_fault(unsigned char parameter, unsigned char status)
 */
 void check_bcu_rx_timeout(void)
 {
-	static bool can0_fault_reported = false;
+	static bool bcu_fault_reported = false;
+	static time_t monitor_start_time = 0;
+	const int STARTUP_GRACE_SEC = 5;
 	time_t current_time;
 	time(&current_time);
+
+	if (monitor_start_time == 0)
+	{
+		monitor_start_time = current_time;
+	}
+
+	// 启动宽限期内，首次收到BCU报文前不告警；超出宽限期仍未收到则置故障。
+	if (g_last_bcu_rx_time == 0)
+	{
+		if (difftime(current_time, monitor_start_time) >= STARTUP_GRACE_SEC)
+		{
+			if (!bcu_fault_reported)
+			{
+				set_emcu_fault(BMS_COM_FAULT, SET_ERROR);
+				bcu_fault_reported = true;
+				LOG("BCU Communication ERROR\n");
+			}
+		}
+		return;
+	}
+
 	double diff = difftime(current_time, g_last_bcu_rx_time);
 
-	if (diff >= 5.0)
+	if (diff >= 2.0)
 	{
-		if (!can0_fault_reported)
+		if (!bcu_fault_reported)
 		{
 			set_emcu_fault(BMS_COM_FAULT, SET_ERROR);
-			can0_fault_reported = true;
-			LOG("CAN0 TimeoutCheck warning\n");
+			bcu_fault_reported = true;
+			LOG("BCU Communication ERROR\n");
 		}
 	}
 	else
 	{
-		if (can0_fault_reported)
+		if (bcu_fault_reported)
 		{
 			set_emcu_fault(BMS_COM_FAULT, SET_RECOVER);
-			can0_fault_reported = false;
-			LOG("CAN0 TimeoutCheckv normal\n");
+			bcu_fault_reported = false;
+			LOG("BCU Communication OK\n");
 		}
 	}
 }

@@ -313,7 +313,7 @@ signed char udsServer31(unsigned int id, uint32_t addr, uint32_t len)
 
 	CanMes.Data[7] = addr>>24;
 
-	printf("send can0 CanMes:%x %x %x %x %x %x %x %x %x\n",CanMes.ID,CanMes.Data[0],CanMes.Data[1],CanMes.Data[2],CanMes.Data[3],CanMes.Data[4],CanMes.Data[5],CanMes.Data[6],CanMes.Data[7]);
+	printf("send AC CanMes:%x %x %x %x %x %x %x %x %x\n",CanMes.ID,CanMes.Data[0],CanMes.Data[1],CanMes.Data[2],CanMes.Data[3],CanMes.Data[4],CanMes.Data[5],CanMes.Data[6],CanMes.Data[7]);
 
     udsstatus.udsServerID = 0x31;
     udsstatus.udsSession = 0x00;
@@ -371,7 +371,7 @@ signed char udsServer31(unsigned int id, uint32_t addr, uint32_t len)
 	CanMes_1.Data[6] = len>>8;
 	CanMes_1.Data[7] = len>>0;
 
-	printf("send can0 CanMes_1: %x %x %x %x %x %x %x %x\n",CanMes_1.ID,CanMes_1.Data[0],CanMes_1.Data[1],CanMes_1.Data[2],CanMes_1.Data[3],CanMes_1.Data[4],CanMes_1.Data[5],CanMes_1.Data[6]);
+	printf("send AC CanMes_1: %x %x %x %x %x %x %x %x\n",CanMes_1.ID,CanMes_1.Data[0],CanMes_1.Data[1],CanMes_1.Data[2],CanMes_1.Data[3],CanMes_1.Data[4],CanMes_1.Data[5],CanMes_1.Data[6]);
 
 	TStatus = Drv_bcu_can_send(&CanMes_1);
 	if (TStatus == 0)

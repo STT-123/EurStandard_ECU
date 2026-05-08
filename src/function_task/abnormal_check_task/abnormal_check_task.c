@@ -12,13 +12,13 @@ pthread_t AnormalDetectionTask_TASKHandle = 0;
 void *AbnormalDetection(void *arg)
 {
     /**
-     * 目前检测的故障只有、CAN0通道、SD卡
+     * 目前检测的故障只有、BCU通道、SD卡
     */
    sleep(2);
     while (1)
     {
         /* code */
-        check_bcu_rx_timeout();//CAN0 通道检测
+        check_bcu_rx_timeout();//BCU 通道检测
         PHYlinktate(); //网口流量活动检测
         get_BCU_FaultInfo(get_BCU_FaultInfoLv4Value(),get_BCU_FaultInfoLv3Value(),get_BCU_FaultInfoLv2Value());
         ECUfault_process(); // 各种故障检测

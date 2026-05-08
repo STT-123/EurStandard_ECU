@@ -22,7 +22,7 @@ void *bcu_DealTask(void *arg)
 
     bcu_Init();// ecu 和 bcu通信can初始化（打开can口 绑定回调）
     init_can_buffer();
-    LOG("Func_thread_can0_dealwith is running\n");
+    LOG("bcu_DealTask is running\n");
     while (1)
     {
         // usleep(200*1000);
