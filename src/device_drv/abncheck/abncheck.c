@@ -245,7 +245,7 @@ void check_bcu_rx_timeout(void)
 
 	double diff = difftime(current_time, g_last_bcu_rx_time);
 
-	if (diff >= 2.0)
+	if (diff >= 3.0)
 	{
 		if (!bcu_fault_reported)
 		{

@@ -25,7 +25,7 @@ void *AbnormalDetection(void *arg)
         can_monitor_fun();//CAN 通道 通道检测
         check_and_fix_ip(MODBUS_ETH_NUM);//检测ip地址是否被修改并自动更正
         checkRootCapacity();//检测系统盘空间是否被耗尽
-        sleep(1);
+        usleep(100*1000); // 100ms
     }
 }
 
