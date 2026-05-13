@@ -29,9 +29,10 @@ void *bcu_DealTask(void *arg)
 
         if ((get_ota_OTAStart() == 0) && (get_ota_acOTAFlag() == 0))
         {
-            // printf("get_ota_acOTAFlag() = %d\r\n",get_ota_acOTAFlag());
+            
             if (call_count == 0) {
                 CANFDSendFcn_BCU_step();
+                //printf("get_ota_acOTAFlag() = %d\r\n",get_ota_acOTAFlag());
                 record_tcu_send_frame();
             }
             call_count = (call_count + 1) % 25;

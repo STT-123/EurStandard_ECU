@@ -251,6 +251,7 @@ void *ModbusTCPServerTask(void *arg)
             else if(sel == 0)
             {
                 timeout_flag = 1;// select超时处理
+                LOG("[ModbusTcp] select timeout for 10s, closing all client sockets\n");
                 close_all_client_sockets(&refset, server_socket, &fdmax);
             }
             else{

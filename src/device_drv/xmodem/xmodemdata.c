@@ -65,6 +65,22 @@ static unsigned int xmodem_get_absolute_packno(unsigned char curpackno, unsigned
     return *packbase + curpackno;
 }
 
+static void xmodem_close_ota_file_if_open(void)
+{
+    if (OTAfil != NULL)
+    {
+        if (fclose(OTAfil) != 0)
+        {
+            LOG("[Xmodem] Error file close failed err code!\r\n");
+        }
+        else
+        {
+            LOG("[Xmodem] file closed successfully!\r\n");
+        }
+        OTAfil = NULL;
+    }
+}
+
 
 void *lwip_data_TASK(void *param)
 {
@@ -76,7 +92,7 @@ void *lwip_data_TASK(void *param)
 	int readdatanum = 128;//写入字节数
 	int packno = 0;//当前接收包数，逐渐增加
 	unsigned int errpacknum = 0;
-	static unsigned char findfirstpack = 0;
+	unsigned char findfirstpack = 0;
 	unsigned char prvpackno = 0;
 	unsigned char curpackno = 0;
 	unsigned int packbase = 0;
@@ -118,12 +134,12 @@ void *lwip_data_TASK(void *param)
 							if(strstr(otafilenamestr, "BCU") != NULL)
 							{
 								int ota_ver_h = -1;
+								int bcu_ver_h = get_BCU_Version_H();
 								char *p = strchr(otafilenamestr, 'V');
-
-								printf("[Xmodem] *p  = %d ,  get_BCU_Version_H() = %d \r\n", (*(p + 1) - '0'), get_BCU_Version_H());
 
 								if ((p != NULL) && (*(p + 1) >= '0') && (*(p + 1) <= '9')){
 									ota_ver_h = *(p + 1) - '0';   // 例如 V501 -> 5, V685 -> 6
+									LOG("[Xmodem] Parsed BCU OTA version: ota_ver_h=%d, bcu_ver_h=%d\r\n", ota_ver_h, bcu_ver_h);
 								}
 								else{
 									LOG("[Xmodem] Invalid OTA file name: %s\r\n", otafilenamestr);
@@ -132,9 +148,13 @@ void *lwip_data_TASK(void *param)
 									fileVersionflag = 1;
 								}
 
-								if (ota_ver_h != get_BCU_Version_H()){
+								if ((fileVersionflag == 0) && (bcu_ver_h == 0)){
+									LOG("[Xmodem] BCU version high byte is 0, treat as unknown and allow OTA. file=%s, ota_ver_h=%d\r\n",
+									otafilenamestr, ota_ver_h);
+								}
+								else if ((fileVersionflag == 0) && (ota_ver_h != bcu_ver_h)){
 									LOG("[Xmodem] OTA version mismatch! file=%s, ota_ver_h=%d, bcu_ver_h=%d\r\n",
-									otafilenamestr, ota_ver_h, get_BCU_Version_H());
+									otafilenamestr, ota_ver_h, bcu_ver_h);
 									setXmodemServerEnd(1);
 									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
 									fileVersionflag = 1;
@@ -161,6 +181,17 @@ void *lwip_data_TASK(void *param)
 						{
 							curpackno = tcp_server_recvbuf[1];//系列号
 							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+							if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0') || (otafilenamestr1[0] == '\0'))
+							{
+								LOG("[Xmodem] Invalid OTA transfer state: file='%s', save_path='%s', totalpack=%d, recv pack=%d\r\n",
+									otafilenamestr, otafilenamestr1, xmodempacknum, packno);
+								findfirstpack = 0;
+								set_ota_UpDating(0);
+								setXmodemServerReceiveSOH(0);
+								setXmodemServerReceiveFileEnd(1);
+								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+								continue;
+							}
 							if (packno > xmodempacknum)
 							{
 								LOG("[Xmodem] Packet count mismatch(128B): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
@@ -226,14 +257,7 @@ void *lwip_data_TASK(void *param)
 									filenormalflag =1;
 									set_ota_UpDating(0);//1130
 									otadeviceType = 0;
-									if (fclose(OTAfil) != 0)
-									{
-										LOG("[Xmodem] Error file close failed err code!\r\n");
-									}
-									else
-									{
-										LOG("[Xmodem] file closed successfully!\r\n");
-									}
+									xmodem_close_ota_file_if_open();
 									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 									LOG("[Xmodem] Failed to write upgrade file\r\n");
 									setXmodemServerReceiveFileEnd(1);
@@ -251,15 +275,8 @@ void *lwip_data_TASK(void *param)
 									filenormalflag =1;
 									set_ota_UpDating(0);//1130
 									otadeviceType = 0;
-									if (fclose(OTAfil) != 0)
-									{
-										LOG("[Xmodem] Error file close failed err code!\r\n");
-									}
-									else
-									{
-										LOG("[Xmodem] file closed successfully!\r\n");
-									}
-										delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+									xmodem_close_ota_file_if_open();
+									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 									LOG("[Xmodem] Failed to write upgrade file\r\n");
 									// XmodemServerReceiveFileEnd = 1;
 									setXmodemServerReceiveFileEnd(1);
@@ -467,6 +484,17 @@ void *lwip_data_TASK(void *param)
 						{
 							curpackno = tcp_server_recvbuf[1];
 							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+							if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0'))
+							{
+								LOG("[Xmodem] Invalid OTA transfer state(1K): file='%s', totalpack=%d, recv pack=%d\r\n",
+									otafilenamestr, xmodempacknum, packno);
+								findfirstpack = 0;
+								set_ota_UpDating(0);
+								setXmodemServerReceiveSOH(0);
+								setXmodemServerReceiveFileEnd(1);
+								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+								continue;
+							}
 							if (packno > xmodempacknum)
 							{
 								LOG("[Xmodem] Packet count mismatch(1K): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
@@ -504,14 +532,7 @@ void *lwip_data_TASK(void *param)
 								filenormalflag =1;
 								set_ota_UpDating(0);//1130
 								otadeviceType = 0;
-								if (fclose(OTAfil) != 0)
-								{
-									LOG("[Xmodem] Error file close failed err code!\r\n");
-								}
-								else
-								{
-									LOG("[Xmodem] file closed successfully!\r\n");
-								}
+								xmodem_close_ota_file_if_open();
 								delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 								LOG("[Xmodem] Failed to write upgrade file\r\n");
 								setXmodemServerReceiveFileEnd(1);
@@ -530,14 +551,7 @@ void *lwip_data_TASK(void *param)
 								filenormalflag =1;
 								set_ota_UpDating(0);//1130
 								otadeviceType = 0;
-								if (fclose(OTAfil) != 0)
-								{
-									LOG("[Xmodem] Error file close failed err code!\r\n");
-								}
-								else
-								{
-									LOG("[Xmodem] file closed successfully!\r\n");
-								}
+								xmodem_close_ota_file_if_open();
 
 									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
 								LOG("[Xmodem] Failed to write upgrade file\r\n");
@@ -733,9 +747,21 @@ void *lwip_data_TASK(void *param)
 					getXmodemServerReceiveEOT(), waitingForEOT, packno, xmodempacknum);
 			}
 			stopReadingAfterFileEnd = 1;
+			findfirstpack = 0;
+			fileVersionflag = 0;
+			filesize = 0;
+			xmodempacknum = 0;
+			packno = 0;
+			prvpackno = 0;
+			curpackno = 0;
+			packbase = 0;
+			otafilenamestr[0] = '\0';
+			otafilenamestr1[0] = '\0';
+			xmodem_close_ota_file_if_open();
+			setXmodemServerReceiveSOH(0);
 			setXmodemServerEnd(1);
 			setXmodemServerReceiveEOT(0);
-			setXmodemServerReceiveFileEnd(0); 
+			setXmodemServerReceiveFileEnd(0);
 		}
 		usleep(5*1000);
 	}

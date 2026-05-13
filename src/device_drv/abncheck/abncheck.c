@@ -17,6 +17,7 @@
 #define _POSIX_C_SOURCE 199309L
 #define RECOVER_REPORT_TIME 5000
 #define FAULT_REPORT_TIME 3000
+#define PHY_STARTUP_GRACE_TIME 8000
 #define RECOVER_KM_DEFAULT_STATE 0 // 恢复接触器默认状态
 #define RECOVER_KM_ACTION_STATE 1  // 恢复接触器动作状态
 
@@ -48,8 +49,8 @@ static const fault_mapping_t fault_map_3H[] = {
 };
 
 static const fault_mapping_t fault_map_2H[] = {
-    {6, INSIDE_NTC_FAULT},//内部温度故障
-    {7, OUTSIDE_COM_FAULT},//外部温度故障
+    {5, INSIDE_NTC_FAULT},//高压盒内部温度故障
+    {4, OUTSIDE_COM_FAULT},//高压盒内部温度故障
 };
 
 
@@ -80,6 +81,7 @@ int CheckSinglePHYStatus(const char *ifname)
 }
 void PHYlinktate(void)
 {
+    static struct timespec phy_startup_tick = {0};
     static struct timespec phy_last_check_tick = {0};
     static int initialized = 0;
     static int pending_link_state = -1; // 1:物理链路正常, 0:物理链路断开
@@ -88,9 +90,31 @@ void PHYlinktate(void)
     int eth1_status = CheckSinglePHYStatus(NET_ETH_1);
 
     if (!initialized) {
+        clock_gettime(CLOCK_MONOTONIC, &phy_startup_tick);
         clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
         pending_link_state = eth1_status;
         initialized = 1;
+    }
+
+    // 上电初期链路训练、自协商可能尚未完成，先只跟踪状态不报码。
+    if (reported_link_state == -1) {
+        if (eth1_status != pending_link_state) {
+            pending_link_state = eth1_status;
+            clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
+        }
+
+        if (GetTimeDifference_ms(phy_startup_tick) < PHY_STARTUP_GRACE_TIME) {
+            return;
+        }
+
+        if (pending_link_state &&
+            GetTimeDifference_ms(phy_last_check_tick) >= RECOVER_REPORT_TIME) {
+            reported_link_state = 1;
+        } else if (!pending_link_state &&
+                   GetTimeDifference_ms(phy_last_check_tick) >= FAULT_REPORT_TIME) {
+            reported_link_state = 0;
+        }
+        return;
     }
 
     // 状态变化时才重置计时起点

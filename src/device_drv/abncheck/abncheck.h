@@ -22,8 +22,8 @@
 #define BMS_COM_FAULT 0x06				// 和bms通讯故障 			 ecmu0 的第六bit，BCU提供
 
 #define SD_FAULT 0x31					// sd卡故障   				emcu3 的第1字节，自己检测
-#define INSIDE_NTC_FAULT  0x32        //内部温度故障  			     emcu3 的第2字节，BCU提供
-#define OUTSIDE_COM_FAULT 0x33      	//外部温度传感器故障  		  emcu3 的第3字节，BCU提供
+#define INSIDE_NTC_FAULT  0x32        	//高压盒内部温度传感器故障  			     emcu3 的第2字节，BCU提供
+#define OUTSIDE_COM_FAULT 0x33      	//高压盒外部温度传感器故障  		  emcu3 的第3字节，BCU提供
 #define PHY_LINK_FAULT 0x34 			// PHY连接故障   			emcu3 的第8字节，自己检测
 #define ISO_SWITCH_FAULT  0x35      	//隔开开关故障  		     emcu3 的第5字节，BCU提供
 
