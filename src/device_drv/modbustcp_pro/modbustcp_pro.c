@@ -447,8 +447,9 @@ static int VoltageCalibration_ModBus_Deal(uint16_t address, uint16_t data)
 	if (address == MDBUS_OFFGRID_STA)//离网屏蔽
 	{
 		Offgridstate = data;
-		set_TCU_FcnStopSet(Offgridstate);//bit0：屏蔽故障，支持开关离网,bit1：屏蔽绝缘故障，但是计算绝缘值,bit2：屏蔽绝缘功能，不计算绝缘值
-
+		//bit0：屏蔽故障，支持开关离网,bit1：屏蔽绝缘故障，但是计算绝缘值,bit2：屏蔽绝缘功能，不计算绝缘值
+		//bit3:清除flash故障 ，bit4:清除硬件故障
+		set_TCU_FcnStopSet(Offgridstate);
 		if(data != last_data_offgrid){
 			LOG("[ModbusTcp] last_data_offgrid = %d\r\n",data);
 			last_data_offgrid = data;

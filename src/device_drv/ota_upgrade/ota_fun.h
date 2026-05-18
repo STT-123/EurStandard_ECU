@@ -20,6 +20,51 @@
 #define OTAFILENAMEMAXLENGTH 128
 #define MAX_FILE_COUNT 20
 
+/*
+ * Unified OTA error bits for ECU / BCU / BMU upgrade flows.
+ * ErrorReg == 0 means success.
+ * 
+OTA_ERR_INVALID_DEVICE_CONTEXT：设备类型 / 设备 ID 上下文不对
+OTA_ERR_COPY_TARGET_FAILED：复制目标文件或 chmod 失败
+OTA_ERR_SOURCE_PACKAGE_MISSING：源压缩包不存在
+OTA_ERR_EXTRACT_FAILED：解压目录创建失败或 tar 解压失败
+OTA_ERR_ARCHIVE_CONTENT_MISSING：解压后没找到需要的文件
+OTA_ERR_CONFIG_INVALID：配置文件解析失败
+OTA_ERR_PACKAGE_NAME_MISMATCH：压缩包名、解压 .bin/.conf、upgrade_file 不一致
+OTA_ERR_MD5_COMPUTE_FAILED：MD5 计算失败
+OTA_ERR_MD5_MISMATCH：MD5 校验失败
+OTA_ERR_UPGRADE_FILE_OPEN_FAILED：本地升级文件打开失败
+OTA_ERR_XCP_RESPONSE_TIMEOUT：XCP 连接 / 查询 / ProgramEnd 等等待响应超时
+OTA_ERR_XCP_QUERY_STATUS_SEND：发送 QueryStatus 失败
+OTA_ERR_XCP_PROGRAM_SEND：发送 ProgramMax 数据失败
+OTA_ERR_XCP_PROGRAM_TIMEOUT：ProgramMax 应答超时
+OTA_ERR_XCP_FILE_READ：读取本地 bin 内容失败
+OTA_ERR_XCP_LAST_PACKET_SEND：发送最后一包失败
+OTA_ERR_XCP_LAST_PACKET_TIMEOUT：最后一包应答超时
+OTA_ERR_XCP_PROGRAM_END_SEND：发送 ProgramEnd 失败
+OTA_ERR_XCP_PROGRAM_RESET_SEND：发送 ProgramReset 失败
+OTA_ERR_XCP_PROGRAM_RESET_TIMEOUT：ProgramReset 应答超时
+ */
+#define OTA_ERR_INVALID_DEVICE_CONTEXT      (1U << 0)
+#define OTA_ERR_COPY_TARGET_FAILED          (1U << 1)
+#define OTA_ERR_SOURCE_PACKAGE_MISSING      (1U << 2)
+#define OTA_ERR_EXTRACT_FAILED              (1U << 3)
+#define OTA_ERR_ARCHIVE_CONTENT_MISSING     (1U << 4)
+#define OTA_ERR_CONFIG_INVALID              (1U << 5)
+#define OTA_ERR_PACKAGE_NAME_MISMATCH       (1U << 6)
+#define OTA_ERR_MD5_COMPUTE_FAILED          (1U << 7)
+#define OTA_ERR_MD5_MISMATCH                (1U << 8)
+#define OTA_ERR_UPGRADE_FILE_OPEN_FAILED    (1U << 9)
+#define OTA_ERR_XCP_RESPONSE_TIMEOUT        (1U << 10)
+#define OTA_ERR_XCP_QUERY_STATUS_SEND       (1U << 11)
+#define OTA_ERR_XCP_PROGRAM_SEND            (1U << 12)
+#define OTA_ERR_XCP_PROGRAM_TIMEOUT         (1U << 13)
+#define OTA_ERR_XCP_FILE_READ               (1U << 14)
+#define OTA_ERR_XCP_LAST_PACKET_SEND        (1U << 15)
+#define OTA_ERR_XCP_LAST_PACKET_TIMEOUT     (1U << 16)
+#define OTA_ERR_XCP_PROGRAM_END_SEND        (1U << 17)
+#define OTA_ERR_XCP_PROGRAM_RESET_SEND      (1U << 18)
+#define OTA_ERR_XCP_PROGRAM_RESET_TIMEOUT   (1U << 19)
 
 
 typedef enum

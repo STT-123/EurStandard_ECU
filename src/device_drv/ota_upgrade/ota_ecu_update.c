@@ -31,7 +31,7 @@ void ECU_OTA(void)
         if (ret > 0) {
             ecustatus.ErrorReg = 0;
             LOG("[OTA] bat_ecu upgrade file detected, replaced %s/bat_ecu\n", APP_PATH);
-        } else if (bat_error == (1 << 4)) {
+        } else if (bat_error == OTA_ERR_ARCHIVE_CONTENT_MISSING) {
             LOG("[OTA] bat_ecu not found in archive, fallback to deb flow\n");
             ret = unzipfile("/var",(unsigned int *)&ecustatus.ErrorReg,FILE_TYPE_DEB);
         } else {
@@ -64,7 +64,7 @@ void ECU_OTA(void)
     else
     {
         LOG("[OTA] get_ota_deviceID() = 0x%x, get_ota_deviceType() = %d\r\n",get_ota_deviceID(),get_ota_deviceType());
-        ecustatus.ErrorReg = 1;
+        ecustatus.ErrorReg = OTA_ERR_INVALID_DEVICE_CONTEXT;
         ecustatus.ErrorDeviceID = get_ota_deviceID();
     }
  

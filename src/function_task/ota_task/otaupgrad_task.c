@@ -71,6 +71,7 @@ void *ota_Upgrade_Task(void *arg)
                      else
                      {
                         ECUOtaFlag++;
+                        LOG("[OTA] ecustatus.ErrorReg  = %d\r\n", ecustatus.ErrorReg);
                         LOG("[OTA] CAN ID 0x%x ECU OTA failed, retry count: %d\r\n", get_ota_deviceID(), ECUOtaFlag);
                      }
 
@@ -234,6 +235,7 @@ void *ota_Upgrade_Task(void *arg)
                         if(BCUOtaFlag >= 3){
                             set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
                             sleep(5);//这个延时不能删除，不然上位机不显示升级失败，直接变为升级完成
+                            LOG("[OTA] xcpstatus.ErrorReg  = %d\r\n", xcpstatus.ErrorReg);
                             LOG("[OTA] CAN ID 0x%x BCU OTA Failed \r\n");
                         }
                     }else{
@@ -285,6 +287,7 @@ void *ota_Upgrade_Task(void *arg)
                                     ReOtaFlag++;
                                     BMUOtaFlag++;
                                     sleep(5);
+                                    LOG("[OTA] xcpstatus.ErrorReg  = %d\r\n", xcpstatus.ErrorReg);
                                     LOG("[OTA] CAN ID 0x%x BMU OTA failed, retry count: %d\r\n", get_ota_deviceID(), ReOtaFlag);
                                     continue;
                                 }

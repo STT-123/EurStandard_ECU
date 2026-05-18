@@ -148,9 +148,10 @@ int main(int argc, char **argv)
         // }
 
 
-        // index1 = 0x4B35 - 0x3000;
-        // printf("Mobud[0x4B35] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
-
+        // index1 = 0x3466 - 0x3000;
+        // printf("Mobud[0x3466] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
+        // index1 = 0x3467 - 0x3000;
+        // printf("Mobud[0x3467] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
 
         // for(int i = (0x6105-0x3000);i< (0x6107-0x3000);i++){
         //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       

@@ -301,7 +301,7 @@ static int XcpTryConnectDevice(XCPStatus *xcpstatus)
         }
 
         memset(xcpstatus, 0, sizeof(XCPStatus));
-        xcpstatus->ErrorReg |= 1 << 15;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_RESPONSE_TIMEOUT;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -2; // 超时错误
     }  
@@ -337,7 +337,7 @@ static int XcpTryQueryStatusOnce(XCPStatus *xcpstatus)
             if (res < 0)
             {
                 LOG("[OTA] XCP SendQueryStatusCMD error, Error code %d\r\n", res);
-                xcpstatus->ErrorReg |= 1 << 4;
+                xcpstatus->ErrorReg |= OTA_ERR_XCP_QUERY_STATUS_SEND;
                 xcpstatus->ErrorDeviceID = get_ota_deviceID();
                 return -1;
             }
@@ -357,7 +357,7 @@ static int XcpTryQueryStatusOnce(XCPStatus *xcpstatus)
         }
 
         memset(xcpstatus, 0, sizeof(XCPStatus));
-        xcpstatus->ErrorReg |= 1 << 15;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_RESPONSE_TIMEOUT;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -2; // 超时错误
     }
@@ -393,7 +393,7 @@ static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcps
     }
     if (res != 0) {
         LOG("[OTA] XCP XcpSendProgramMaxCMD error, Error code %d\r\n", res);
-        xcpstatus->ErrorReg |= 1 << 7;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_PROGRAM_SEND;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return 1;
     }
@@ -405,7 +405,7 @@ static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcps
     else
     {
         memset(xcpstatus, 0, sizeof(XCPStatus));
-        xcpstatus->ErrorReg |= 1 << 8;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_PROGRAM_TIMEOUT;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
 
         return -2; // 超时错误
@@ -424,7 +424,7 @@ static int SendLastPacket(FILE*rfile, unsigned char lastpackdatanum, XCPStatus *
     // printf("file read %d byte data success!\r\n", rnum);
     if (rnum != lastpackdatanum) {
         LOG("[OTA] file read %d byte data failed!\r\n", lastpackdatanum);
-        xcpstatus->ErrorReg |= 1 << 6;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_FILE_READ;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -1;
     } else {
@@ -449,7 +449,7 @@ static int SendLastPacket(FILE*rfile, unsigned char lastpackdatanum, XCPStatus *
     }
     if (res != 0) {
         LOG("[OTA] XCP XcpSendProgramCMD SendLastPacket error, Error code %d\r\n", res);
-        xcpstatus->ErrorReg |= 1 << 11;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_LAST_PACKET_SEND;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -1;
     }
@@ -466,7 +466,7 @@ static int SendLastPacket(FILE*rfile, unsigned char lastpackdatanum, XCPStatus *
     else
     {
         memset(xcpstatus, 0, sizeof(XCPStatus));
-        xcpstatus->ErrorReg |= 1 << 12;
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_LAST_PACKET_TIMEOUT;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -2; // 超时错误
     }
@@ -478,6 +478,8 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
     {
         unsigned char PrvProgramProgress = 0;
         unsigned char ProgramProgress = 0;
+        const char *device_name = (get_ota_deviceType() == BCU) ? "BCU" :
+                                  (get_ota_deviceType() == BMU) ? "BMU" : "XCP";
         int fd = fileno(rfile); 
         struct stat file_stat;
         if (fstat(fd, &file_stat) != 0) {
@@ -518,7 +520,7 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                    
                     if (rnum < 7) {
                         LOG("[OTA] file read 7 byte data failed! rnum: %zu\n", rnum);
-                        xcpstatus->ErrorReg |= 1 << 6;
+                        xcpstatus->ErrorReg |= OTA_ERR_XCP_FILE_READ;
                         xcpstatus->ErrorDeviceID = get_ota_deviceID();
                        
                         return 2;
@@ -541,7 +543,8 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
 
                 if(ProgramProgress != PrvProgramProgress)
                 {
-                    //RTOSDebugPrintf(".\r\n", ProgramProgress);
+                    LOG("[OTA] %s XCP progress: %u%%, pack %u/%u\r\n",
+                        device_name, ProgramProgress, i + 1, totalpack);
                 }
                 PrvProgramProgress = ProgramProgress;
             }
@@ -556,7 +559,8 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
 
                 if(ProgramProgress != PrvProgramProgress)
                 {
-                    //RTOSDebugPrintf("program %d%!\r\n", ProgramProgress);
+                    LOG("[OTA] %s XCP progress: %u%%, pack %u/%u\r\n",
+                        device_name, ProgramProgress, i + 1, totalpack);
                 }
                 PrvProgramProgress = ProgramProgress;
             }
@@ -578,7 +582,7 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
 
                     if (rnum < 7) {
                         LOG("[OTA] file read 7 byte data failed! rnum: %zu\n", rnum);
-                        xcpstatus->ErrorReg |= 1 << 6;
+                        xcpstatus->ErrorReg |= OTA_ERR_XCP_FILE_READ;
                         xcpstatus->ErrorDeviceID = get_ota_deviceID();
                         return 3;
                     }
@@ -594,12 +598,8 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
 
                 if(ProgramProgress != PrvProgramProgress)
                 {
-
-                    if(ProgramProgress == 100)
-                    {
-                        //printf("program 100!\r\n");
-                    }
-                    //printf("program %d%!\r\n", ProgramProgress);
+                    LOG("[OTA] %s XCP progress: %u%%, pack %u/%u\r\n",
+                        device_name, ProgramProgress, i + 1, totalpack);
                 }
                 PrvProgramProgress = ProgramProgress;
                 //printf("program %d!\r\n", (int)((float)i/totalpack*100));
@@ -638,7 +638,7 @@ static int SendXcpProgramEndCommand(XCPStatus *xcpstatus) {
         if (res != 0) {
             LOG("[OTA]  XCP XcpSendProgramEndCMD error, Error code %d\r\n", res);
             memset(xcpstatus, 0, sizeof(XCPStatus));
-            xcpstatus->ErrorReg |= 1 << 14;
+            xcpstatus->ErrorReg |= OTA_ERR_XCP_PROGRAM_END_SEND;
             xcpstatus->ErrorDeviceID = get_ota_deviceID();
             return -1; // 返回错误代码
         }
@@ -656,7 +656,7 @@ static int SendXcpProgramEndCommand(XCPStatus *xcpstatus) {
         }
     }
     memset(xcpstatus, 0, sizeof(XCPStatus));
-    xcpstatus->ErrorReg |= 1 << 15;
+    xcpstatus->ErrorReg |= OTA_ERR_XCP_RESPONSE_TIMEOUT;
     xcpstatus->ErrorDeviceID = get_ota_deviceID();
 
     return -2; // 超时错误
@@ -714,7 +714,7 @@ signed char XcpProgramResetHandler(XCPStatus *xcpstatus)
             {
                 LOG("[OTA] XCP XcpSendProgramResetCMD error, Error code %d\r\n", res);
                 memset(xcpstatus, 0, sizeof(XCPStatus));
-                xcpstatus->ErrorReg |= (1 << 9);
+                xcpstatus->ErrorReg |= OTA_ERR_XCP_PROGRAM_RESET_SEND;
                 xcpstatus->ErrorDeviceID = get_ota_deviceID();
                 return -1; // 发送失败
             }
@@ -732,7 +732,7 @@ signed char XcpProgramResetHandler(XCPStatus *xcpstatus)
             }
         }
         memset(xcpstatus, 0, sizeof(XCPStatus));
-        xcpstatus->ErrorReg |= (1 << 10);
+        xcpstatus->ErrorReg |= OTA_ERR_XCP_PROGRAM_RESET_TIMEOUT;
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -2; // 超时错误
      
@@ -777,7 +777,7 @@ void XCP_OTA(int count)
             if (rfile == NULL)
             {
                 LOG("[OTA] %s open error, error code %d %s\r\n",otafilenamestr1, errno, strerror(errno));
-                xcpstatus.ErrorReg |= 1 << 1;
+                xcpstatus.ErrorReg |= OTA_ERR_UPGRADE_FILE_OPEN_FAILED;
                 xcpstatus.ErrorDeviceID = get_ota_deviceID();
                 goto xcpcleanup;
             }

@@ -274,6 +274,64 @@ static int compute_file_md5(const char *filepath, char *out_md5) {
     return 0;
 }
 
+static const char *get_filename_from_path(const char *path)
+{
+    const char *name = strrchr(path, '/');
+    return name ? (name + 1) : path;
+}
+
+static void get_name_without_ext(const char *filename, char *name, size_t name_len)
+{
+    const char *dot;
+    size_t copy_len;
+
+    if (!filename || !name || name_len == 0) {
+        return;
+    }
+
+    dot = strrchr(filename, '.');
+    copy_len = dot ? (size_t)(dot - filename) : strlen(filename);
+    if (copy_len >= name_len) {
+        copy_len = name_len - 1;
+    }
+
+    memcpy(name, filename, copy_len);
+    name[copy_len] = '\0';
+}
+
+static int validate_bin_package_names(const char *tar_filename,
+                                      const char *conf_path,
+                                      const char *file_path)
+{
+    char tar_base[256] = {0};
+    char conf_base[256] = {0};
+    char file_base[256] = {0};
+    const char *conf_name = get_filename_from_path(conf_path);
+    const char *file_name = get_filename_from_path(file_path);
+
+    get_name_without_ext(tar_filename, tar_base, sizeof(tar_base));
+    get_name_without_ext(conf_name, conf_base, sizeof(conf_base));
+    get_name_without_ext(file_name, file_base, sizeof(file_base));
+
+    if (strcmp(tar_base, conf_base) != 0) {
+        LOG("[OTA] BIN package name mismatch: tar=%s, conf=%s\n", tar_base, conf_base);
+        return 0;
+    }
+
+    if (strcmp(tar_base, file_base) != 0) {
+        LOG("[OTA] BIN package name mismatch: tar=%s, bin=%s\n", tar_base, file_base);
+        return 0;
+    }
+
+    if (strcmp(g_max_upgrade.upgrade_file, file_name) != 0) {
+        LOG("[OTA] BIN package name mismatch: upgrade_file=%s, bin=%s\n",
+            g_max_upgrade.upgrade_file, file_name);
+        return 0;
+    }
+
+    return 1;
+}
+
 
 // 回调函数：只保留 index 最大的 upgrade
 static int handler(void* user, const char* section, const char* name,
@@ -324,7 +382,7 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
         // 检查源文件是否存在
         if (access(sd_source_file, F_OK) != 0) {
             LOG("[OTA] source file does not exist: %s\n", sd_source_file);
-            *error_status |= 1 << 2;
+            *error_status |= OTA_ERR_SOURCE_PACKAGE_MISSING;
             goto upcelanup;
         }         
     }
@@ -342,7 +400,7 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
 
     if (mkdir(extract_dir, 0755) != 0 && errno != EEXIST) {
         LOG("[OTA] Failed to create extract dir: %s\n", extract_dir);
-        *error_status |= 1 << 3; // 自定义错误位，比如 bit3 表示解压失败
+        *error_status |= OTA_ERR_EXTRACT_FAILED;
         goto upcelanup;
     }
 
@@ -354,27 +412,18 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
     int ret = system(tar_cmd);
     if (ret != 0) {
         LOG("[OTA] Tar extraction failed!\n");
-        *error_status |= 1 << 3;
+        *error_status |= OTA_ERR_EXTRACT_FAILED;
         goto upcelanup;
     }
 
-    // 步骤4: 在解压后的文件夹查找文件名为 conf和 deb或bin,压缩文件和解压文件名必须相同
-    char base_name[256] = {0};
-    char *dot = strrchr(get_ota_OTAFilename(), '.');
-    if (dot && strcmp(dot, ".tar") == 0) {
-        strncpy(base_name, get_ota_OTAFilename(), dot - get_ota_OTAFilename());
-    } else {
-        strcpy(base_name, get_ota_OTAFilename()); // fallback
-    }
-
-    // 步骤5: 检查conf和file文件是否存在
+    // 步骤4: 检查conf和file文件是否存在
     char conf_path[512] = {0};
     char file_path[512] = {0};
 
     if (!find_ota_files_simple(extract_dir, file_type, conf_path, sizeof(conf_path), 
                             file_path, sizeof(file_path))) {
         LOG("[OTA] Could not find required files in extracted archive\n");  
-        *error_status |= 1 << 4;
+        *error_status |= OTA_ERR_ARCHIVE_CONTENT_MISSING;
         goto upcelanup;
     }
 
@@ -389,21 +438,27 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
     int err = ini_parse(conf_path, handler, NULL);
     if (err < 0) {
         LOG("Unable to read configuration file 'upgrade.conf'\n");
-        *error_status |= 1 << 5; // 配置文件异常
+        *error_status |= OTA_ERR_CONFIG_INVALID;
         goto upcelanup;
     } else if (err > 0) {
         LOG("There is an error on line %d of the configuration file\n", err);
-        *error_status |= 1 << 5; // 配置文件异常
+        *error_status |= OTA_ERR_CONFIG_INVALID;
         goto upcelanup;
     }
 
     if (global_max_index == -1) {
         LOG("No upgradeX configuration found\n");
-        *error_status |= 1 << 5; // 配置文件异常
+        *error_status |= OTA_ERR_CONFIG_INVALID;
         goto upcelanup;
     }
 
-    // 步骤7: 直接复制ecu文件到/var目录
+    if (file_type == FILE_TYPE_BIN &&
+        !validate_bin_package_names(get_ota_OTAFilename(), conf_path, file_path)) {
+        *error_status |= OTA_ERR_PACKAGE_NAME_MISMATCH;
+        goto upcelanup;
+    }
+
+    // 步骤6: 直接复制ecu文件到目标目录
     if(*error_status == 0)
     {
         // 1. 获取文件路径
@@ -422,7 +477,7 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
         char computed_md5[33] = {0}; // 32 hex + '\0'
         if (compute_file_md5(file_path, computed_md5) != 0) {
             LOG("[OTA] Failed to compute MD5 for %s\n", file_path);
-            *error_status |= 1 << 7; // MD5 计算失败
+            *error_status |= OTA_ERR_MD5_COMPUTE_FAILED;
             goto upcelanup;
         }
 
@@ -439,7 +494,7 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
 
         if (strcmp(computed_md5, expected_md5) != 0) {
             LOG("[OTA] MD5 mismatch!\n");
-            *error_status |= 1 << 8; // MD5 校验失败
+            *error_status |= OTA_ERR_MD5_MISMATCH;
             goto upcelanup;
         }
         // 4. 比较通过,复制文件到/cp_filepath
@@ -447,7 +502,7 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
 
         if (!copy_file(file_path, target_file)) {
             LOG("[OTA] File copy failed!\n");
-            *error_status |= 1 << 1; // 自定义错误位
+            *error_status |= OTA_ERR_COPY_TARGET_FAILED;
             goto upcelanup;
         }else{
             LOG("[OTA] File copy successful!\n");
@@ -456,7 +511,7 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
         if (file_type == FILE_TYPE_BAT_ECU) {
             if (chmod(target_file, 0755) != 0) {
                 LOG("[OTA] Failed to chmod %s: %s\n", target_file, strerror(errno));
-                *error_status |= 1 << 1;
+                *error_status |= OTA_ERR_COPY_TARGET_FAILED;
                 goto upcelanup;
             }
         }
