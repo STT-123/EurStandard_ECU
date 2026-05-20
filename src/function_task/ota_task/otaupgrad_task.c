@@ -212,7 +212,7 @@ void *ota_Upgrade_Task(void *arg)
 
                         restart_can_interface_enhanced(BCU_CAN_DEVICE_NAME);
                         sleep(2);
-                        while(BCUOtaFlag < 3)
+                        while(BCUOtaFlag < 5)
                         {
                             set_ota_OTAStart(1);
                             queue_clear(&Queue_BCURevData);//情况缓存消息队列
@@ -232,7 +232,7 @@ void *ota_Upgrade_Task(void *arg)
                                 LOG("[OTA] CAN ID 0x%x BCU OTA failed, retry count: %d\r\n", get_ota_deviceID(), BCUOtaFlag);
                             }
                         }
-                        if(BCUOtaFlag >= 3){
+                        if(BCUOtaFlag >= 5){
                             set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
                             sleep(5);//这个延时不能删除，不然上位机不显示升级失败，直接变为升级完成
                             LOG("[OTA] xcpstatus.ErrorReg  = %d\r\n", xcpstatus.ErrorReg);
@@ -269,7 +269,7 @@ void *ota_Upgrade_Task(void *arg)
                         {
                             ReOtaFlag = 0;
                             LOG("[OTA] BMU OTA start! i:%d, ReOtaFlag:%d ,BMUOtaFlag: %d\r\n", i,ReOtaFlag,BMUOtaFlag);
-                            while (ReOtaFlag < 3)
+                            while (ReOtaFlag < 5)
                             {
                                 CurrentOTADeviceCanID = (0x1821D << 12) | ((i + 1) << 8) | 0x10;
                                 set_ota_deviceID(CurrentOTADeviceCanID);
@@ -303,7 +303,7 @@ void *ota_Upgrade_Task(void *arg)
                                 LOG("[OTA] CAN ID 0x%x BMU OTA failed\r\n", get_ota_deviceID());
                             }       
                         }
-                        if((percentage == 100) && (BMUOtaFlag < 3)){
+                        if((percentage == 100) && (BMUOtaFlag < 5)){
                             LOG("[OTA] BMU OTA SUCCEDD\r\n");
                             set_modbus_reg_val(OTASTATUSREGADDR, OTASUCCESS);
                         }else{
@@ -317,6 +317,18 @@ void *ota_Upgrade_Task(void *arg)
                     }                    
                 }
                 FinshhBCUBMUOtaAndCleanup();    
+            }
+            else
+            {
+                LOG("[OTA] Invalid OTA context: OTAStart=%d, deviceType=%u, deviceID=0x%x, file=%s\r\n",
+                    get_ota_OTAStart(), get_ota_deviceType(), get_ota_deviceID(),
+                    get_ota_OTAFilename());
+                LOG("[OTA] Abort invalid OTA state to avoid endless OTASTARTRUNNING loop.\r\n");
+                set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+                set_ota_OTAStart(0);
+                set_ota_UpDating(0);
+                sleep(5);
+                set_modbus_reg_val(OTASTATUSREGADDR, OTAIDLE);
             }
         }
         usleep(10 * 1000);
@@ -339,4 +351,3 @@ void ota_Upgrade_TaskCreate(void)
         }
     } while (ret != 0);
 }
-

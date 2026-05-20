@@ -165,6 +165,8 @@ void *lwip_data_TASK(void *param)
 							curpackno = 0;
 							prvpackno = 0;
 							packbase = 0;
+							LOG("[Xmodem] Init packet tracking: cur=0x%02X prev=0x%02X base=%u total=%d\r\n",
+								curpackno, prvpackno, packbase, xmodempacknum);
 							waitingForEOT = 0;
 							transferCompletedWithoutEOT = 0;
 							stopReadingAfterFileEnd = 0;
@@ -181,6 +183,10 @@ void *lwip_data_TASK(void *param)
 						{
 							curpackno = tcp_server_recvbuf[1];//系列号
 							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+							if ((packno == 1) || ((packno % 100) == 0) || (packno == xmodempacknum)) {
+								LOG("[Xmodem] 128B packet: raw=0x%02X prev=0x%02X base=%u abs=%d total=%d\r\n",
+									curpackno, prvpackno, packbase, packno, xmodempacknum);
+							}
 							if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0') || (otafilenamestr1[0] == '\0'))
 							{
 								LOG("[Xmodem] Invalid OTA transfer state: file='%s', save_path='%s', totalpack=%d, recv pack=%d\r\n",
@@ -200,6 +206,9 @@ void *lwip_data_TASK(void *param)
 							if(packno != xmodempacknum)
 							{
 								readdatanum = 128;//每次读取128字节
+								if (packno == 1) {
+									LOG("[Xmodem] first packet check: packno=%d, file=%s\r\n", packno, otafilenamestr);
+								}
 								if(packno == 1)//第一包
 								{
 									LOG("[Xmodem] otafilenamestr : %s\r\n",otafilenamestr);
@@ -294,6 +303,8 @@ void *lwip_data_TASK(void *param)
 								}
 								LOG("[Xmodem] get_ota_UpDating(): %d\r\n",get_ota_UpDating());
 								LOG("[Xmodem] otafilenamestr1111111 : %s\r\n",otafilenamestr1);
+								LOG("[Xmodem] before OTAStart set: otadeviceType=%d, OTAStart=%d, UpDating=%d\r\n",
+									otadeviceType, get_ota_OTAStart(), get_ota_UpDating());
 								if((strstr(otafilenamestr, "bin") != NULL) || (strstr(otafilenamestr1, "bz2") != NULL) || (strstr(otafilenamestr1, "deb") != NULL) || (strstr(otafilenamestr1, "tar") != NULL))
 								{
 									set_modbus_reg_val(OTASTATUSREGADDR, FILEDECRYPTIONNORMALTERMINATION);

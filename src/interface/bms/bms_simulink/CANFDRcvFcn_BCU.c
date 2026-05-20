@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.263
+ * Model version                  : 5.265
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Fri Apr 24 16:02:27 2026
+ * C/C++ source code generated on : Tue May 19 19:42:40 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -19,6 +19,7 @@
 #include <math.h>
 #include <string.h>
 #include "CANFDRcvFcn_BCU_types.h"
+#include <float.h>
 
 /* Exported block signals */
 CAN_FD_MESSAGE_BUS CANFDRcvMsg;        /* '<Root>/CANFDRcvMsg' */
@@ -100,6 +101,36 @@ void CANFDRcvFcn_BCU_SocProcess(uint16_T rtu_soc, uint16_T *rty_soc_process)
   } else {
     *rty_soc_process = rtu_soc;
   }
+}
+
+real_T rt_modd(real_T u0, real_T u1)
+{
+  real_T y;
+  y = u0;
+  if (u1 == 0.0) {
+    if (u0 == 0.0) {
+      y = u1;
+    }
+  } else if (u0 == 0.0) {
+    y = 0.0 / u1;
+  } else {
+    boolean_T yEq;
+    y = fmod(u0, u1);
+    yEq = (y == 0.0);
+    if ((!yEq) && (u1 > floor(u1))) {
+      real_T q;
+      q = fabs(u0 / u1);
+      yEq = (fabs(q - floor(q + 0.5)) <= DBL_EPSILON * q);
+    }
+
+    if (yEq) {
+      y = 0.0;
+    } else if ((u0 < 0.0) != (u1 < 0.0)) {
+      y += u1;
+    }
+  }
+
+  return y;
 }
 
 /* Model step function */
@@ -1293,7 +1324,7 @@ void CANFDRcvFcn_BCU_step(void)
 
           /* --------------- START Unpacking signal 10 ------------------*/
           {
-            real32_T outValue = 0;
+            real_T outValue = 0;
 
             {
               uint32_T unpackedValue = 0;
@@ -1314,12 +1345,12 @@ void CANFDRcvFcn_BCU_step(void)
                 unpackedValue = tempValue;
               }
 
-              outValue = (real32_T) (unpackedValue);
+              outValue = (real_T) (unpackedValue);
             }
 
             {
-              real32_T result = (real32_T) outValue;
-              result = result * 0.1F;
+              real_T result = (real_T) outValue;
+              result = result * 0.1;
               CANFDRcvFcn_BCU_B.CANFDUnpack2_o11 = result;
             }
           }
@@ -1384,7 +1415,7 @@ void CANFDRcvFcn_BCU_step(void)
 
           /* --------------- START Unpacking signal 13 ------------------*/
           {
-            real32_T outValue = 0;
+            real_T outValue = 0;
 
             {
               uint32_T unpackedValue = 0;
@@ -1405,12 +1436,12 @@ void CANFDRcvFcn_BCU_step(void)
                 unpackedValue = tempValue;
               }
 
-              outValue = (real32_T) (unpackedValue);
+              outValue = (real_T) (unpackedValue);
             }
 
             {
-              real32_T result = (real32_T) outValue;
-              result = result * 0.1F;
+              real_T result = (real_T) outValue;
+              result = result * 0.1;
               CANFDRcvFcn_BCU_B.CANFDUnpack2_o14 = result;
             }
           }
@@ -2208,26 +2239,18 @@ void CANFDRcvFcn_BCU_step(void)
     }
   }
 
-  u = 1000.0F * CANFDRcvFcn_BCU_B.CANFDUnpack2_o11;
-  if (u < 4.2949673E+9F) {
-    if (u >= 0.0F) {
-      BCU_EngryAccumulateChrg = (uint32_T)u;
-    } else {
-      BCU_EngryAccumulateChrg = 0U;
-    }
+  tmp = rt_modd(1000.0 * CANFDRcvFcn_BCU_B.CANFDUnpack2_o11, 4.294967E+9);
+  if (tmp < 4.294967296E+9) {
+    BCU_EngryAccumulateChrg = (uint32_T)tmp;
   } else {
     BCU_EngryAccumulateChrg = MAX_uint32_T;
   }
 
   CFunction_o1 = (uint16_T)(BCU_EngryAccumulateChrg >> 16);
   CFunction_o2 = (uint16_T)(BCU_EngryAccumulateChrg & 65535U);
-  u = 1000.0F * CANFDRcvFcn_BCU_B.CANFDUnpack2_o14;
-  if (u < 4.2949673E+9F) {
-    if (u >= 0.0F) {
-      BCU_EngryAccumulateDisChrg = (uint32_T)u;
-    } else {
-      BCU_EngryAccumulateDisChrg = 0U;
-    }
+  tmp = rt_modd(1000.0 * CANFDRcvFcn_BCU_B.CANFDUnpack2_o14, 4.294967E+9);
+  if (tmp < 4.294967296E+9) {
+    BCU_EngryAccumulateDisChrg = (uint32_T)tmp;
   } else {
     BCU_EngryAccumulateDisChrg = MAX_uint32_T;
   }
