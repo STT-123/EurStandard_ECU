@@ -324,7 +324,7 @@ static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 static int BatteryCalibration_ModBus_Deal(uint16_t address, uint16_t data)
 {
 	uint8_t SOHCmd, SOCMaxCmd, SOCMinCmd ,relayCtl = 0;
-	CAN_FD_MESSAGE tx_msg = {0};
+	static CAN_FD_MESSAGE tx_msg = {0};
 	static int pos_high_received = 0;
 	static int pos_low_received = 0;
 	static int neg_high_received = 0;
@@ -418,9 +418,11 @@ static int BatteryCalibration_ModBus_Deal(uint16_t address, uint16_t data)
 	if(needsend == 1){
 		if (send_type == 1) {
 			memcpy(&tx_msg.Data[14], pos_bytes, sizeof(pos_bytes));
+			tx_msg.Data[22] = 1; // 标记这是Pos数据
 			memset(pos_bytes, 0, sizeof(pos_bytes));
 		} else if (send_type == 2) {
 			memcpy(&tx_msg.Data[18], neg_bytes, sizeof(neg_bytes));
+			tx_msg.Data[23] = 1; // 标记这是Neg数据
 			memset(neg_bytes, 0, sizeof(neg_bytes));
 		}
 

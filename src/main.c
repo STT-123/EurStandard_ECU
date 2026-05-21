@@ -118,6 +118,7 @@ int main(int argc, char **argv)
     while(1)
     {
         sleep(5);
+        // set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
         // main_test();
         // LOG("DAqX_FaultCode1 = %d\r\n", DAqX_FaultCode1[0]);//一级故障
         // for(int i = 0; i < 15; i++){
