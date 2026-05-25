@@ -37,6 +37,7 @@ static pthread_mutex_t ip_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct timespec lasttimes ;
 struct timespec lastCheckTick = {0};
 time_t g_last_bcu_rx_time = 0;
+time_t g_last_bmu_rx_time = 0;
 /*--------------*/
 static const fault_mapping_t fault_map_4H[] = {
     {23, EMERGENCY_STOP},//BCU急停
@@ -285,6 +286,56 @@ void check_bcu_rx_timeout(void)
 			set_emcu_fault(BMS_COM_FAULT, SET_RECOVER);
 			bcu_fault_reported = false;
 			LOG("BCU Communication OK\n");
+		}
+	}
+}
+
+void check_bmu_rx_timeout(void)
+{
+	static bool bmu_fault_reported = false;
+	static time_t monitor_start_time = 0;
+	const int STARTUP_GRACE_SEC = 5;
+	time_t current_time;
+	time(&current_time);
+
+	if (monitor_start_time == 0)
+	{
+		monitor_start_time = current_time;
+	}
+
+	// 启动宽限期内，首次收到BMU报文前不告警；超出宽限期仍未收到则置故障。
+	if (g_last_bmu_rx_time == 0)
+	{
+		if (difftime(current_time, monitor_start_time) >= STARTUP_GRACE_SEC)
+		{
+			if (!bmu_fault_reported)
+			{
+				set_emcu_fault(BMU_COM_FAULT, SET_ERROR);
+				bmu_fault_reported = true;
+				LOG("BMU Communication ERROR\n");
+			}
+		}
+		return;
+	}
+
+	double diff = difftime(current_time, g_last_bmu_rx_time);
+
+	if (diff >= 3.0)
+	{
+		if (!bmu_fault_reported)
+		{
+			set_emcu_fault(BMU_COM_FAULT, SET_ERROR);
+			bmu_fault_reported = true;
+			LOG("BMU Communication ERROR\n");
+		}
+	}
+	else
+	{
+		if (bmu_fault_reported)
+		{
+			set_emcu_fault(BMU_COM_FAULT, SET_RECOVER);
+			bmu_fault_reported = false;
+			LOG("BMU Communication OK\n");
 		}
 	}
 }

@@ -19,6 +19,7 @@ void *AbnormalDetection(void *arg)
     {
         /* code */
         check_bcu_rx_timeout();//BCU 通道检测
+        check_bmu_rx_timeout();//BMU 总线检测
         PHYlinktate(); //网口流量活动检测
         get_BCU_FaultInfo(get_BCU_FaultInfoLv4Value(),get_BCU_FaultInfoLv3Value(),get_BCU_FaultInfoLv2Value());
         ECUfault_process(); // 各种故障检测

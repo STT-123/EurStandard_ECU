@@ -58,5 +58,7 @@
 #define MDBUS_ADDR_PRODUCTION   0x3416  // ems 厂家
 #define MDBUS_ADDR_ECU_VERSION  0x3417 // ems 版本号
 
-
+#define MDBUS_BCU_VERSION       0x5011  //BCU使用280还是314版本号
+#define MDBUS_SD_CAPACITY       0x5011  //SD卡使用百分比，单位: %
+#define MDBUS_ROOT_CAPACITY     0x5012  //系统盘使用百分比，单位: %
 #endif

@@ -20,15 +20,6 @@
 
 /*==========================*/
 #define BUF_SIZE 256
-
-typedef struct {
-    char section[64];
-    int index;               // 从 upgradeX 提取的数字 X
-    char old_version[32];
-    char new_version[32];
-    char upgrade_file[128];
-    char md5sum[64];
-} UpgradeInfo;
  typedef struct
  {
      unsigned int XCPCMDRpeatTimes;

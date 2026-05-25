@@ -4,6 +4,7 @@
 #include "interface/log/log.h"
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
+#include "interface/modbus/modbus_defines.h"
 #include <time.h>
 #include <ftw.h>
 #include <sys/mount.h>
@@ -42,6 +43,39 @@ static int first_time_captured = 0;
 static pthread_mutex_t sd_format_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool sd_format_in_progress = false;
 extern  atomic_int rtc_sync_pending ;
+
+static void update_sd_capacity_register(float usage_percent)
+{
+    uint16_t usage_value = 0;
+
+    if (usage_percent < 0.0f) {
+        usage_percent = 0.0f;
+    }
+
+    if (usage_percent > 100.0f) {
+        usage_percent = 100.0f;
+    }
+
+    usage_value = (uint16_t)(usage_percent + 0.5f);
+    set_modbus_reg_val(MDBUS_SD_CAPACITY, usage_value);
+}
+
+static void update_root_capacity_register(float usage_percent)
+{
+    uint16_t usage_value = 0;
+
+    if (usage_percent < 0.0f) {
+        usage_percent = 0.0f;
+    }
+
+    if (usage_percent > 100.0f) {
+        usage_percent = 100.0f;
+    }
+
+    usage_value = (uint16_t)(usage_percent + 0.5f);
+    set_modbus_reg_val(MDBUS_ROOT_CAPACITY, usage_value);
+}
+
 static void set_sd_format_in_progress(bool in_progress)
 {
     pthread_mutex_lock(&sd_format_state_mutex);
@@ -1080,7 +1114,8 @@ void Drv_write_buffer_to_file(void)
     
     if (mount_sdcard_ext4() != 0)// 先检查存储器状态 不存在 标记错误 直接退出
     {
-        LOG("[SD Card] SD_FAULT\r\n");
+        //LOG("[SD Card] SD_FAULT\r\n");
+        set_modbus_reg_val(MDBUS_SD_CAPACITY, 0);
         set_emcu_fault(SD_FAULT, SET_ERROR);
         goto QUIT_FLAG;
     }
@@ -1283,6 +1318,7 @@ void checkSDCardCapacity(void)
     if (statvfs(USB_MOUNT_POINT, &stat) != 0)
     {
         LOG("[SD Card] Failed to get SD card capacity.\n");
+        set_modbus_reg_val(MDBUS_SD_CAPACITY, 0);
         usleep(CHECKSD_TRIGGERING_TIME);
         return;
     }
@@ -1291,6 +1327,8 @@ void checkSDCardCapacity(void)
     uint64_t used = total - free_space;
 
     float usage_percent = ((float)used / (float)total) * 100.0f;
+
+    update_sd_capacity_register(usage_percent);
 
     
     // LOG("SD Card total:%d\n", total);
@@ -1312,6 +1350,7 @@ void checkRootCapacity(void)
     if (statvfs("/", &stat) != 0)
     {
         LOG("[Root] Failed to get root partition capacity.\n");
+        set_modbus_reg_val(MDBUS_ROOT_CAPACITY, 0);
         usleep(CHECKSD_TRIGGERING_TIME);
         return;
     }
@@ -1322,6 +1361,8 @@ void checkRootCapacity(void)
     uint64_t used = total - free_space;
     
     float usage_percent = (total > 0) ? ((float)used / (float)total) * 100.0f : 0.0f;
+
+    update_root_capacity_register(usage_percent);
 
     if (usage_percent > 60.0f) {
         LOG("Warning: The root partition usage rate has exceeded 60%%, and the space is tight!");

@@ -10,6 +10,29 @@
 
 XCPStatus xcpstatus = {0};
 unsigned int OTA_RecvPacketCount = 0;
+
+static int build_expected_bin_path(char *out_path, size_t out_len)
+{
+    char filenametmp[256];
+    char *dot;
+
+    if (out_path == NULL || out_len == 0) {
+        return -1;
+    }
+
+    strncpy(filenametmp, get_ota_OTAFilename(), sizeof(filenametmp) - 1);
+    filenametmp[sizeof(filenametmp) - 1] = '\0';
+
+    dot = strrchr(filenametmp, '.');
+    if (dot == NULL) {
+        return -1;
+    }
+
+    strcpy(dot, ".bin");
+    snprintf(out_path, out_len, "%s/%s", USB_MOUNT_POINT, filenametmp);
+    return 0;
+}
+
 signed char XcpSendConnectCMD(unsigned int id, unsigned char xcpobjectid)
 {
 	CAN_MESSAGE CanMes;
@@ -742,6 +765,7 @@ signed char XcpProgramResetHandler(XCPStatus *xcpstatus)
 void XCP_OTA(int count)
 {
     int ret = 0;
+    char otafilenamestr1[OTAFILENAMEMAXLENGTH + 64] = {'\0'};
     if (!get_ota_OTAStart()) return;
     if(get_ota_deviceID() != 0 &&  get_ota_OTAFilename() != 0 && get_ota_OTAFileType() != ECU && (get_ota_deviceType() == BCU || get_ota_deviceType() == BMU))
     {
@@ -750,26 +774,31 @@ void XCP_OTA(int count)
         LOG("[OTA] OTAing.....................\r\n");
         OTA_RecvPacketCount = 0;//接收包计数为0
         if(count == 0){//BMU 不用每次都解压
-            ret = unzipfile(USB_MOUNT_POINT,(unsigned int *)&xcpstatus.ErrorReg,FILE_TYPE_BIN);
-            if(ret < 0){
-                goto xcpcleanup;
+            if ((get_ota_deviceType() == BCU) &&
+                (build_expected_bin_path(otafilenamestr1, sizeof(otafilenamestr1)) == 0) &&
+                (access(otafilenamestr1, F_OK) == 0)) {
+                LOG("[OTA] Reuse prechecked BCU bin before XCP OTA: %s\r\n", otafilenamestr1);
+            } else {
+                ret = unzipfile(USB_MOUNT_POINT,(unsigned int *)&xcpstatus.ErrorReg,FILE_TYPE_BIN);
+                if(ret < 0){
+                    goto xcpcleanup;
+                }
             }
         }else{
             // do nothing
         }
         if(xcpstatus.ErrorReg == 0)
         {
-            char otafilenamestr1[OTAFILENAMEMAXLENGTH + 64] = {'\0'};
             char filenametmp[256];
 
             strncpy(filenametmp, get_ota_OTAFilename(), sizeof(filenametmp) - 1);
             filenametmp[sizeof(filenametmp) - 1] = '\0';
-            
-            char *dot = strrchr(filenametmp, '.');// 直接替换扩展名
-            if (dot) {
-                strcpy(dot, ".bin");
+            if (build_expected_bin_path(otafilenamestr1, sizeof(otafilenamestr1)) != 0) {
+                LOG("[OTA] Invalid OTA file name for bin path: %s\r\n", filenametmp);
+                xcpstatus.ErrorReg |= OTA_ERR_UPGRADE_FILE_OPEN_FAILED;
+                xcpstatus.ErrorDeviceID = get_ota_deviceID();
+                goto xcpcleanup;
             }
-            snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, filenametmp);
             
             LOG("[OTA] otafilenamestr1 %s\r\n", otafilenamestr1);
             LOG("[OTA] OTAStart:%d, deviceID:0x%x, OTAFilename:%s, OTAFileType:%d, deviceType:%d\r\n", get_ota_OTAStart(), get_ota_deviceID(), filenametmp, get_ota_OTAFileType(), get_ota_deviceType());

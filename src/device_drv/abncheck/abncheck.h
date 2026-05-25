@@ -20,6 +20,7 @@
 #define DOOR_OPEN 0x04					// 门禁故障检测。+			  emcu0 的第4bit，BCU提供
 #define EMERGENCY_STOP 0x05 			// 急停故障，				 emcu0 的第5bit，BCU提供
 #define BMS_COM_FAULT 0x06				// 和bms通讯故障 			 ecmu0 的第六bit，BCU提供
+#define BMU_COM_FAULT 0x07				// BMU总线通讯故障          emcu0 的第七bit，自己检测
 
 #define SD_FAULT 0x31					// sd卡故障   				emcu3 的第1字节，自己检测
 #define INSIDE_NTC_FAULT  0x32        	//高压盒内部温度传感器故障  			     emcu3 的第2字节，BCU提供
@@ -30,6 +31,7 @@
 #define  NET_ETH_1	"eth1"
 #define  NET_ETH_2 	"eth2"	
 extern time_t g_last_bcu_rx_time;
+extern time_t g_last_bmu_rx_time;
 /*-------------------*/
 typedef struct {
     uint32_t bit_position;
@@ -62,6 +64,7 @@ extern ecu_fault_t ecu_fault_last;
 void PHYlinktate();
 void ECUfault_process();
 void check_bcu_rx_timeout(void);
+void check_bmu_rx_timeout(void);
 void set_emcu_fault(unsigned char parameter, unsigned char status);
 void can_monitor_fun(void) ;
 int check_can_state_detailed(const char* can_if);

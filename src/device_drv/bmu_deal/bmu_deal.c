@@ -1,6 +1,7 @@
 #include "bmu_deal.h"
 #include "interface/epoll/myepoll.h"
 #include "device_drv/bcu_deal/bcu_deal.h"
+#include "device_drv/abncheck/abncheck.h"
 static int BMU_CAN_FD = -1;
 #define BMU_FD_LOAD() __atomic_load_n(&BMU_CAN_FD, __ATOMIC_ACQUIRE)
 queue_t Queue_BMURevData; // 分机消息队列，用于epoll接收数据存入，防止处理不过来所以用队列，内部使用
@@ -36,6 +37,7 @@ static void bmu_can_epoll_msg_transmit(void *arg)
     int hal_result = HAL_can_read(can_fd, &can_rev, 1);
     if (hal_result > 0) 
     {
+        time(&g_last_bmu_rx_time);
         if(get_ota_OTAStart() == 1){
             uint32_t can_id = can_rev.can_id;// 检查是否是扩展帧
             uint32_t effective_id;

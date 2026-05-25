@@ -65,6 +65,7 @@ OTA_ERR_XCP_PROGRAM_RESET_TIMEOUT：ProgramReset 应答超时
 #define OTA_ERR_XCP_PROGRAM_END_SEND        (1U << 17)
 #define OTA_ERR_XCP_PROGRAM_RESET_SEND      (1U << 18)
 #define OTA_ERR_XCP_PROGRAM_RESET_TIMEOUT   (1U << 19)
+#define OTA_ERR_VERSION_MISMATCH            (1U << 20)
 
 
 typedef enum
@@ -86,6 +87,15 @@ typedef enum {
     FILE_TYPE_CONF_ONLY // 仅查找配置文件（特殊用途）
 } file_type_t;
 
+typedef struct {
+    char section[64];
+    int index;               // 从 upgradeX 提取的数字 X
+    char old_version[32];
+    char new_version[32];
+    char upgrade_file[128];
+    char md5sum[64];
+} UpgradeInfo;
+
 typedef struct
 {
 	_Atomic unsigned char OTAFileType; //文件类型
@@ -102,6 +112,7 @@ typedef struct
 } OTAObject;
 
 extern OTAObject g_otactrl;
+extern UpgradeInfo g_max_upgrade;
 
 // ============ 原子变量的 get/set 函数实现 ============
 

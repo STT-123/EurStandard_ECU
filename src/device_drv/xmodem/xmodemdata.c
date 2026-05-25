@@ -100,7 +100,6 @@ void *lwip_data_TASK(void *param)
 	unsigned char otadeviceType = 0;
 	static int filenormalflag =0;
 	int errorCount = 0;
-	int fileVersionflag = 0;
 	unsigned char waitingForEOT = 0;
 	unsigned char transferCompletedWithoutEOT = 0;
 	unsigned char stopReadingAfterFileEnd = 0;
@@ -129,38 +128,7 @@ void *lwip_data_TASK(void *param)
 						setXmodemServerReceiveSOH(1);
 						if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]),otafilenamestr, &filesize, &xmodempacknum) == 0)
 						{
-							fileVersionflag = 0;
 							LOG("[Xmodem] File name %s filesize %d packnum %d\r\n", otafilenamestr, filesize, xmodempacknum);
-							if(strstr(otafilenamestr, "BCU") != NULL)
-							{
-								int ota_ver_h = -1;
-								int bcu_ver_h = get_BCU_Version_H();
-								char *p = strchr(otafilenamestr, 'V');
-
-								if ((p != NULL) && (*(p + 1) >= '0') && (*(p + 1) <= '9')){
-									ota_ver_h = *(p + 1) - '0';   // 例如 V501 -> 5, V685 -> 6
-									LOG("[Xmodem] Parsed BCU OTA version: ota_ver_h=%d, bcu_ver_h=%d\r\n", ota_ver_h, bcu_ver_h);
-								}
-								else{
-									LOG("[Xmodem] Invalid OTA file name: %s\r\n", otafilenamestr);
-									setXmodemServerEnd(1);
-									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-									fileVersionflag = 1;
-								}
-
-								if ((fileVersionflag == 0) && (bcu_ver_h == 0)){
-									LOG("[Xmodem] BCU version high byte is 0, treat as unknown and allow OTA. file=%s, ota_ver_h=%d\r\n",
-									otafilenamestr, ota_ver_h);
-								}
-								else if ((fileVersionflag == 0) && (ota_ver_h != bcu_ver_h)){
-									LOG("[Xmodem] OTA version mismatch! file=%s, ota_ver_h=%d, bcu_ver_h=%d\r\n",
-									otafilenamestr, ota_ver_h, bcu_ver_h);
-									setXmodemServerEnd(1);
-									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-									fileVersionflag = 1;
-								}
-
-							}
 							findfirstpack = 1;
 							curpackno = 0;
 							prvpackno = 0;
@@ -179,7 +147,7 @@ void *lwip_data_TASK(void *param)
 					}
 					else  //文件数据帧
 					{
-						if( (findfirstpack) && (fileVersionflag == 0))
+						if(findfirstpack)
 						{
 							curpackno = tcp_server_recvbuf[1];//系列号
 							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
@@ -759,7 +727,6 @@ void *lwip_data_TASK(void *param)
 			}
 			stopReadingAfterFileEnd = 1;
 			findfirstpack = 0;
-			fileVersionflag = 0;
 			filesize = 0;
 			xmodempacknum = 0;
 			packno = 0;
