@@ -20,13 +20,14 @@
 #define DOOR_OPEN 0x04					// 门禁故障检测。+			  emcu0 的第4bit，BCU提供
 #define EMERGENCY_STOP 0x05 			// 急停故障，				 emcu0 的第5bit，BCU提供
 #define BMS_COM_FAULT 0x06				// 和bms通讯故障 			 ecmu0 的第六bit，BCU提供
-#define BMU_COM_FAULT 0x07				// BMU总线通讯故障          emcu0 的第七bit，自己检测
+
 
 #define SD_FAULT 0x31					// sd卡故障   				emcu3 的第1字节，自己检测
-#define INSIDE_NTC_FAULT  0x32        	//高压盒内部温度传感器故障  			     emcu3 的第2字节，BCU提供
-#define OUTSIDE_COM_FAULT 0x33      	//高压盒外部温度传感器故障  		  emcu3 的第3字节，BCU提供
+#define INSIDE_NTC_FAULT  0x32        	//柜内温度传感器故障  			     emcu3 的第2字节，BCU提供
+#define OUTSIDE_COM_FAULT 0x33      	//柜外温度传感器故障  		  emcu3 的第3字节，BCU提供
 #define PHY_LINK_FAULT 0x34 			// PHY连接故障   			emcu3 的第8字节，自己检测
 #define ISO_SWITCH_FAULT  0x35      	//隔开开关故障  		     emcu3 的第5字节，BCU提供
+#define BMU_COM_FAULT 0x40				// BMU总线通讯故障          emcu4 的第0bit，自己检测
 
 #define  NET_ETH_1	"eth1"
 #define  NET_ETH_2 	"eth2"	
@@ -53,6 +54,7 @@ typedef struct
 	unsigned short emcu_fault1;
 	unsigned short emcu_fault2;
 	unsigned short emcu_fault3; // 告警不影响功能，比如sd卡
+	unsigned short emcu_fault4; 
 } ecu_fault_t;
 // uint16_t *modbusBuff = NULL;
 extern ecu_fault_t ecu_fault;

@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.263
+ * Model version                  : 5.276
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Fri Apr 24 16:02:27 2026
+ * C/C++ source code generated on : Thu May 28 14:44:39 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -66,6 +66,7 @@ preprocessor word size checks.
 // preprocessor word size checks.
 // #endif
 
+extern real_T rt_modd(real_T u0, real_T u1);
 extern void CANFDRcvFcn_BCU_SocProcess(uint16_T rtu_soc, uint16_T
   *rty_soc_process);
 

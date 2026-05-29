@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.251
+ * Model version                  : 5.276
  * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Wed Mar 11 17:16:29 2026
+ * C/C++ source code generated on : Thu May 28 14:44:39 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -40,7 +40,7 @@ const ConstP_CANFDRcvFcn_BCU_T CANFDRcvFcn_BCU_ConstP = {
     12452U, 1125U, 1124U, 1121U, 1120U, 1129U, 1128U, 1127U, 1126U, 12552U,
     12320U, 12323U, 6948U, 6976U, 6958U, 6950U, 6961U, 6949U, 6963U, 6964U,
     6946U, 6955U, 6956U, 6957U, 6952U, 6951U, 12545U, 12547U, 12546U, 1050U,
-    1049U },
+    1049U, 8224U },
 
   /* Computed Parameter: portDimensions_Value
    * Referenced by: '<Root>/portDimensions'
@@ -50,7 +50,7 @@ const ConstP_CANFDRcvFcn_BCU_T CANFDRcvFcn_BCU_ConstP = {
     1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U,
     1U, 1U, 1U, 1U, 1U, 1U, 120U, 240U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 15U,
     1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U,
-    1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U }
+    1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U }
 };
 
 /*

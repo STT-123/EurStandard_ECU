@@ -96,6 +96,12 @@ uint8_T get_TCU_ECOMode(void);
 void set_TCU_LifeCounter(uint8_T value);
 uint8_T get_TCU_LifeCounter(void);
 
+void set_TCU_BCUCapacityFlag(uint8_T value);
+uint8_T get_TCU_BCUCapacityFlag(void) ;
+
+void set_TCU_CoolingFlag(uint8_T value) ;
+uint8_T get_TCU_CoolingFlag(void) ;
+
 void set_TCU_PowerUpCmd(uint8_T value);
 uint8_T get_TCU_PowerUpCmd(void);
 

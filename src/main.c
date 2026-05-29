@@ -117,8 +117,21 @@ int main(int argc, char **argv)
 
     while(1)
     {
+        // for(int i = 0; i < 16; i++){
+        //     set_emcu_fault(0x00+i, SET_ERROR);//设置所有故障
+        // }
+
+        // for(int i = 0; i < 16; i++){
+        //     set_emcu_fault(0x10+i, SET_ERROR);//设置所有故障
+        // }
+        //         for(int i = 0; i < 16; i++){
+        //     set_emcu_fault(0x20+i, SET_ERROR);//设置所有故障
+        // }
+        //         for(int i = 0; i < 16; i++){
+        //     set_emcu_fault(0x30+i, SET_ERROR);//设置所有故障
+        // }
+        // set_emcu_fault(0x40, SET_ERROR);//设置所有故障
         sleep(5);
-        // set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
         // main_test();
         // LOG("DAqX_FaultCode1 = %d\r\n", DAqX_FaultCode1[0]);//一级故障
         // for(int i = 0; i < 15; i++){
@@ -138,8 +151,7 @@ int main(int argc, char **argv)
 
         // printf("get_ota_UpDating(): %d\r\n",get_ota_UpDating());
         // printf("get_BCUFD() = %d\r\n",get_BCU_CAN_FD());
-        // printf("main printf sleep(1) \r\n");
-        // set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
+
         // for(int i = (0x6002-0x3000);i< (0x601F-0x3000);i++){
         //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
         // }
@@ -149,10 +161,12 @@ int main(int argc, char **argv)
         // }
 
 
-        // index1 = 0x3466 - 0x3000;
-        // printf("Mobud[0x3466] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
-        // index1 = 0x3467 - 0x3000;
-        // printf("Mobud[0x3467] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
+        index1 = 0x5020 - 0x3000;
+        printf("Mobud[0x5020] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
+        // index1 = 0x5013;
+        // printf("Mobud[0x5013] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断   
+        // index1 = 0x5014 - 0x3000;
+        // printf("Mobud[0x5014] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
 
         // for(int i = (0x6105-0x3000);i< (0x6107-0x3000);i++){
         //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       

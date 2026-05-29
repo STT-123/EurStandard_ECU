@@ -1,11 +1,11 @@
 /*
- * File: CANSendFcn.h
+ * File: CANFDSendFcn_BCU.h
  *
- * Code generated for Simulink model 'CANSendFcn'.
+ * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 3.235
- * Simulink Coder version         : 24.2 (R2024b) 21-Jun-2024
- * C/C++ source code generated on : Tue Aug 12 10:34:54 2025
+ * Model version                  : 5.1
+ * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
+ * C/C++ source code generated on : Thu May 28 14:06:47 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -13,16 +13,16 @@
  * Validation result: Not run
  */
 
-#ifndef CANSendFcn_h_
-#define CANSendFcn_h_
-#ifndef CANSendFcn_COMMON_INCLUDES_
-#define CANSendFcn_COMMON_INCLUDES_
+#ifndef CANFDSendFcn_BCU_h_
+#define CANFDSendFcn_BCU_h_
+#ifndef CANFDSendFcn_BCU_COMMON_INCLUDES_
+#define CANFDSendFcn_BCU_COMMON_INCLUDES_
 #include <math.h>
 #include "rtwtypes.h"
 #include "can_fd_message.h"
-#endif                                 /* CANSendFcn_COMMON_INCLUDES_ */
+#endif                                 /* CANFDSendFcn_BCU_COMMON_INCLUDES_ */
 
-#include "CANSendFcn_types.h"
+#include "CANFDSendFcn_BCU_types.h"
 
 /* Macros for accessing real-time model data structure */
 #ifndef rtmGetErrorStatus
@@ -36,18 +36,19 @@
 /* user code (top of header file) */
 #include "modbustcp_task.h"
 
+
 /* Block states (default storage) for system '<Root>' */
 typedef struct {
   int_T CANFDPack_ModeSignalID;        /* '<Root>/CAN FD Pack' */
-} DW_CANSendFcn_T;
+} DW_CANFDSendFcn_BCU_T;
 
 /* Real-time Model Data Structure */
-struct tag_RTM_CANSendFcn_T {
+struct tag_RTM_CANFDSendFcn_BCU_T {
   const char_T * volatile errorStatus;
 };
 
 /* Block states (default storage) */
-extern DW_CANSendFcn_T CANSendFcn_DW;
+extern DW_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_DW;
 
 /*
  * Exported Global Signals
@@ -75,15 +76,17 @@ extern uint8_T TCU_TimeMonth;          /* '<Root>/TCU_TimeMonth' */
 extern uint8_T TCU_TimeSecond;         /* '<Root>/TCU_TimeSecond' */
 extern uint8_T TCU_TimeWeek;           /* '<Root>/TCU_TimeWeek' */
 extern uint8_T TCU_TimeYear;           /* '<Root>/TCU_TimeYear' */
+extern uint8_T TCU_BCUCapacityFlag;    /* '<Root>/TCU_BCUCapacityFlag' */
+extern uint8_T TCU_CoolingFlag;        /* '<Root>/TCU_CoolingFlag' */
 extern CAN_FD_MESSAGE_BUS CANSendMsg;  /* '<Root>/CANSendMsg' */
 
 /* Model entry point functions */
-extern void CANSendFcn_initialize(void);
+extern void CANFDSendFcn_BCU_initialize(void);
 extern void CANFDSendFcn_BCU_step(void);
-extern void CANSendFcn_terminate(void);
+extern void CANFDSendFcn_BCU_terminate(void);
 
 /* Real-time Model object */
-extern RT_MODEL_CANSendFcn_T *const CANSendFcn_M;
+extern RT_MODEL_CANFDSendFcn_BCU_T *const CANFDSendFcn_BCU_M;
 
 /*-
  * The generated code includes comments that allow you to trace directly
@@ -99,9 +102,9 @@ extern RT_MODEL_CANSendFcn_T *const CANSendFcn_M;
  *
  * Here is the system hierarchy for this model
  *
- * '<Root>' : 'CANSendFcn'
+ * '<Root>' : 'CANFDSendFcn_BCU'
  */
-#endif                                 /* CANSendFcn_h_ */
+#endif                                 /* CANFDSendFcn_BCU_h_ */
 
 /*
  * File trailer for generated code.

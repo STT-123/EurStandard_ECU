@@ -150,7 +150,7 @@ void ECUfault_process()
 	set_modbus_reg_val(MDBUS_ADDR_BECU_FAULT1, ecu_fault.emcu_fault1);
 	set_modbus_reg_val(MDBUS_ADDR_BECU_FAULT2, ecu_fault.emcu_fault2);
 	set_modbus_reg_val(MDBUS_ADDR_BECU_FAULT3, ecu_fault.emcu_fault3);
-
+	set_modbus_reg_val(MDBUS_ADDR_BECU_FAULT4, ecu_fault.emcu_fault4);
 	// printf("MDBUS_ADDR_BECU_FAULT0 = 0x%x\r\n",ecu_fault.emcu_fault0);
 	// printf("MDBUS_ADDR_BECU_FAULT0 = 0x%x\r\n",ecu_fault.emcu_fault1);
 	// printf("MDBUS_ADDR_BECU_FAULT0 = 0x%x\r\n",ecu_fault.emcu_fault2);
@@ -224,10 +224,20 @@ void set_emcu_fault(unsigned char parameter, unsigned char status)
 			ecu_fault.emcu_fault3 |= (1 << bit_num);
 		}
 		break;
+    case 4:
+		if (status)
+		{
+			ecu_fault.emcu_fault4 &= ~(1 << bit_num);
+		}
+		else
+		{
+			ecu_fault.emcu_fault4 |= (1 << bit_num);
+		}
+		break;
 	default:
 		break;
 	}
-	if (ecu_fault.emcu_fault0 + ecu_fault.emcu_fault1 + ecu_fault.emcu_fault2)
+	if (ecu_fault.emcu_fault0 + ecu_fault.emcu_fault1 + ecu_fault.emcu_fault2 + ecu_fault.emcu_fault3 + ecu_fault.emcu_fault4)
 	{
 		ecu_fault.emcu_fault_state = 1;
 	}

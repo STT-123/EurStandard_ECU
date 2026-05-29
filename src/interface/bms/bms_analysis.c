@@ -2,12 +2,13 @@
 #include <byteswap.h>  // bswap_16, bswap_32
 #include "bms_analysis.h"
 #include "interface/modbus/modbus_defines.h"
-#include "interface/bms/bms_simulink/CANSendFcn.h"
+#include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
 #include "interface/log/log.h"
 #include <stdatomic.h>
 #include <pthread.h>  // 必须包含这个头文件
+#include <time.h>
 
 extern CAN_FD_MESSAGE_BUS CANSendMsg; 
 // ==================== 全局变量 ====================
@@ -23,6 +24,44 @@ static int post_tcu_collected = 0;
 static CAN_FD_MESSAGE post_bcu2_frames[DATA_BUFFER_SIZE];  // 新增：bcu2变化后帧
 static int post_bcu2_collected = 0;  // 新增：bcu2已收集计数
 // 初始化缓冲区
+
+static void log_target_can_data_once_per_second(const CAN_FD_MESSAGE *msg)
+{
+    static time_t last_log_time_180110E4 = 0;
+    static time_t last_log_time_180210E4 = 0;
+    time_t now;
+    time_t *last_log_time = NULL;
+    char data_str[3 * 64 + 1] = {0};
+    int offset = 0;
+    uint8_t data_len;
+
+    if (!msg) {
+        return;
+    }
+
+    if (msg->ID == 0x180110E4) {
+        last_log_time = &last_log_time_180110E4;
+    } else if (msg->ID == 0x180210E4) {
+        last_log_time = &last_log_time_180210E4;
+    } else {
+        return;
+    }
+
+    now = time(NULL);
+    if (now == (time_t)-1 || now == *last_log_time) {
+        return;
+    }
+
+    *last_log_time = now;
+    data_len = (msg->Length <= sizeof(msg->Data)) ? msg->Length : sizeof(msg->Data);
+
+    for (uint8_t i = 0; i < data_len && offset < (int)(sizeof(data_str) - 1); i++) {
+        offset += snprintf(data_str + offset, sizeof(data_str) - (size_t)offset,
+                           "%02X ", msg->Data[i]);
+    }
+
+    LOG("[BMS] ID=0x%08X data[%u]=%s\r\n", msg->ID, data_len, data_str);
+}
 
 void my_modbus_set_float_badc(float f, uint16_t *dest)
 {
@@ -279,8 +318,15 @@ void set_TCU_ECOMode(uint8_T value) { TCU_ECOMode = value; }
 uint8_T get_TCU_ECOMode(void) { return TCU_ECOMode; }
 
 
+void set_TCU_BCUCapacityFlag(uint8_T value) { TCU_BCUCapacityFlag = value; }
+uint8_T get_TCU_BCUCapacityFlag(void) { return TCU_BCUCapacityFlag; }
+
+void set_TCU_CoolingFlag(uint8_T value) { TCU_CoolingFlag = value; }
+uint8_T get_TCU_CoolingFlag(void) { return TCU_CoolingFlag; }
+
 void set_TCU_LifeCounter(uint8_T value) { TCU_LifeCounter = value; }
 uint8_T get_TCU_LifeCounter(void) { return TCU_LifeCounter; }
+
 
 void set_TCU_PowerUpCmd(uint8_T value) { TCU_PowerUpCmd = value; }
 uint8_T get_TCU_PowerUpCmd(void) { return TCU_PowerUpCmd; }
@@ -657,6 +703,7 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
     }
 
     if(msg->ID == 0x180110E4){
+        // log_target_can_data_once_per_second(msg);
          add_to_can_buffer_main(msg, &bcu1_data_buffer);
         
         // 如果正在收集"变化后"BCU帧
@@ -767,6 +814,7 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
     }
     else if (msg->ID == 0x180210E4) 
     {
+        // log_target_can_data_once_per_second(msg);
         // BCU2数据
         add_to_can_buffer_main(msg, &bcu2_data_buffer);
         

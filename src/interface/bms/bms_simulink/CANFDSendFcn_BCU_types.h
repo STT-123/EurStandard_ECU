@@ -37,8 +37,7 @@ typedef struct {
 #endif
 
 /* Forward declaration for rtModel */
-typedef struct tag_RTM_CANSendFcn_T RT_MODEL_CANSendFcn_T;
-
+typedef struct tag_RTM_CANFDSendFcn_BCU_T RT_MODEL_CANFDSendFcn_BCU_T;
 #endif                                 /* CANSendFcn_types_h_ */
 
 /*

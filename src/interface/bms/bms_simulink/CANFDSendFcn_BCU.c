@@ -1,11 +1,11 @@
 /*
- * File: CANSendFcn.c
+ * File: CANFDSendFcn_BCU.c
  *
- * Code generated for Simulink model 'CANSendFcn'.
+ * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 3.235
- * Simulink Coder version         : 24.2 (R2024b) 21-Jun-2024
- * C/C++ source code generated on : Tue Aug 12 10:34:54 2025
+ * Model version                  : 5.1
+ * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
+ * C/C++ source code generated on : Thu May 28 14:06:47 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -13,9 +13,9 @@
  * Validation result: Not run
  */
 
-#include "CANSendFcn.h"
+#include "CANFDSendFcn_BCU.h"
 #include "rtwtypes.h"
-#include "CANSendFcn_types.h"
+#include "CANFDSendFcn_BCU_types.h"
 
 /* Exported block signals */
 uint8_T OTA_XCPConnect;                /* '<Root>/OTA_XCPConnect' */
@@ -36,14 +36,16 @@ uint8_T TCU_TimeMonth;                 /* '<Root>/TCU_TimeMonth' */
 uint8_T TCU_TimeSecond;                /* '<Root>/TCU_TimeSecond' */
 uint8_T TCU_TimeWeek;                  /* '<Root>/TCU_TimeWeek' */
 uint8_T TCU_TimeYear;                  /* '<Root>/TCU_TimeYear' */
+uint8_T TCU_BCUCapacityFlag;           /* '<Root>/TCU_BCUCapacityFlag' */
+uint8_T TCU_CoolingFlag;               /* '<Root>/TCU_CoolingFlag' */
 CAN_FD_MESSAGE_BUS CANSendMsg;         /* '<Root>/CANSendMsg' */
 
 /* Block states (default storage) */
-DW_CANSendFcn_T CANSendFcn_DW;
+DW_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_DW;
 
 /* Real-time model */
-static RT_MODEL_CANSendFcn_T CANSendFcn_M_;
-RT_MODEL_CANSendFcn_T *const CANSendFcn_M = &CANSendFcn_M_;
+static RT_MODEL_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_M_;
+RT_MODEL_CANFDSendFcn_BCU_T *const CANFDSendFcn_BCU_M = &CANFDSendFcn_BCU_M_;
 
 /* Model step function */
 void CANFDSendFcn_BCU_step(void)
@@ -51,8 +53,10 @@ void CANFDSendFcn_BCU_step(void)
   /* S-Function (scanfdpack): '<Root>/CAN FD Pack' incorporates:
    *  Inport: '<Root>/OTA_XCPConnect'
    *  Inport: '<Root>/TCU_ACMuteSet'
+   *  Inport: '<Root>/TCU_BCUCapacityFlag'
    *  Inport: '<Root>/TCU_BCUEINSet'
    *  Inport: '<Root>/TCU_ChargerWorkSts'
+   *  Inport: '<Root>/TCU_CoolingFlag'
    *  Inport: '<Root>/TCU_ECOMode'
    *  Inport: '<Root>/TCU_FcnStopSet'
    *  Inport: '<Root>/TCU_HighVoltType'
@@ -70,7 +74,7 @@ void CANFDSendFcn_BCU_step(void)
    *  Outport: '<Root>/CANSendMsg'
    */
   /* S-Function (scanfdpack): '<Root>/CAN FD Pack' */
-  CANSendMsg.ID = 402777104;
+  CANSendMsg.ID = 0x1801E410;
   CANSendMsg.Length = 64U;
   CANSendMsg.Extended = 1U;
   CANSendMsg.Remote = 0;
@@ -143,16 +147,7 @@ void CANFDSendFcn_BCU_step(void)
   CANSendMsg.Data[63] = 0;
 
   {
-    /* --------------- START Packing signal 0 ------------------
-     *  startBit                = 40
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 0 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -175,16 +170,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 1 ------------------
-     *  startBit                = 16
-     *  length                  = 1
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 1 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -212,16 +198,35 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 2 ------------------
-     *  startBit                = 72
-     *  length                  = 32
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 2 ------------------*/
+    {
+      uint32_T packingValue = 0;
+
+      {
+        uint32_T result = (uint32_T) (TCU_BCUCapacityFlag);
+
+        /* no scaling required */
+        packingValue = result;
+      }
+
+      {
+        uint8_T packedValue;
+        if (packingValue > (uint8_T)(15)) {
+          packedValue = (uint8_T) 15;
+        } else {
+          packedValue = (uint8_T) (packingValue);
+        }
+
+        {
+          {
+            CANSendMsg.Data[20] = CANSendMsg.Data[20] | (uint8_T)((uint8_T)
+              ((uint8_T)(packedValue & (uint8_T)0xFU) << 4));
+          }
+        }
+      }
+    }
+
+    /* --------------- START Packing signal 3 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -251,16 +256,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 3 ------------------
-     *  startBit                = 24
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 4 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -283,16 +279,35 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 4 ------------------
-     *  startBit                = 18
-     *  length                  = 1
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 5 ------------------*/
+    {
+      uint32_T packingValue = 0;
+
+      {
+        uint32_T result = (uint32_T) (TCU_CoolingFlag);
+
+        /* no scaling required */
+        packingValue = result;
+      }
+
+      {
+        uint8_T packedValue;
+        if (packingValue > (uint8_T)(15)) {
+          packedValue = (uint8_T) 15;
+        } else {
+          packedValue = (uint8_T) (packingValue);
+        }
+
+        {
+          {
+            CANSendMsg.Data[20] = CANSendMsg.Data[20] | (uint8_T)((uint8_T)
+              (packedValue & (uint8_T)0xFU));
+          }
+        }
+      }
+    }
+
+    /* --------------- START Packing signal 6 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -320,16 +335,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 5 ------------------
-     *  startBit                = 32
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 7 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -352,16 +358,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 6 ------------------
-     *  startBit                = 19
-     *  length                  = 2
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 8 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -389,16 +386,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 7 ------------------
-     *  startBit                = 152
-     *  length                  = 16
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 9 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -424,45 +412,14 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 8 ------------------
-     *  startBit                = 0
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
-    // {
-    //   uint32_T packingValue = 0;
-
-    //   {
-    //     uint32_T result = (uint32_T) (TCU_LifeCounter);
-
-    //     /* no scaling required */
-    //     packingValue = result;
-    //   }
-
-    //   {
-    //     uint8_T packedValue;
-    //     packedValue = (uint8_T) (packingValue);
-
-    //     {
-    //       {
-    //         CANSendMsg.Data[0] = CANSendMsg.Data[0] | (uint8_T)(packedValue);
-    //       }
-    //     }
-    //   }
-    // }
-
+    /* --------------- START Packing signal 10 ------------------*/
     {
       static uint8_T lifeCounter = 0;  // 静态变量，自动递增
       real_T outValue = 0;
 
       // 模拟 TCU_LifeCounter 自增
       lifeCounter++;
-      if (lifeCounter > 255) {
+      if (lifeCounter >= 255) {
         lifeCounter = 0;
       }
 
@@ -482,16 +439,7 @@ void CANFDSendFcn_BCU_step(void)
       CANSendMsg.Data[0] = CANSendMsg.Data[0] | (uint8_T)(packedValue);
     }
 
-    /* --------------- START Packing signal 9 ------------------
-     *  startBit                = 8
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 11 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -505,6 +453,7 @@ void CANFDSendFcn_BCU_step(void)
       {
         uint8_T packedValue;
         packedValue = (uint8_T) (packingValue);
+
         {
           {
             CANSendMsg.Data[1] = CANSendMsg.Data[1] | (uint8_T)(packedValue);
@@ -513,16 +462,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 10 ------------------
-     *  startBit                = 136
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 12 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -545,16 +485,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 11 ------------------
-     *  startBit                = 80
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 13 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -577,16 +508,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 12 ------------------
-     *  startBit                = 88
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 14 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -609,16 +531,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 13 ------------------
-     *  startBit                = 96
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 15 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -641,16 +554,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 14 ------------------
-     *  startBit                = 104
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 16 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -673,16 +577,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 15 ------------------
-     *  startBit                = 112
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 17 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -705,16 +600,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 16 ------------------
-     *  startBit                = 120
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 18 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -737,16 +623,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 17 ------------------
-     *  startBit                = 128
-     *  length                  = 8
-     *  desiredSignalByteLayout = BIGENDIAN
-     *  dataType                = UNSIGNED
-     *  factor                  = 1.0
-     *  offset                  = 0.0
-     *  minimum                 = 0.0
-     *  maximum                 = 0.0
-     * -----------------------------------------------------------------------*/
+    /* --------------- START Packing signal 19 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -769,8 +646,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
   }
-
-
+  
   CANSendMsg.Extended =1;
   CANSendMsg.Remote =0;
   CANSendMsg.Error =0;
@@ -780,13 +656,13 @@ void CANFDSendFcn_BCU_step(void)
 }
 
 /* Model initialize function */
-void CANSendFcn_initialize(void)
+void CANFDSendFcn_BCU_initialize(void)
 {
   /* (no initialization code required) */
 }
 
 /* Model terminate function */
-void CANSendFcn_terminate(void)
+void CANFDSendFcn_BCU_terminate(void)
 {
   /* (no terminate code required) */
 }
