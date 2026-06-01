@@ -32,7 +32,11 @@ extern int APP_index;
 extern struct timespec AC_OTA_lastCheckTick;
 
 extern pthread_mutex_t task_mutex ;
-extern pthread_t* pLwIPTCPDataTaskHandle;
+extern pthread_t LwIPTCPDataTaskHandle;
+extern pthread_t LwIPTCPListenTaskHandle;
+extern int LwIPTCPDataTaskRunning;
+extern int LwIPTCPListenTaskRunning;
+extern int xmodem_server_stopping;
 
 extern FILE *OTAfil;
 unsigned int OsIf_GetMilliseconds(void) ;
@@ -56,4 +60,5 @@ void setXmodemServerReceiveFileEnd(unsigned char value);
 unsigned char getXmodemServerEnd(void);
 void setXmodemServerEnd(unsigned char value);
 signed char CheckXModemClient(void);
+void CloseXModemServer(void);
 #endif

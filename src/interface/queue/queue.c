@@ -73,7 +73,7 @@ int queue_post(queue_ptr pQueue, uint8_t *pBuffer, int Length)
 	int IndexAt = 0;
 
 	    // 参数验证
-    if (pQueue == NULL || pBuffer == NULL || Length <= 0) {
+    if (pQueue == NULL || pBuffer == NULL || Length <= 0 || Length > CAN_THREAD_BUFFER_MAX) {
         return -1;
     }
 
@@ -108,6 +108,12 @@ int queue_post(queue_ptr pQueue, uint8_t *pBuffer, int Length)
 int queue_pend(queue_ptr pQueue, uint8_t *pBuffer, int *Length)
 {
 	int ret = 0;
+    unsigned int data_length;
+
+    if (pQueue == NULL || pBuffer == NULL || Length == NULL) {
+        return -1;
+    }
+
 	*Length = 0;
 	pthread_mutex_lock(&pQueue->mutex_lock);
 	if (pQueue->Count <= 0)
@@ -116,8 +122,12 @@ int queue_pend(queue_ptr pQueue, uint8_t *pBuffer, int *Length)
 	}
 	else
 	{
-		memcpy(pBuffer, pQueue->Data[pQueue->pHeader].Buffer, pQueue->Data[pQueue->pHeader].Length);
-		*Length = pQueue->Data[pQueue->pHeader].Length;
+        data_length = pQueue->Data[pQueue->pHeader].Length;
+        if (data_length > CAN_THREAD_BUFFER_MAX) {
+            data_length = CAN_THREAD_BUFFER_MAX;
+        }
+		memcpy(pBuffer, pQueue->Data[pQueue->pHeader].Buffer, data_length);
+		*Length = data_length;
 		if (++pQueue->pHeader >= QUEUE_DEEPTH)
 			pQueue->pHeader = 0;
 		pQueue->Count--;

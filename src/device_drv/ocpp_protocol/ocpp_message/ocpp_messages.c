@@ -354,11 +354,15 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
     tBatData buffer[REPORT_COUNT];
     int ids[REPORT_COUNT];
     int n = get_recent_data(db, buffer, REPORT_COUNT, ids);
+    tBatData *network_buffer = NULL;
+    ZSTD_CStream *cstream = NULL;
+    void *compressed = NULL;
+    struct json_object *json = NULL;
 
     if (n <= 0) return NULL;
     if (n > 255) n = 255;
     // 为网络传输准备数据
-    tBatData *network_buffer = malloc(sizeof(tBatData) * n);
+    network_buffer = malloc(sizeof(tBatData) * n);
     if (!network_buffer) {
         LOG("分配网络缓冲区失败\n");
         return NULL;
@@ -387,7 +391,11 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
     head_be.usTempCount = htons(head.usTempCount);
     head_be.uiArrayLength = htonl(head.uiArrayLength);
 
-    ZSTD_CStream *cstream = ZSTD_createCStream();
+    cstream = ZSTD_createCStream();
+    if (!cstream) {
+        LOG("ZSTD_createCStream failed\n");
+        goto cleanup;
+    }
     // 设置压缩参数
 #if(BUILD_X86)
     ZSTD_initCStream(cstream, 3);  // 压缩等级 3
@@ -398,7 +406,11 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
     ZSTD_CCtx_setParameter(cstream, ZSTD_c_dictIDFlag, 0);                   // 不写字典 ID（--no-dictID）
 #endif
     size_t max_dst_size = ZSTD_compressBound(sizeof(tDetailHead) + sizeof(tBatData) * n);
-    void *compressed = malloc(max_dst_size);
+    compressed = malloc(max_dst_size);
+    if (!compressed) {
+        LOG("分配压缩缓冲区失败\n");
+        goto cleanup;
+    }
     ZSTD_outBuffer out = { compressed, max_dst_size, 0 };
 
     // 压缩头
@@ -408,9 +420,7 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
         if (ZSTD_isError(ret)) {
             // fprintf(stderr, "compressStream head failed: %s\n", ZSTD_getErrorName(ret));
             zlog_error(zlog_get_category("debug_file"), "compressStream head failed: %s", ZSTD_getErrorName(ret));
-            free(compressed);
-            ZSTD_freeCStream(cstream);
-            return NULL;
+            goto cleanup;
         }
     }
 
@@ -421,9 +431,7 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
         if (ZSTD_isError(ret)) {
             // fprintf(stderr, "compressStream data failed: %s\n", ZSTD_getErrorName(ret));
              zlog_error(zlog_get_category("debug_file"), "compressStream data failed: %s", ZSTD_getErrorName(ret));
-            free(compressed);
-            ZSTD_freeCStream(cstream);
-            return NULL;
+            goto cleanup;
         }
     }
 
@@ -434,13 +442,12 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
         if (ZSTD_isError(remaining)) {
             // fprintf(stderr, "endStream failed: %s\n", ZSTD_getErrorName(remaining));
             zlog_error(zlog_get_category("debug_file"), "endStream failed: %s", ZSTD_getErrorName(remaining));
-            free(compressed);
-            ZSTD_freeCStream(cstream);
-            return NULL;
+            goto cleanup;
         }
     } while (remaining > 0);
 
     ZSTD_freeCStream(cstream);
+    cstream = NULL;
 
     // for(int i=0;i<out.pos;i++)
     // {
@@ -452,13 +459,18 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
     char *base64_str = base64_encode(compressed, out.pos, &base64_len);
     if (!base64_str) {
         LOG("Base64 encoding error\n");
-        free(compressed);
-        return NULL;
+        goto cleanup;
     }
     //printf("base64_str: %s 压缩后字节是%d \n",base64_str,out.pos);
     // 构建 JSON
-    struct json_object *json = build_data_transfer(base64_str, base64_len);
+    json = build_data_transfer(base64_str, base64_len);
     free(base64_str);
+
+cleanup:
+    if (cstream) {
+        ZSTD_freeCStream(cstream);
+    }
+    free(network_buffer);
     free(compressed);
     return json;
 }

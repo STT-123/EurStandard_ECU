@@ -145,7 +145,7 @@ void ConvertBusToCANFD(const CAN_FD_MESSAGE_BUS *msg, struct canfd_frame *frame)
     }
 
     // 设置数据长度
-    frame->len = msg->Length;// 设置 CAN FD 特有标志（BRS 和 ESI）
+    frame->len = (msg->Length > 64) ? 64 : msg->Length;// 设置 CAN FD 特有标志（BRS 和 ESI）
     
     frame->flags = 0;
     if (msg->BRS)
@@ -156,7 +156,7 @@ void ConvertBusToCANFD(const CAN_FD_MESSAGE_BUS *msg, struct canfd_frame *frame)
     {
         frame->flags |= CANFD_ESI;// canfd 的错误帧状态
     }
-    memcpy(frame->data, msg->Data, msg->Length);
+    memcpy(frame->data, msg->Data, frame->len);
 
 }
 

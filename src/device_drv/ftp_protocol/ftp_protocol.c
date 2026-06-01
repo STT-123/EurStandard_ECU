@@ -126,11 +126,7 @@ static void handle_pasv_command(FTPState *state)
              "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d).\r\n",
              a, b, c, d, DATA_PORT / 256, DATA_PORT % 256);//新端口号
 
-    if (state->data_sock >= 0)
-    {
-        close(state->data_sock);
-        state->data_sock = -1;
-    }
+    safe_close_socket(&state->data_sock);
 
     state->data_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (state->data_sock < 0)
@@ -154,16 +150,14 @@ static void handle_pasv_command(FTPState *state)
     if (bind(state->data_sock, (struct sockaddr *)&data_addr, sizeof(data_addr)) < 0)
     {
         perror("Failed to bind data socket");
-        close(state->data_sock);
-        state->data_sock = -1;
+        safe_close_socket(&state->data_sock);
         return;
     }
 
     if (listen(state->data_sock, 2) < 0)
     {
         perror("Failed to listen on data socket");
-        close(state->data_sock);
-        state->data_sock = -1;
+        safe_close_socket(&state->data_sock);
         return;
     }
 
@@ -172,8 +166,7 @@ static void handle_pasv_command(FTPState *state)
     if (setsockopt(state->data_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
     {
         perror("Failed to set socket receive timeout");
-        close(state->data_sock);
-        state->data_sock = -1;
+        safe_close_socket(&state->data_sock);
         return;
     }
 
@@ -220,11 +213,7 @@ static void handle_port_command(FTPState *state, char *args)
     }
 
     // 关闭旧连接（如果有）
-    if (state->data_sock >= 0)
-    {
-        close(state->data_sock);
-        state->data_sock = -1;
-    }
+    safe_close_socket(&state->data_sock);
 
     // 创建 socket 并尝试连接客户端提供的数据端口
     state->data_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -239,8 +228,7 @@ static void handle_port_command(FTPState *state, char *args)
     {
         perror("Failed to connect to client data port");
         send_response(state->control_sock, "425 Can't open data connection.\r\n");
-        close(state->data_sock);
-        state->data_sock = -1;
+        safe_close_socket(&state->data_sock);
         return;
     }
 
@@ -265,7 +253,7 @@ static void handle_list_command(FTPState *state, char *args)
     {
         LOG("Failed to accept data connection: errno=%d, %s\n", errno, strerror(errno));
         send_response(state->control_sock, "425 Can't open data connection.\r\n");
-        close(state->data_sock);
+        safe_close_socket(&state->data_sock);
         pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
@@ -277,8 +265,8 @@ static void handle_list_command(FTPState *state, char *args)
     {
         LOG("Failed to open directory: %s\n", strerror(errno));
         send_response(state->control_sock, "550 Failed to open directory.\r\n");
-        close(client_data_sock);
-        close(state->data_sock);
+        safe_close_socket(&client_data_sock);
+        safe_close_socket(&state->data_sock);
         pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
@@ -315,8 +303,8 @@ static void handle_list_command(FTPState *state, char *args)
             LOG("Failed to send data: %s\n", strerror(errno));
             send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
             closedir(dir);
-            close(client_data_sock);
-            close(state->data_sock);
+            safe_close_socket(&client_data_sock);
+            safe_close_socket(&state->data_sock);
             pthread_mutex_unlock(&ftp_file_io_mutex);
             return;
         }
@@ -325,9 +313,8 @@ static void handle_list_command(FTPState *state, char *args)
     }
 
     closedir(dir);
-    close(client_data_sock);
-    close(state->data_sock);
-    state->data_sock = -1;
+    safe_close_socket(&client_data_sock);
+    safe_close_socket(&state->data_sock);
     pthread_mutex_unlock(&ftp_file_io_mutex);
 
     send_response(state->control_sock, "226 Directory send OK.\r\n");
@@ -534,7 +521,7 @@ static void handle_mget_command(FTPState *state, char *args)
     {
         LOG("Failed to accept data connection: %s\n", strerror(errno));
         send_response(state->control_sock, "425 Can't open data connection.\r\n");
-        close(state->data_sock);
+        safe_close_socket(&state->data_sock);
         pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
@@ -544,8 +531,8 @@ static void handle_mget_command(FTPState *state, char *args)
     {
         LOG("Failed to open file: %s\n", strerror(errno));
         send_response(state->control_sock, "550 File not found.\r\n");
-        close(client_data_sock);
-        close(state->data_sock);
+        safe_close_socket(&client_data_sock);
+        safe_close_socket(&state->data_sock);
         pthread_mutex_unlock(&ftp_file_io_mutex);
         return;
     }
@@ -558,11 +545,9 @@ static void handle_mget_command(FTPState *state, char *args)
         if (sdcard_is_formatting())
         {
             send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
-            fclose(file);
-            state->file = NULL;
-            close(client_data_sock);
-            close(state->data_sock);
-            state->data_sock = -1;
+            safe_close_file(&file);
+            safe_close_socket(&client_data_sock);
+            safe_close_socket(&state->data_sock);
             pthread_mutex_unlock(&ftp_file_io_mutex);
             state->quit_requested = 1;
             return;
@@ -573,22 +558,17 @@ static void handle_mget_command(FTPState *state, char *args)
         {
             LOG("Failed to send data: %s\n", strerror(errno));
             send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
-            fclose(file);
-            state->file = NULL; 
-            state->file = NULL; 
-            close(client_data_sock);
-            close(state->data_sock);
+            safe_close_file(&file);
+            safe_close_socket(&client_data_sock);
+            safe_close_socket(&state->data_sock);
             pthread_mutex_unlock(&ftp_file_io_mutex);
             return;
         }
     }
 
-    fclose(file);
-    state->file = NULL; 
-    state->file = NULL; 
-    close(client_data_sock);
-    close(state->data_sock);
-    state->data_sock = -1;
+    safe_close_file(&file);
+    safe_close_socket(&client_data_sock);
+    safe_close_socket(&state->data_sock);
     pthread_mutex_unlock(&ftp_file_io_mutex);
 
     send_response(state->control_sock, "226 Transfer complete.\r\n");

@@ -161,8 +161,8 @@ int main(int argc, char **argv)
         // }
 
 
-        index1 = 0x5020 - 0x3000;
-        printf("Mobud[0x5020] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
+        // index1 = 0x5020 - 0x3000;
+        // printf("Mobud[0x5020] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断    
         // index1 = 0x5013;
         // printf("Mobud[0x5013] = 0x %x, = %d\r\n",modbusBuff[index1],modbusBuff[index1]);//ota上载寄存器判断   
         // index1 = 0x5014 - 0x3000;

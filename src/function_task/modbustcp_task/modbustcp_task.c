@@ -211,7 +211,7 @@ void *ModbusTCPServerTask(void *arg)
         g_mb_mapping->tab_registers[MDBUS_ADDR_PRODUCTION - REGISTERS_START_ADDRESS] = LOGO;       // 智充
         g_mb_mapping->tab_registers[MDBUS_ADDR_ECU_VERSION - REGISTERS_START_ADDRESS] = ECU_VERSION; // 版本号
         //测试使用，由于测试过程中BCU和BMU的CAN接反了，所以出现过两个硬件状态，所以软件要改动一下，稳定出场之后就之有一个硬件CAN状态了
-        if(BCU_CAN_DEVICE_NAME == "can2"){
+        if (strcmp(BCU_CAN_DEVICE_NAME, "can2") == 0) {
             g_mb_mapping->tab_registers[MDBUS_ADDR_ECU_VERSION - REGISTERS_START_ADDRESS] = (ECU_VERSION + 0x100); // 版本号
         }
         server_socket = modbus_tcp_listen(ctx, NB_CONNECTION);// 开启监听

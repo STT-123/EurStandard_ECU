@@ -22,7 +22,6 @@ static int otafileret = -1; // 初始化为自定义值（-1 表示未初始化�
 
 extern unsigned char XmodemSendCFlag;
 extern volatile unsigned long prvmsgtimer;
-extern pthread_t *pLwIPTCPListenTaskHandle ;
 
 unsigned char clientConnected = 0;
 unsigned char XmodemServerReceiveSOH = 0;
@@ -44,43 +43,53 @@ unsigned int OsIf_GetMilliseconds(void)
 
 void CloseXModemServer(void)
 {
-    shutdown(otasock1, SHUT_RDWR);
+    pthread_t data_tid = 0;
+    pthread_t listen_tid = 0;
+    int join_data = 0;
+    int join_listen = 0;
 
-    if (otasock1 > 0)
+    pthread_mutex_lock(&task_mutex);
+    xmodem_server_stopping = 1;
+    if (LwIPTCPDataTaskRunning)
     {
+        data_tid = LwIPTCPDataTaskHandle;
+        LwIPTCPDataTaskRunning = 0;
+        LwIPTCPDataTaskHandle = 0;
+        join_data = 1;
+    }
+    if (LwIPTCPListenTaskRunning)
+    {
+        listen_tid = LwIPTCPListenTaskHandle;
+        LwIPTCPListenTaskRunning = 0;
+        LwIPTCPListenTaskHandle = 0;
+        join_listen = 1;
+    }
+    pthread_mutex_unlock(&task_mutex);
+
+    if (otasock1 >= 0)
+    {
+        shutdown(otasock1, SHUT_RDWR);
         close(otasock1);
         otasock1 = -1;
     }
 
-    if (otasock > 0)
+    if (otasock >= 0)
     {
+        shutdown(otasock, SHUT_RDWR);
         close(otasock);
         otasock = -1;
     }
 
-    if (pLwIPTCPDataTaskHandle != NULL)
+    if (join_data)
     {
-        // 添加调试输出
-        // printf("Before pthread_cancel: pLwIPTCPDataTaskHandle=%p, *pLwIPTCPDataTaskHandle=%lu\n",
-        //        (void*)pLwIPTCPDataTaskHandle, (unsigned long)*pLwIPTCPDataTaskHandle);
-
-        pthread_cancel(*pLwIPTCPDataTaskHandle);
-        // printf("After pthread_cancel\n");
-        // printf("Before pthread_join: pLwIPTCPDataTaskHandle=%p, *pLwIPTCPDataTaskHandle=%lu\n",
-        //        (void*)pLwIPTCPDataTaskHandle, (unsigned long)*pLwIPTCPDataTaskHandle);
-
-        pthread_join(*pLwIPTCPDataTaskHandle, NULL); // 等待线程回收资源
-
-        free(pLwIPTCPDataTaskHandle);
-        pLwIPTCPDataTaskHandle = NULL;
+        pthread_cancel(data_tid);
+        pthread_join(data_tid, NULL); // 等待线程回收资源
     }
 
-    if (pLwIPTCPListenTaskHandle != NULL)
+    if (join_listen)
     {
-        pthread_cancel(*pLwIPTCPListenTaskHandle);
-        pthread_join(*pLwIPTCPListenTaskHandle, NULL); // 等待线程回收资源
-        free(pLwIPTCPListenTaskHandle);
-        pLwIPTCPListenTaskHandle = NULL;
+        pthread_cancel(listen_tid);
+        pthread_join(listen_tid, NULL); // 等待线程回收资源
     }
 
     if (OTAfil != NULL)
@@ -99,6 +108,9 @@ void CloseXModemServer(void)
     otafileret = 30;
     // XmodemServerEnd = 0;
     setXmodemServerEnd(0);
+    pthread_mutex_lock(&task_mutex);
+    xmodem_server_stopping = 0;
+    pthread_mutex_unlock(&task_mutex);
 }
 
 signed char CheckXModemClient(void)

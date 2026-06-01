@@ -13,8 +13,11 @@
 pthread_t TcpServerExample_TASKHandle = 0;
 unsigned char XmodemSendCFlag = 0;
 volatile unsigned long prvmsgtimer = 0;
-pthread_t *pLwIPTCPDataTaskHandle = NULL;
-pthread_t *pLwIPTCPListenTaskHandle = NULL;
+pthread_t LwIPTCPDataTaskHandle = 0;
+pthread_t LwIPTCPListenTaskHandle = 0;
+int LwIPTCPDataTaskRunning = 0;
+int LwIPTCPListenTaskRunning = 0;
+int xmodem_server_stopping = 0;
 
 void *XmodemCommTask(void *arg)
 {
@@ -67,29 +70,15 @@ void *XmodemCommTask(void *arg)
                 if (curotaCtrregval == 0x0001)//上位机发送升级文件，curotaCtrregval值会被改变
                 {
                     // 临界区保护：确保任务创建不会出现竞态条件
-                    LOG("[Xmodem] TcpServerExample task malloc!\n");
+                    LOG("[Xmodem] Start xmodem listen task!\n");
                     pthread_mutex_lock(&task_mutex); // 锁住临界区
 
-                    if (pLwIPTCPListenTaskHandle == NULL)
+                    if (!LwIPTCPListenTaskRunning)
                     {
-                        pLwIPTCPListenTaskHandle = malloc(sizeof(pthread_t));
-                        pLwIPTCPDataTaskHandle = malloc(sizeof(pthread_t));
-
-                        if (pLwIPTCPListenTaskHandle == NULL || pLwIPTCPDataTaskHandle == NULL)
-                        {
-                            LOG("[Xmodem] TcpServerExample task malloc failed!\n");
-                            pthread_mutex_unlock(&task_mutex); // 解锁临界区
-                            while (1)
-                            {
-                                usleep(1000 * 10000);
-                            }
-                        }
-
-                        *pLwIPTCPDataTaskHandle = NULL;
-                        *pLwIPTCPListenTaskHandle = NULL;
-                        // LOG("[Xmodem] TcpServerExample task malloc suceess!\n");
+                        xmodem_server_stopping = 0;
+                        LwIPTCPDataTaskRunning = 0;
                         // 创建监听任务
-                        int ret = pthread_create(pLwIPTCPListenTaskHandle, NULL, Lwip_Listen_TASK, NULL);
+                        int ret = pthread_create(&LwIPTCPListenTaskHandle, NULL, Lwip_Listen_TASK, NULL);
                         if (ret != 0)
                         {
                             LOG("[Xmodem] Failed to create Lwip_Listen xTaskCreate! thread : %s", strerror(ret));
@@ -97,6 +86,7 @@ void *XmodemCommTask(void *arg)
                         }
                         else
                         {
+                            LwIPTCPListenTaskRunning = 1;
                             LOG("[Xmodem] success to create Lwip_Listen xTaskCreate! thread");
                         }
 

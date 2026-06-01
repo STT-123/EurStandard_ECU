@@ -51,20 +51,30 @@ void* Lwip_Listen_TASK(void* param)
             LOG("[Xmodem] otasock1 = %d\n", otasock1);
             LOG("[Xmodem] Client connected: %s:%d\n",inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
 
-            if (*pLwIPTCPDataTaskHandle == NULL)
+            pthread_mutex_lock(&task_mutex); // 临界区保护
+            if (xmodem_server_stopping)
             {
-                pthread_mutex_lock(&task_mutex); // 临界区保护
-                if (pthread_create(pLwIPTCPDataTaskHandle, NULL, lwip_data_TASK, NULL) == 0) {
+                pthread_mutex_unlock(&task_mutex);
+                close(otasock1);
+                otasock1 = -1;
+                setClientConnected(0);
+                continue;
+            }
+
+            if (!LwIPTCPDataTaskRunning)
+            {
+                if (pthread_create(&LwIPTCPDataTaskHandle, NULL, lwip_data_TASK, NULL) == 0) {
+                    LwIPTCPDataTaskRunning = 1;
                     LOG("[Xmodem] create lwip_data_TASK success\n");
                 } else {
                     LOG("[Xmodem] create lwip_data_TASK failed\n");
                 }
-                pthread_mutex_unlock(&task_mutex);
             }
             else
             {
                 LOG("[Xmodem] lwip_data_TASK already running!\n");
             }
+            pthread_mutex_unlock(&task_mutex);
         }
         else
         {
