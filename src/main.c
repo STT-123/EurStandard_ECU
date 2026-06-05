@@ -17,12 +17,19 @@
 extern ecu_fault_t ecu_fault ;
 static void printf_version(void)
 {
-    char compile_date[12] = {0}, compile_time[20] = {0};
-    sprintf(compile_date, "%s", __DATE__);
-    sprintf(compile_time, "%s", __TIME__);
+    char run_time[32] = {0};
+    time_t now = time(NULL);
+    struct tm tm_now;
+
+    if (now != (time_t)-1 && localtime_r(&now, &tm_now) != NULL) {
+        strftime(run_time, sizeof(run_time), "%Y-%m-%d %H:%M:%S", &tm_now);
+    } else {
+        snprintf(run_time, sizeof(run_time), "unknown");
+    }
+
     LOG("========================================================= \n");
     LOG("[VERSION] BAT ECU_EU START RUN!!!. \n");
-    LOG("[VERSION] Software compilation time %s--%s. \n", compile_date, compile_time);
+    LOG("[VERSION] Software start time %s. \n", run_time);
     LOG("========================================================= \n");
 }
 

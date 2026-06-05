@@ -56,7 +56,7 @@ static void update_sd_capacity_register(float usage_percent)
         usage_percent = 100.0f;
     }
 
-    usage_value = (uint16_t)(usage_percent + 0.5f);
+    usage_value = (uint16_t)(usage_percent * 100.0f + 0.5f);
     set_modbus_reg_val(MDBUS_SD_CAPACITY, usage_value);
 }
 
@@ -72,7 +72,7 @@ static void update_root_capacity_register(float usage_percent)
         usage_percent = 100.0f;
     }
 
-    usage_value = (uint16_t)(usage_percent + 0.5f);
+    usage_value = (uint16_t)(usage_percent * 100.0f + 0.5f);
     set_modbus_reg_val(MDBUS_ROOT_CAPACITY, usage_value);
 }
 
@@ -1323,17 +1323,19 @@ void checkSDCardCapacity(void)
         return;
     }
     uint64_t total = (uint64_t)stat.f_blocks * (uint64_t)stat.f_frsize;
-    uint64_t free_space = (uint64_t)stat.f_bavail  * (uint64_t)stat.f_frsize;
-    uint64_t used = total - free_space;
+    uint64_t free_space = (uint64_t)stat.f_bavail * (uint64_t)stat.f_frsize;
+    uint64_t used = ((uint64_t)stat.f_blocks - (uint64_t)stat.f_bfree) * (uint64_t)stat.f_frsize;
+    uint64_t user_total = used + free_space;
+    (void)total;
 
-    float usage_percent = ((float)used / (float)total) * 100.0f;
+    float usage_percent = (user_total > 0) ? ((float)used / (float)user_total) * 100.0f : 0.0f;
 
     update_sd_capacity_register(usage_percent);
 
     
-    // LOG("SD Card total:%d\n", total);
-    // LOG("SD Card free_space:%d\n", free_space);
-    // LOG("SD Card used:%d\n", used);
+    // LOG("SD Card total:%llu\n", (unsigned long long)total);
+    // LOG("SD Card free_space:%llu\n", (unsigned long long)free_space);
+    // LOG("SD Card used:%llu\n", (unsigned long long)used);
     // LOG("SD Card usage_percent:%.2f%%\n", usage_percent);
 
     if (usage_percent >= SDMAXCAPACITY)
@@ -1355,12 +1357,13 @@ void checkRootCapacity(void)
         return;
     }
     
-    // 使用正确的类型和转换
     uint64_t total = (uint64_t)stat.f_blocks * (uint64_t)stat.f_frsize;
     uint64_t free_space = (uint64_t)stat.f_bavail * (uint64_t)stat.f_frsize;
-    uint64_t used = total - free_space;
+    uint64_t used = ((uint64_t)stat.f_blocks - (uint64_t)stat.f_bfree) * (uint64_t)stat.f_frsize;
+    uint64_t user_total = used + free_space;
+    (void)total;
     
-    float usage_percent = (total > 0) ? ((float)used / (float)total) * 100.0f : 0.0f;
+    float usage_percent = (user_total > 0) ? ((float)used / (float)user_total) * 100.0f : 0.0f;
 
     update_root_capacity_register(usage_percent);
 
