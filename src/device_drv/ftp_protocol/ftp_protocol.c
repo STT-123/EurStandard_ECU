@@ -3,7 +3,7 @@
 #include "interface/setting/ip_setting.h"
 #define DATA_PORT 40900
 #define FTP_BUFFER_SIZE 2920 // 2048 网络传输包mtu限制改为1460得倍数
-#define TIMEOUT_SECONDS 300000
+#define TIMEOUT_SECONDS 300
 pthread_mutex_t ftp_file_io_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int is_safe_path(const char *path);
 static int build_safe_filepath(const FTPState *state, const char *name, char *filepath, size_t filepath_size);
@@ -894,7 +894,7 @@ int handle_ftp_commands(FTPState *state) {
         
         // 设置较短的接收超时
         struct timeval timeout;
-        timeout.tv_sec = 60;  // 1秒超时
+        timeout.tv_sec = 60;  // 60秒recv轮询，用于定期检查总空闲超时
         timeout.tv_usec = 0;
         
         if (setsockopt(state->control_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {

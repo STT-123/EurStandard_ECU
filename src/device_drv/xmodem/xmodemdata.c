@@ -54,12 +54,10 @@ static unsigned int xmodem_get_absolute_packno(unsigned char curpackno, unsigned
     if ((prvpackno == 0xff) && (curpackno == 0x00))
     {
         *packbase += 256;
-        LOG("[Xmodem] Packet index wrapped: 0xFF -> 0x00, base=%u\r\n", *packbase);
     }
     else if ((prvpackno == 0xff) && (curpackno == 0x01))
     {
         *packbase += 255;
-        LOG("[Xmodem] Packet index wrapped: 0xFF -> 0x01, base=%u\r\n", *packbase);
     }
 
     return *packbase + curpackno;
@@ -106,603 +104,697 @@ void *lwip_data_TASK(void *param)
 	unsigned int expectedLastPackno = 0;
 	const char *lastPacketMode = "unknown";
 	int eofCount = 0;
+	unsigned char rx_cache[4096] = {0};
+	int rx_cache_len = 0;
 	while (1)
 	{
 		if ((otasock1 > 0) && (stopReadingAfterFileEnd == 0))
 		{
 			memset(tcp_server_recvbuf, 0, 2048);
-			int length = read(otasock1, tcp_server_recvbuf, 2048);
+			int readLength = read(otasock1, tcp_server_recvbuf, 2048);
 			curmsgtimer = OsIf_GetMilliseconds();
-			// LOG("[Xmodem] length :%d\r\n",length);
-			//目前接收到的BCU\BMU\ECU都是133长度的数据
-			if(length == 133)
+			// LOG("[Xmodem] read length :%d\r\n", readLength);
+			if (readLength > 0)
 			{
-				if((tcp_server_recvbuf[0] == SOH)  && (crcGet(tcp_server_recvbuf, 131) == (tcp_server_recvbuf[131] << 8 | tcp_server_recvbuf[132])))
+				if ((rx_cache_len + readLength) > (int)sizeof(rx_cache))
 				{
-					errpacknum = 0;
-					tcp_server_Txbuf[0] = ACK;
-					write(otasock1, tcp_server_Txbuf, 1);
-					if(tcp_server_recvbuf[1] == 0x00) //文件起始帧filesize
+					LOG("[Xmodem] rx cache overflow, reset cache, cache=%d, read=%d\r\n", rx_cache_len, readLength);
+					rx_cache_len = 0;
+				}
+				memcpy(&rx_cache[rx_cache_len], tcp_server_recvbuf, readLength);
+				rx_cache_len += readLength;
+
+				while (rx_cache_len > 0)
+				{
+					int length = 0;
+					if (rx_cache[0] == SOH)
 					{
-						LOG("Received first pack !\r\n");
-						setXmodemServerReceiveSOH(1);
-						if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]),otafilenamestr, &filesize, &xmodempacknum) == 0)
-						{
-							LOG("[Xmodem] File name %s filesize %d packnum %d\r\n", otafilenamestr, filesize, xmodempacknum);
-							findfirstpack = 1;
-							curpackno = 0;
-							prvpackno = 0;
-							packbase = 0;
-							LOG("[Xmodem] Init packet tracking: cur=0x%02X prev=0x%02X base=%u total=%d\r\n",
-								curpackno, prvpackno, packbase, xmodempacknum);
-							waitingForEOT = 0;
-							transferCompletedWithoutEOT = 0;
-							stopReadingAfterFileEnd = 0;
-							expectedLastPackno = 0;
-							lastPacketMode = "unknown";
-							errorCount = 0;
-							eofCount = 0;
-							snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
-						}
+						length = 133;
 					}
-					else  //文件数据帧
+					else if (rx_cache[0] == STX)
 					{
-						if(findfirstpack)
-						{
-							curpackno = tcp_server_recvbuf[1];//系列号
-							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
-							if ((packno == 1) || ((packno % 100) == 0) || (packno == xmodempacknum)) {
-								LOG("[Xmodem] 128B packet: raw=0x%02X prev=0x%02X base=%u abs=%d total=%d\r\n",
-									curpackno, prvpackno, packbase, packno, xmodempacknum);
-							}
-							if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0') || (otafilenamestr1[0] == '\0'))
-							{
-								LOG("[Xmodem] Invalid OTA transfer state: file='%s', save_path='%s', totalpack=%d, recv pack=%d\r\n",
-									otafilenamestr, otafilenamestr1, xmodempacknum, packno);
-								findfirstpack = 0;
-								set_ota_UpDating(0);
-								setXmodemServerReceiveSOH(0);
-								setXmodemServerReceiveFileEnd(1);
-								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-								continue;
-							}
-							if (packno > xmodempacknum)
-							{
-								LOG("[Xmodem] Packet count mismatch(128B): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
-									packno, xmodempacknum, curpackno, prvpackno);
-							}
-							if(packno != xmodempacknum)
-							{
-								readdatanum = 128;//每次读取128字节
-								if (packno == 1) {
-									LOG("[Xmodem] first packet check: packno=%d, file=%s\r\n", packno, otafilenamestr);
-								}
-								if(packno == 1)//第一包
-								{
-									LOG("[Xmodem] otafilenamestr : %s\r\n",otafilenamestr);
-									if(strstr(otafilenamestr, "ECU") != NULL)									
-									{
-										otadeviceType = ECU;
-										set_ota_UpDating(1);//1130
-										LOG("[Xmodem] otadeviceType  %d\r\n", otadeviceType);
-									}
-									else if(strstr(otafilenamestr, "BCU") != NULL)
-									{
-										otadeviceType = BCU;
-										set_ota_UpDating(1);//1130g_otactrl.UpDating
-										LOG("[Xmodem] otadeviceType  %d\r\n", otadeviceType);
-									}
-									else if(strstr(otafilenamestr, "BMU") != NULL)
-									{
-										otadeviceType = BMU;
-										set_ota_UpDating(1);//1130
-										LOG("[Xmodem] otadeviceType  %d\r\n", otadeviceType);
-									}
-									else if( sblfilenumber == 1)//AC
-									{
-										LOG("[Xmodem] sblfilenumber = %d\r\n",sblfilenumber);
-										set_ota_acOTAFlag(1);//AC_Flag
-										set_ota_UpDating(1);//1130
-
-									}
-									else if(strstr(otafilenamestr, "ACP") != NULL)
-									{
-										LOG("[Xmodem] ACP_OTA_FILE_DATA..... \r\n");
-										set_ota_UpDating(1);//1220
-									}
-									else if(strstr(otafilenamestr, "DCDC") != NULL)
-									{
-										LOG("[Xmodem] DCDC UpDating ..... \r\n");
-										set_ota_UpDating(1);//1220
-									}
-
-									else
-									{
-										set_ota_UpDating(0);//1130
-										otadeviceType = 0;
-											delete_files_with_prefix(USB_MOUNT_POINT, "XC");
-										LOG("[Xmodem] Invalid upgrade file\r\n");
-										setXmodemServerReceiveFileEnd(1);
-										set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);;
-
-									}
-								}
-
-								int err = SaveOtaFile(otafilenamestr1, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
-								if(err != 0)
-								{
-									filenormalflag =1;
-									set_ota_UpDating(0);//1130
-									otadeviceType = 0;
-									xmodem_close_ota_file_if_open();
-									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
-									LOG("[Xmodem] Failed to write upgrade file\r\n");
-									setXmodemServerReceiveFileEnd(1);
-									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-									set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
-								}
-							}
-							else//最后1包
-							{
-								filesize%128?(readdatanum = filesize%128):(readdatanum = 128);//剩余字节数
-								LOG("Receive the last pack , need read %d data from xmodem data area!\r\n", readdatanum);
-								int err = SaveOtaFile(otafilenamestr1, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
-								if(err != 0)
-								{
-									filenormalflag =1;
-									set_ota_UpDating(0);//1130
-									otadeviceType = 0;
-									xmodem_close_ota_file_if_open();
-									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
-									LOG("[Xmodem] Failed to write upgrade file\r\n");
-									// XmodemServerReceiveFileEnd = 1;
-									setXmodemServerReceiveFileEnd(1);
-									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-									set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
-								}
-								else{
-									waitingForEOT = 1;
-									expectedLastPackno = xmodempacknum;
-									lastPacketMode = "128B";
-									errorCount = 0;
-									eofCount = 0;
-									LOG("[Xmodem] Last data packet received(128B): pack=%d/%d, waiting for EOT\r\n",
-										packno, xmodempacknum);
-								}
-								LOG("[Xmodem] get_ota_UpDating(): %d\r\n",get_ota_UpDating());
-								LOG("[Xmodem] otafilenamestr1111111 : %s\r\n",otafilenamestr1);
-								LOG("[Xmodem] before OTAStart set: otadeviceType=%d, OTAStart=%d, UpDating=%d\r\n",
-									otadeviceType, get_ota_OTAStart(), get_ota_UpDating());
-								if((strstr(otafilenamestr, "bin") != NULL) || (strstr(otafilenamestr1, "bz2") != NULL) || (strstr(otafilenamestr1, "deb") != NULL) || (strstr(otafilenamestr1, "tar") != NULL))
-								{
-									set_modbus_reg_val(OTASTATUSREGADDR, FILEDECRYPTIONNORMALTERMINATION);
-									set_ota_OTAFileType(0);
-									if(strstr(otafilenamestr, "ECU") != NULL)
-									{
-										set_ota_deviceType(otadeviceType);
-										LOG("[Xmodem] ECU_OTA_otadeviceType: %d\r\n", otadeviceType);
-										LOG("[Xmodem] otafilenamestr: %s\r\n", otafilenamestr);
-										set_ota_OTAFilename(otafilenamestr);
-										set_ota_deviceID(0);
-										set_ota_OTAStart(1);
-
-									}
-									else if(strstr(otafilenamestr, "BCU") != NULL)
-									{
-										set_ota_deviceType(otadeviceType);
-										set_ota_deviceID(BCUOTACANID);
-										set_ota_OTAFilename(otafilenamestr);
-										set_ota_OTAStart(1);
-									}
-									else if(strstr(otafilenamestr, "BMU") != NULL)
-									{
-										set_ota_deviceType(otadeviceType);
-										set_ota_OTAFilename(otafilenamestr);
-										set_ota_deviceID(0x1821FF10);
-										set_ota_OTAStart(1);
-									}
-									else if(strstr(otafilenamestr, "ACP") != NULL)
-									{
-										set_ota_deviceType(ACP);
-										set_ota_OTAFilename(otafilenamestr);
-										set_ota_deviceID(ACPOTACANID);
-										set_ota_OTAStart(1);
-
-									}
-									else if(strstr(otafilenamestr, "DCDC") != NULL)
-									{
-										set_ota_deviceType(DCDC);
-										set_ota_OTAFilename(otafilenamestr);
-										set_ota_deviceID(DCDCOTACANID);
-										set_ota_OTAStart(1);
-									}
-									//------------------------------OTAACP----------------------------------------//
-									else if(strstr(otafilenamestr, "AC") != NULL) 
-									{
-									    char *token;
-									    char *delimiter = "_";
-										set_modbus_reg_val(OTASTATUSREGADDR, FILEDECRYPTIONNORMALTERMINATION);
-
-										set_ota_OTAFileType(0);
-										if(strstr(otafilenamestr, "AC_SBL") != NULL)//XC_AC_SBL_<地址>_<长度>_<CRC>.bin    // Bootloader
-										{
-											clock_gettime(CLOCK_MONOTONIC, &AC_OTA_lastCheckTick);
-											memset(g_otactrl.OTAUdsSblFilename[SBl_index],0 ,sizeof(g_otactrl.OTAUdsSblFilename[SBl_index]));
-											//需要告诉我一共分成多少bin文件，然后达到数量后赋值otactrl.deviceType = ACP;，进入XcpOTATestTask
-											LOG("[Xmodem] AC_SBL_OTA_FILE_NAME: %s\r\n", otafilenamestr);
-											LOG("[Xmodem] AC_SBL_OTA_FILE_NAME: %s\r\n", otafilenamestr1);
-											memcpy(g_otactrl.OTAUdsSblFilename[SBl_index], otafilenamestr1, strlen(otafilenamestr1));
-
-										    token = strtok(otafilenamestr, delimiter); // AC
-										    token = strtok(NULL, delimiter);          // SBL
-											token = strtok(NULL, delimiter);
-											flashData.writeAddr =(uint32_t)strtoul(token, NULL, 16);
-											token = strtok(NULL, delimiter);
-											flashData.writeLen =(uint32_t)strtoul(token, NULL, 16);
-											token = strtok(NULL, delimiter);
-											flashData.CRC =(uint16_t)strtoul(token, NULL, 16);
-											LOG("[Xmodem] g_otactrl.OTAUdsSblFilename[SBl_index]: %s!\r\n", g_otactrl.OTAUdsSblFilename[SBl_index]);
-											LOG("[Xmodem] flashData.writeAddr: 0x%08X\r\n", flashData.writeAddr);
-											LOG("[Xmodem] flashData.writeLen: 0x%08X\r\n", flashData.writeLen);
-											LOG("[Xmodem] flashData.CRC: 0x%04X\r\n", flashData.CRC);
-											LOG("[Xmodem] SBl_index: %d\r\n", SBl_index);
-											SBl_index++;
-
-										}
-										else if(strstr(otafilenamestr, "AC_APP") != NULL)//XC_AC_APP_<地址>_<长度>_<CRC>.bin   // 应用程序
-										{
-												clock_gettime(CLOCK_MONOTONIC, &AC_OTA_lastCheckTick);
-												memset(g_otactrl.OTAUdsFilename[APP_index],0 ,sizeof(g_otactrl.OTAUdsFilename[APP_index]));
-												LOG("[Xmodem] AC_APP_OTA_FILE_NAME: %s\r\n", otafilenamestr);
-												LOG("[Xmodem] AC_SBL_OTA_FILE_NAME: %s\r\n", otafilenamestr1);
-												memcpy(g_otactrl.OTAUdsFilename[APP_index], otafilenamestr1, strlen(otafilenamestr1));
-
-											    token = strtok(otafilenamestr, delimiter); // AC
-											    token = strtok(NULL, delimiter);          // SBL
-												token = strtok(NULL, delimiter);
-												appData[APP_index].writeAddr =(uint32_t)strtoul(token, NULL, 16);
-												token = strtok(NULL, delimiter);
-												appData[APP_index].writeLen =(uint32_t)strtoul(token, NULL, 16);
-												token = strtok(NULL, delimiter);
-												appData[APP_index].CRC =(uint16_t)strtoul(token, NULL, 16);
-												LOG("[Xmodem] g_otactrl.OTAUdsFilename[APP_index]: %s\r\n", g_otactrl.OTAUdsFilename[APP_index]);
-												LOG("[Xmodem] appData.writeAddr[APP_index]: 0x%08X\r\n", appData[APP_index].writeAddr);
-												LOG("[Xmodem] appData.writeLen[APP_index]: 0x%08X\r\n", appData[APP_index].writeLen);
-												LOG("[Xmodem] appData.CRC[APP_index]: 0x%04X!\r\n", appData[APP_index].CRC);
-												LOG("[Xmodem] APP_index: %d\r\n", APP_index);
-												APP_index++;
-
-										}
-
-									}
-										get_modbus_reg_val(AC_SBL_OTAFILENUMBER, &sblfilenumber);
-										get_modbus_reg_val(AC_APP_OTAFILENUMBER, &appfilenumber);
-										usleep(50*1000);
-										LOG("[Xmodem] SBl_index ...  %d \r\n",SBl_index);
-										LOG("[Xmodem] APP_index ...  %d \r\n",APP_index);
-										LOG("[Xmodem] sblfilenumber...%d\r\n",sblfilenumber);
-										LOG("[Xmodem] appfilenumber...%d\r\n",appfilenumber);
-
-
-									if((SBl_index != 0) && (SBl_index == sblfilenumber) && (APP_index != 0) && (APP_index == appfilenumber))
-									{
-										LOG("[Xmodem] SBl_index ...  %d \r\n",SBl_index);
-										LOG("[Xmodem] APP_index ...  %d \r\n",APP_index);
-										LOG("[Xmodem] sblfilenumber...%d\r\n",sblfilenumber);
-										LOG("[Xmodem] appfilenumber...%d\r\n",appfilenumber);
-										LOG(" AC   set_ota_OTAStart(1)\r\n");
-										set_ota_deviceID(ACOTACANID);
-										set_ota_deviceType(AC);
-										set_ota_OTAStart(1);
-
-									}
-									//------------------------------OTAACP----------------------------------------//
-
-									else
-									{
-
-									}
-									LOG("[Xmodem] OTAStart:%d,deviceID:%d,OTAFilename:%s,OTAFileType:%d,deviceType:%d\n", g_otactrl.OTAStart, g_otactrl.deviceID, g_otactrl.OTAFilename, g_otactrl.OTAFileType, g_otactrl.deviceType);
-
-								}
-								else if(strstr(otafilenamestr, "srec") != NULL || strstr(otafilenamestr, "s19") != NULL)
-								{
-									set_modbus_reg_val(OTASTATUSREGADDR, FILEISDECRYPTIIONING);
-									g_otactrl.OTAFileType = 1;
-									if(strstr(otafilenamestr, "ECU") != NULL)
-									{
-										g_otactrl.deviceType = ECU;
-										memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-										memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-									}
-									else if(strstr(otafilenamestr, "BCU") != NULL)
-									{
-										g_otactrl.deviceType = BCU;
-										g_otactrl.deviceID = BCUOTACANID;
-										memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-										memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-									}
-									else if(strstr(otafilenamestr, "BMU") != NULL)
-									{
-										g_otactrl.deviceType = BMU;
-										g_otactrl.deviceID = 0x1821FF10;
-										memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-										memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-									}
-									else
-									{
-
-									}
-								}
-	
-
-							}
-							prvpackno = curpackno;
-
-						}
+						length = 1029;
 					}
-
-				}
-				else
-				{
-					errpacknum++;
-					tcp_server_Txbuf[0] = NAK;
-					write(otasock1, tcp_server_Txbuf, 1);
-				}
-			}
-			else if(length == 1029)
-			{
-				if((tcp_server_recvbuf[0] == STX) && (crcGet(tcp_server_recvbuf, 1027) == (tcp_server_recvbuf[1025] << 8 | tcp_server_recvbuf[1026])))
-				{
-
-						errpacknum = 0;
-						tcp_server_Txbuf[0] = ACK;
-						write(otasock1, tcp_server_Txbuf, 1);
-
-						if(findfirstpack)
-						{
-							curpackno = tcp_server_recvbuf[1];
-							packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
-							if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0'))
-							{
-								LOG("[Xmodem] Invalid OTA transfer state(1K): file='%s', totalpack=%d, recv pack=%d\r\n",
-									otafilenamestr, xmodempacknum, packno);
-								findfirstpack = 0;
-								set_ota_UpDating(0);
-								setXmodemServerReceiveSOH(0);
-								setXmodemServerReceiveFileEnd(1);
-								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-								continue;
-							}
-							if (packno > xmodempacknum)
-							{
-								LOG("[Xmodem] Packet count mismatch(1K): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
-									packno, xmodempacknum, curpackno, prvpackno);
-							}
-							if(packno != xmodempacknum)
-							{
-								readdatanum = 1024;
-								if(packno == 1)
-								{
-								if(strstr(otafilenamestr, "ECU") != NULL)									
-								{
-									otadeviceType = ECU;
-									set_ota_UpDating(1);//1130
-								}
-								else if(tcp_server_recvbuf[51]==0x42 && tcp_server_recvbuf[52]==0x43 && tcp_server_recvbuf[53]==0x55)
-								{
-									otadeviceType = BCU;
-								}
-								else if(tcp_server_recvbuf[51]==0x42 && tcp_server_recvbuf[52]==0x4d && tcp_server_recvbuf[53]==0x55)
-								{
-									otadeviceType = BMU;
-								}
-								else
-								{
-									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
-									otadeviceType = 0;
-									LOG("[Xmodem] Invalid upgrade file\r\n");
-									setXmodemServerReceiveFileEnd(1);
-								}
-							}
-							int err = SaveOtaFile(otafilenamestr, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
-							if(err != 0)
-							{
-								filenormalflag =1;
-								set_ota_UpDating(0);//1130
-								otadeviceType = 0;
-								xmodem_close_ota_file_if_open();
-								delete_files_with_prefix(USB_MOUNT_POINT, "XC");
-								LOG("[Xmodem] Failed to write upgrade file\r\n");
-								setXmodemServerReceiveFileEnd(1);
-								set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-								set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
-							}
-						}
-							else
-							{
-
-								filesize%1024?(readdatanum = filesize%1024):(readdatanum = 1024);
-								LOG("[Xmodem] Receive the last pack , need read %d data from xmodem data area!\r\n", readdatanum);
-							int err = SaveOtaFile(otafilenamestr, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
-							if(err != 0)
-							{
-								filenormalflag =1;
-								set_ota_UpDating(0);//1130
-								otadeviceType = 0;
-								xmodem_close_ota_file_if_open();
-
-									delete_files_with_prefix(USB_MOUNT_POINT, "XC");
-								LOG("[Xmodem] Failed to write upgrade file\r\n");
-									setXmodemServerReceiveFileEnd(1);
-									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-									set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
-								}
-								if(err == 0)
-								{
-									waitingForEOT = 1;
-									expectedLastPackno = xmodempacknum;
-									lastPacketMode = "1K";
-									errorCount = 0;
-									eofCount = 0;
-									LOG("[Xmodem] Last data packet received(1K): pack=%d/%d, waiting for EOT\r\n",
-										packno, xmodempacknum);
-								}
-
-								if(strstr(otafilenamestr1, "bin") != NULL)
-								{
-								set_ota_OTAFileType(0);
-								if(strstr(otafilenamestr1, "ECU") != NULL)
-								{
-									g_otactrl.deviceType = otadeviceType;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-
-								}
-								else if(strstr(otafilenamestr1, "BCU") != NULL)
-								{
-									g_otactrl.deviceType = otadeviceType;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-								}
-								else if(strstr(otafilenamestr1, "BMU") != NULL)
-								{
-									g_otactrl.deviceType = otadeviceType;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-								}
-								else
-								{
-
-								}
-							}
-							else if(strstr(otafilenamestr1, "srec") != NULL)
-							{
-								g_otactrl.OTAFileType = 1;
-								if(strstr(otafilenamestr1, "ECU") != NULL)
-								{
-									g_otactrl.deviceType = ECU;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-
-								}
-								else if(strstr(otafilenamestr1, "BCU") != NULL)
-								{
-									g_otactrl.deviceType = BCU;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-								}
-								else if(strstr(otafilenamestr1, "BMU") != NULL)
-								{
-									g_otactrl.deviceType = BMU;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-								}
-								else
-								{
-
-								}
-							}
-							else if(strstr(otafilenamestr1, "zip") != NULL)
-							{
-								set_ota_OTAFileType(0);
-								if(strstr(otafilenamestr1, "ECU") != NULL)
-								{
-									LOG("[Xmodem] ECU tar.bz2 file\r\n");
-									g_otactrl.deviceType = otadeviceType;
-									memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
-									memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
-
-								}
-								else
-								{
-
-								}
-							}
-						}
-					}
-				}
-				else
-				{
-					errpacknum++;
-					tcp_server_Txbuf[0] = NAK;
-					write(otasock1, tcp_server_Txbuf, 1);
-				}
-
-			}
-			else if(length == 1)
-			{
-				LOG("[Xmodem] Rcv 1 byte data -> 0x%x\r\n", tcp_server_recvbuf[0]);
-				if(tcp_server_recvbuf[0] == EOT)
-				{
-					if (waitingForEOT)
+					else if (rx_cache[0] == EOT)
 					{
-						LOG("[Xmodem] Received EOT after last packet(mode=%s, pack=%u/%d), ACK and finish transfer\r\n",
-							lastPacketMode, expectedLastPackno, xmodempacknum);
+						length = 1;
 					}
 					else
 					{
-						LOG("[Xmodem] Received EOT before last packet complete: last recv pack=%d, expected=%d\r\n",
-							packno, xmodempacknum);
+						LOG("[Xmodem] drop unexpected byte from tcp stream: 0x%02x, cache=%d\r\n", rx_cache[0], rx_cache_len);
+						memmove(rx_cache, rx_cache + 1, rx_cache_len - 1);
+						rx_cache_len -= 1;
+						continue;
 					}
-					tcp_server_Txbuf[0] = ACK;
-					write(otasock1, tcp_server_Txbuf, 1);
-					setXmodemServerReceiveEOT(1);
-					setXmodemServerReceiveFileEnd(1);
-					waitingForEOT = 0;
-					transferCompletedWithoutEOT = 0;
-					errorCount = 0;
-					eofCount = 0;
+
+					if (rx_cache_len < length)
+					{
+						break;
+					}
+
+					memset(tcp_server_recvbuf, 0, 2048);
+					memcpy(tcp_server_recvbuf, rx_cache, length);
+					if (rx_cache_len != length)
+					{
+						LOG("[Xmodem] split tcp stream frame: frame=%d, cache=%d\r\n", length, rx_cache_len);
+					}
+					// Process one normalized XMODEM frame from the TCP stream.
+					if(length == 133)
+					{
+						if((tcp_server_recvbuf[0] == SOH)  && (crcGet(tcp_server_recvbuf, 131) == (tcp_server_recvbuf[131] << 8 | tcp_server_recvbuf[132])))
+						{
+							errpacknum = 0;
+							tcp_server_Txbuf[0] = ACK;
+							write(otasock1, tcp_server_Txbuf, 1);
+							if(tcp_server_recvbuf[1] == 0x00) //文件起始帧filesize
+							{
+								LOG("Received first pack !\r\n");
+								setXmodemServerReceiveSOH(1);
+								if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]),otafilenamestr, &filesize, &xmodempacknum) == 0)
+								{
+									LOG("[Xmodem] File name %s filesize %d packnum %d\r\n", otafilenamestr, filesize, xmodempacknum);
+									findfirstpack = 1;
+									curpackno = 0;
+									prvpackno = 0;
+									packbase = 0;
+									LOG("[Xmodem] Init packet tracking: cur=0x%02X prev=0x%02X base=%u total=%d\r\n",
+											curpackno, prvpackno, packbase, xmodempacknum);
+									waitingForEOT = 0;
+									transferCompletedWithoutEOT = 0;
+									stopReadingAfterFileEnd = 0;
+									expectedLastPackno = 0;
+									lastPacketMode = "unknown";
+									errorCount = 0;
+									eofCount = 0;
+									snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, otafilenamestr);
+								}
+							}
+							else  //文件数据帧
+							{
+								if(findfirstpack)
+								{
+									curpackno = tcp_server_recvbuf[1];//系列号
+									packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+									if ((packno == 1) || ((packno % 500) == 0) || (packno == xmodempacknum)) {
+										LOG("[Xmodem] 128B packet: raw=0x%02X prev=0x%02X base=%u abs=%d total=%d\r\n",
+												curpackno, prvpackno, packbase, packno, xmodempacknum);
+									}
+									if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0') || (otafilenamestr1[0] == '\0'))
+									{
+										LOG("[Xmodem] Invalid OTA transfer state: file='%s', save_path='%s', totalpack=%d, recv pack=%d\r\n",
+												otafilenamestr, otafilenamestr1, xmodempacknum, packno);
+										findfirstpack = 0;
+										set_ota_UpDating(0);
+										setXmodemServerReceiveSOH(0);
+										setXmodemServerReceiveFileEnd(1);
+										set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+										goto xmodem_frame_done;
+									}
+									if (packno > xmodempacknum)
+									{
+										LOG("[Xmodem] Packet count mismatch(128B): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
+												packno, xmodempacknum, curpackno, prvpackno);
+									}
+									if(packno != xmodempacknum)
+									{
+										readdatanum = 128;//每次读取128字节
+										if(packno == 1)//第一包
+										{
+											LOG("[Xmodem] otafilenamestr : %s\r\n",otafilenamestr);
+											LOG("[Xmodem] first packet check: packno=%d, file=%s\r\n", packno, otafilenamestr);
+											if(strstr(otafilenamestr, "ECU") != NULL)									
+											{
+												otadeviceType = ECU;
+												set_ota_UpDating(1);//1130
+												LOG("[Xmodem] otadeviceType  %d\r\n", otadeviceType);
+											}
+											else if(strstr(otafilenamestr, "BCU") != NULL)
+											{
+												otadeviceType = BCU;
+												set_ota_UpDating(1);//1130g_otactrl.UpDating
+												LOG("[Xmodem] otadeviceType  %d\r\n", otadeviceType);
+											}
+											else if(strstr(otafilenamestr, "BMU") != NULL)
+											{
+												otadeviceType = BMU;
+												set_ota_UpDating(1);//1130
+												LOG("[Xmodem] otadeviceType  %d\r\n", otadeviceType);
+											}
+											else if( sblfilenumber == 1)//AC
+											{
+												LOG("[Xmodem] sblfilenumber = %d\r\n",sblfilenumber);
+												set_ota_acOTAFlag(1);//AC_Flag
+												set_ota_UpDating(1);//1130
+
+											}
+											else if(strstr(otafilenamestr, "ACP") != NULL)
+											{
+												LOG("[Xmodem] ACP_OTA_FILE_DATA..... \r\n");
+												set_ota_UpDating(1);//1220
+											}
+											else if(strstr(otafilenamestr, "DCDC") != NULL)
+											{
+												LOG("[Xmodem] DCDC UpDating ..... \r\n");
+												set_ota_UpDating(1);//1220
+											}
+
+											else
+											{
+												set_ota_UpDating(0);//1130
+												otadeviceType = 0;
+												delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+												LOG("[Xmodem] Invalid upgrade file\r\n");
+												setXmodemServerReceiveFileEnd(1);
+												set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);;
+
+											}
+										}
+
+										int err = SaveOtaFile(otafilenamestr1, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
+										if(err != 0)
+										{
+											filenormalflag =1;
+											set_ota_UpDating(0);//1130
+											otadeviceType = 0;
+											xmodem_close_ota_file_if_open();
+											delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+											LOG("[Xmodem] Failed to write upgrade file\r\n");
+											setXmodemServerReceiveFileEnd(1);
+											set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+											set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
+										}
+									}
+									else//最后1包
+									{
+										filesize%128?(readdatanum = filesize%128):(readdatanum = 128);//剩余字节数
+										LOG("Receive the last pack , need read %d data from xmodem data area!\r\n", readdatanum);
+										int err = SaveOtaFile(otafilenamestr1, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
+										if(err != 0)
+										{
+											filenormalflag =1;
+											set_ota_UpDating(0);//1130
+											otadeviceType = 0;
+											xmodem_close_ota_file_if_open();
+											delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+											LOG("[Xmodem] Failed to write upgrade file\r\n");
+											// XmodemServerReceiveFileEnd = 1;
+											setXmodemServerReceiveFileEnd(1);
+											set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+											set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
+										}
+										else{
+											waitingForEOT = 1;
+											expectedLastPackno = xmodempacknum;
+											lastPacketMode = "128B";
+											errorCount = 0;
+											eofCount = 0;
+											LOG("[Xmodem] Last data packet received(128B): pack=%d/%d, waiting for EOT\r\n",
+													packno, xmodempacknum);
+										}
+										LOG("[Xmodem] get_ota_UpDating(): %d\r\n",get_ota_UpDating());
+										LOG("[Xmodem] otafilenamestr1111111 : %s\r\n",otafilenamestr1);
+										LOG("[Xmodem] before OTAStart set: otadeviceType=%d, OTAStart=%d, UpDating=%d\r\n",
+												otadeviceType, get_ota_OTAStart(), get_ota_UpDating());
+										if((strstr(otafilenamestr, "bin") != NULL) || (strstr(otafilenamestr1, "bz2") != NULL) || (strstr(otafilenamestr1, "deb") != NULL) || (strstr(otafilenamestr1, "tar") != NULL))
+										{
+											set_modbus_reg_val(OTASTATUSREGADDR, FILEDECRYPTIONNORMALTERMINATION);
+											set_ota_OTAFileType(0);
+											if(strstr(otafilenamestr, "ECU") != NULL)
+											{
+												set_ota_deviceType(otadeviceType);
+												LOG("[Xmodem] ECU_OTA_otadeviceType: %d\r\n", otadeviceType);
+												LOG("[Xmodem] otafilenamestr: %s\r\n", otafilenamestr);
+												set_ota_OTAFilename(otafilenamestr);
+												set_ota_deviceID(0);
+												set_ota_OTAStart(1);
+
+											}
+											else if(strstr(otafilenamestr, "BCU") != NULL)
+											{
+												set_ota_deviceType(otadeviceType);
+												set_ota_deviceID(BCUOTACANID);
+												set_ota_OTAFilename(otafilenamestr);
+												set_ota_OTAStart(1);
+											}
+											else if(strstr(otafilenamestr, "BMU") != NULL)
+											{
+												set_ota_deviceType(otadeviceType);
+												set_ota_OTAFilename(otafilenamestr);
+												set_ota_deviceID(0x1821FF10);
+												set_ota_OTAStart(1);
+											}
+											else if(strstr(otafilenamestr, "ACP") != NULL)
+											{
+												set_ota_deviceType(ACP);
+												set_ota_OTAFilename(otafilenamestr);
+												set_ota_deviceID(ACPOTACANID);
+												set_ota_OTAStart(1);
+
+											}
+											else if(strstr(otafilenamestr, "DCDC") != NULL)
+											{
+												set_ota_deviceType(DCDC);
+												set_ota_OTAFilename(otafilenamestr);
+												set_ota_deviceID(DCDCOTACANID);
+												set_ota_OTAStart(1);
+											}
+											//------------------------------OTAACP----------------------------------------//
+											else if(strstr(otafilenamestr, "AC") != NULL) 
+											{
+												char *token;
+												char *delimiter = "_";
+												set_modbus_reg_val(OTASTATUSREGADDR, FILEDECRYPTIONNORMALTERMINATION);
+
+												set_ota_OTAFileType(0);
+												if(strstr(otafilenamestr, "AC_SBL") != NULL)//XC_AC_SBL_<地址>_<长度>_<CRC>.bin    // Bootloader
+												{
+													clock_gettime(CLOCK_MONOTONIC, &AC_OTA_lastCheckTick);
+													memset(g_otactrl.OTAUdsSblFilename[SBl_index],0 ,sizeof(g_otactrl.OTAUdsSblFilename[SBl_index]));
+													//需要告诉我一共分成多少bin文件，然后达到数量后赋值otactrl.deviceType = ACP;，进入XcpOTATestTask
+													LOG("[Xmodem] AC_SBL_OTA_FILE_NAME: %s\r\n", otafilenamestr);
+													LOG("[Xmodem] AC_SBL_OTA_FILE_NAME: %s\r\n", otafilenamestr1);
+													memcpy(g_otactrl.OTAUdsSblFilename[SBl_index], otafilenamestr1, strlen(otafilenamestr1));
+
+													token = strtok(otafilenamestr, delimiter); // AC
+													token = strtok(NULL, delimiter);          // SBL
+													token = strtok(NULL, delimiter);
+													flashData.writeAddr =(uint32_t)strtoul(token, NULL, 16);
+													token = strtok(NULL, delimiter);
+													flashData.writeLen =(uint32_t)strtoul(token, NULL, 16);
+													token = strtok(NULL, delimiter);
+													flashData.CRC =(uint16_t)strtoul(token, NULL, 16);
+													LOG("[Xmodem] g_otactrl.OTAUdsSblFilename[SBl_index]: %s!\r\n", g_otactrl.OTAUdsSblFilename[SBl_index]);
+													LOG("[Xmodem] flashData.writeAddr: 0x%08X\r\n", flashData.writeAddr);
+													LOG("[Xmodem] flashData.writeLen: 0x%08X\r\n", flashData.writeLen);
+													LOG("[Xmodem] flashData.CRC: 0x%04X\r\n", flashData.CRC);
+													LOG("[Xmodem] SBl_index: %d\r\n", SBl_index);
+													SBl_index++;
+
+												}
+												else if(strstr(otafilenamestr, "AC_APP") != NULL)//XC_AC_APP_<地址>_<长度>_<CRC>.bin   // 应用程序
+												{
+													clock_gettime(CLOCK_MONOTONIC, &AC_OTA_lastCheckTick);
+													memset(g_otactrl.OTAUdsFilename[APP_index],0 ,sizeof(g_otactrl.OTAUdsFilename[APP_index]));
+													LOG("[Xmodem] AC_APP_OTA_FILE_NAME: %s\r\n", otafilenamestr);
+													LOG("[Xmodem] AC_SBL_OTA_FILE_NAME: %s\r\n", otafilenamestr1);
+													memcpy(g_otactrl.OTAUdsFilename[APP_index], otafilenamestr1, strlen(otafilenamestr1));
+
+													token = strtok(otafilenamestr, delimiter); // AC
+													token = strtok(NULL, delimiter);          // SBL
+													token = strtok(NULL, delimiter);
+													appData[APP_index].writeAddr =(uint32_t)strtoul(token, NULL, 16);
+													token = strtok(NULL, delimiter);
+													appData[APP_index].writeLen =(uint32_t)strtoul(token, NULL, 16);
+													token = strtok(NULL, delimiter);
+													appData[APP_index].CRC =(uint16_t)strtoul(token, NULL, 16);
+													LOG("[Xmodem] g_otactrl.OTAUdsFilename[APP_index]: %s\r\n", g_otactrl.OTAUdsFilename[APP_index]);
+													LOG("[Xmodem] appData.writeAddr[APP_index]: 0x%08X\r\n", appData[APP_index].writeAddr);
+													LOG("[Xmodem] appData.writeLen[APP_index]: 0x%08X\r\n", appData[APP_index].writeLen);
+													LOG("[Xmodem] appData.CRC[APP_index]: 0x%04X!\r\n", appData[APP_index].CRC);
+													LOG("[Xmodem] APP_index: %d\r\n", APP_index);
+													APP_index++;
+
+												}
+
+											}
+											get_modbus_reg_val(AC_SBL_OTAFILENUMBER, &sblfilenumber);
+											get_modbus_reg_val(AC_APP_OTAFILENUMBER, &appfilenumber);
+											usleep(50*1000);
+											LOG("[Xmodem] SBl_index ...  %d \r\n",SBl_index);
+											LOG("[Xmodem] APP_index ...  %d \r\n",APP_index);
+											LOG("[Xmodem] sblfilenumber...%d\r\n",sblfilenumber);
+											LOG("[Xmodem] appfilenumber...%d\r\n",appfilenumber);
+
+
+											if((SBl_index != 0) && (SBl_index == sblfilenumber) && (APP_index != 0) && (APP_index == appfilenumber))
+											{
+												LOG("[Xmodem] SBl_index ...  %d \r\n",SBl_index);
+												LOG("[Xmodem] APP_index ...  %d \r\n",APP_index);
+												LOG("[Xmodem] sblfilenumber...%d\r\n",sblfilenumber);
+												LOG("[Xmodem] appfilenumber...%d\r\n",appfilenumber);
+												LOG(" AC   set_ota_OTAStart(1)\r\n");
+												set_ota_deviceID(ACOTACANID);
+												set_ota_deviceType(AC);
+												set_ota_OTAStart(1);
+
+											}
+											//------------------------------OTAACP----------------------------------------//
+
+											else
+											{
+
+											}
+											LOG("[Xmodem] OTAStart:%d,deviceID:%d,OTAFilename:%s,OTAFileType:%d,deviceType:%d\n", g_otactrl.OTAStart, g_otactrl.deviceID, g_otactrl.OTAFilename, g_otactrl.OTAFileType, g_otactrl.deviceType);
+
+										}
+										else if(strstr(otafilenamestr, "srec") != NULL || strstr(otafilenamestr, "s19") != NULL)
+										{
+											set_modbus_reg_val(OTASTATUSREGADDR, FILEISDECRYPTIIONING);
+											g_otactrl.OTAFileType = 1;
+											if(strstr(otafilenamestr, "ECU") != NULL)
+											{
+												g_otactrl.deviceType = ECU;
+												memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+												memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+											}
+											else if(strstr(otafilenamestr, "BCU") != NULL)
+											{
+												g_otactrl.deviceType = BCU;
+												g_otactrl.deviceID = BCUOTACANID;
+												memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+												memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+											}
+											else if(strstr(otafilenamestr, "BMU") != NULL)
+											{
+												g_otactrl.deviceType = BMU;
+												g_otactrl.deviceID = 0x1821FF10;
+												memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+												memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+											}
+											else
+											{
+
+											}
+										}
+
+
+									}
+									prvpackno = curpackno;
+
+								}
+							}
+
+						}
+						else
+						{
+							errpacknum++;
+							tcp_server_Txbuf[0] = NAK;
+							write(otasock1, tcp_server_Txbuf, 1);
+						}
+					}
+					else if(length == 1029)
+					{
+						if((tcp_server_recvbuf[0] == STX) && (crcGet(tcp_server_recvbuf, 1027) == (tcp_server_recvbuf[1025] << 8 | tcp_server_recvbuf[1026])))
+						{
+
+							errpacknum = 0;
+							tcp_server_Txbuf[0] = ACK;
+							write(otasock1, tcp_server_Txbuf, 1);
+
+							if(findfirstpack)
+							{
+								curpackno = tcp_server_recvbuf[1];
+								packno = xmodem_get_absolute_packno(curpackno, prvpackno, &packbase);
+								if ((xmodempacknum <= 0) || (otafilenamestr[0] == '\0'))
+								{
+									LOG("[Xmodem] Invalid OTA transfer state(1K): file='%s', totalpack=%d, recv pack=%d\r\n",
+											otafilenamestr, xmodempacknum, packno);
+									findfirstpack = 0;
+									set_ota_UpDating(0);
+									setXmodemServerReceiveSOH(0);
+									setXmodemServerReceiveFileEnd(1);
+									set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+									goto xmodem_frame_done;
+								}
+								if (packno > xmodempacknum)
+								{
+									LOG("[Xmodem] Packet count mismatch(1K): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
+											packno, xmodempacknum, curpackno, prvpackno);
+								}
+								if(packno != xmodempacknum)
+								{
+									readdatanum = 1024;
+									if(packno == 1)
+									{
+										if(strstr(otafilenamestr, "ECU") != NULL)									
+										{
+											otadeviceType = ECU;
+											set_ota_UpDating(1);//1130
+										}
+										else if(tcp_server_recvbuf[51]==0x42 && tcp_server_recvbuf[52]==0x43 && tcp_server_recvbuf[53]==0x55)
+										{
+											otadeviceType = BCU;
+										}
+										else if(tcp_server_recvbuf[51]==0x42 && tcp_server_recvbuf[52]==0x4d && tcp_server_recvbuf[53]==0x55)
+										{
+											otadeviceType = BMU;
+										}
+										else
+										{
+											delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+											otadeviceType = 0;
+											LOG("[Xmodem] Invalid upgrade file\r\n");
+											setXmodemServerReceiveFileEnd(1);
+										}
+									}
+									int err = SaveOtaFile(otafilenamestr, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
+									if(err != 0)
+									{
+										filenormalflag =1;
+										set_ota_UpDating(0);//1130
+										otadeviceType = 0;
+										xmodem_close_ota_file_if_open();
+										delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+										LOG("[Xmodem] Failed to write upgrade file\r\n");
+										setXmodemServerReceiveFileEnd(1);
+										set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+										set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
+									}
+								}
+								else
+								{
+
+									filesize%1024?(readdatanum = filesize%1024):(readdatanum = 1024);
+									LOG("[Xmodem] Receive the last pack , need read %d data from xmodem data area!\r\n", readdatanum);
+									int err = SaveOtaFile(otafilenamestr, &(tcp_server_recvbuf[3]), xmodempacknum, packno, readdatanum);
+									if(err != 0)
+									{
+										filenormalflag =1;
+										set_ota_UpDating(0);//1130
+										otadeviceType = 0;
+										xmodem_close_ota_file_if_open();
+
+										delete_files_with_prefix(USB_MOUNT_POINT, "XC");
+										LOG("[Xmodem] Failed to write upgrade file\r\n");
+										setXmodemServerReceiveFileEnd(1);
+										set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+										set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
+									}
+									if(err == 0)
+									{
+										waitingForEOT = 1;
+										expectedLastPackno = xmodempacknum;
+										lastPacketMode = "1K";
+										errorCount = 0;
+										eofCount = 0;
+										LOG("[Xmodem] Last data packet received(1K): pack=%d/%d, waiting for EOT\r\n",
+												packno, xmodempacknum);
+									}
+
+									if(strstr(otafilenamestr1, "bin") != NULL)
+									{
+										set_ota_OTAFileType(0);
+										if(strstr(otafilenamestr1, "ECU") != NULL)
+										{
+											g_otactrl.deviceType = otadeviceType;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+
+										}
+										else if(strstr(otafilenamestr1, "BCU") != NULL)
+										{
+											g_otactrl.deviceType = otadeviceType;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+										}
+										else if(strstr(otafilenamestr1, "BMU") != NULL)
+										{
+											g_otactrl.deviceType = otadeviceType;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+										}
+										else
+										{
+
+										}
+									}
+									else if(strstr(otafilenamestr1, "srec") != NULL)
+									{
+										g_otactrl.OTAFileType = 1;
+										if(strstr(otafilenamestr1, "ECU") != NULL)
+										{
+											g_otactrl.deviceType = ECU;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+
+										}
+										else if(strstr(otafilenamestr1, "BCU") != NULL)
+										{
+											g_otactrl.deviceType = BCU;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+										}
+										else if(strstr(otafilenamestr1, "BMU") != NULL)
+										{
+											g_otactrl.deviceType = BMU;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+										}
+										else
+										{
+
+										}
+									}
+									else if(strstr(otafilenamestr1, "zip") != NULL)
+									{
+										set_ota_OTAFileType(0);
+										if(strstr(otafilenamestr1, "ECU") != NULL)
+										{
+											LOG("[Xmodem] ECU tar.bz2 file\r\n");
+											g_otactrl.deviceType = otadeviceType;
+											memset(g_otactrl.OTAFilename ,0 ,sizeof(g_otactrl.OTAFilename));
+											memcpy(g_otactrl.OTAFilename, otafilenamestr, strlen(otafilenamestr));
+
+										}
+										else
+										{
+
+										}
+									}
+								}
+							}
+						}
+						else
+						{
+							errpacknum++;
+							tcp_server_Txbuf[0] = NAK;
+							write(otasock1, tcp_server_Txbuf, 1);
+						}
+
+					}
+					else if(length == 1)
+					{
+						LOG("[Xmodem] Rcv 1 byte data -> 0x%x\r\n", tcp_server_recvbuf[0]);
+						if(tcp_server_recvbuf[0] == EOT)
+						{
+							if (waitingForEOT)
+							{
+								LOG("[Xmodem] Received EOT after last packet(mode=%s, pack=%u/%d), ACK and finish transfer\r\n",
+										lastPacketMode, expectedLastPackno, xmodempacknum);
+							}
+							else
+							{
+								LOG("[Xmodem] Received EOT before last packet complete: last recv pack=%d, expected=%d\r\n",
+										packno, xmodempacknum);
+							}
+							tcp_server_Txbuf[0] = ACK;
+							write(otasock1, tcp_server_Txbuf, 1);
+							setXmodemServerReceiveEOT(1);
+							setXmodemServerReceiveFileEnd(1);
+							waitingForEOT = 0;
+							transferCompletedWithoutEOT = 0;
+							errorCount = 0;
+							eofCount = 0;
+						}
+					}
+					else if(length == -1 || length == 0)
+					{
+						errorCount++;
+						if (length == 0)
+						{
+							eofCount++;
+							if (waitingForEOT)
+							{
+								LOG("[Xmodem] Peer closed connection before EOT: eofCount=%d, last pack=%u/%d, mode=%s\r\n",
+										eofCount, expectedLastPackno, xmodempacknum, lastPacketMode);
+							}
+							else
+							{
+								LOG("[Xmodem] Peer closed connection before last packet complete: eofCount=%d, last recv pack=%d, expected=%d\r\n",
+										eofCount, packno, xmodempacknum);
+							}
+						}
+						else
+						{
+							LOG("[Xmodem] Socket read error while receiving%s: errno=%d(%s), errorCount=%d, last pack=%d/%d\r\n",
+									waitingForEOT ? " EOT" : " data", errno, strerror(errno), errorCount, packno, xmodempacknum);
+						}
+						if (errorCount >= 10)
+						{
+							if (waitingForEOT)
+							{
+								LOG("[Xmodem] EOT not received after last packet(mode=%s, pack=%u/%d), treat transfer as complete\r\n",
+										lastPacketMode, expectedLastPackno, xmodempacknum);
+								transferCompletedWithoutEOT = 1;
+							}
+							else
+							{
+								LOG("[Xmodem] Last packet not received: last recv pack=%d, expected=%d\r\n",
+										packno, xmodempacknum);
+								set_ota_UpDating(0);//1130
+							}
+							setXmodemServerReceiveFileEnd(1);
+							waitingForEOT = 0;
+						}
+					}
+					else
+					{
+						errorCount = 0;
+						eofCount = 0;
+						if (waitingForEOT)
+						{
+							LOG("[Xmodem] Unexpected payload while waiting for EOT: length=%d, firstByte=0x%02x, last pack=%u/%d\r\n",
+									length, tcp_server_recvbuf[0], expectedLastPackno, xmodempacknum);
+						}
+					}
+xmodem_frame_done:
+					memmove(rx_cache, rx_cache + length, rx_cache_len - length);
+					rx_cache_len -= length;
+					if (stopReadingAfterFileEnd || getXmodemServerReceiveFileEnd())
+					{
+						rx_cache_len = 0;
+						break;
+					}
 				}
 			}
-			else if(length == -1 || length == 0)
+			else if(readLength == -1 || readLength == 0)
 			{
-			    errorCount++;
-				if (length == 0)
+				errorCount++;
+				if (readLength == 0)
 				{
 					eofCount++;
 					if (waitingForEOT)
 					{
 						LOG("[Xmodem] Peer closed connection before EOT: eofCount=%d, last pack=%u/%d, mode=%s\r\n",
-							eofCount, expectedLastPackno, xmodempacknum, lastPacketMode);
+								eofCount, expectedLastPackno, xmodempacknum, lastPacketMode);
 					}
 					else
 					{
 						LOG("[Xmodem] Peer closed connection before last packet complete: eofCount=%d, last recv pack=%d, expected=%d\r\n",
-							eofCount, packno, xmodempacknum);
+								eofCount, packno, xmodempacknum);
 					}
 				}
 				else
 				{
 					LOG("[Xmodem] Socket read error while receiving%s: errno=%d(%s), errorCount=%d, last pack=%d/%d\r\n",
-						waitingForEOT ? " EOT" : " data", errno, strerror(errno), errorCount, packno, xmodempacknum);
+							waitingForEOT ? " EOT" : " data", errno, strerror(errno), errorCount, packno, xmodempacknum);
 				}
-				    if (errorCount >= 10)
-				    {
-						if (waitingForEOT)
-						{
-							LOG("[Xmodem] EOT not received after last packet(mode=%s, pack=%u/%d), treat transfer as complete\r\n",
-								lastPacketMode, expectedLastPackno, xmodempacknum);
-							transferCompletedWithoutEOT = 1;
-						}
-						else
-						{
-							LOG("[Xmodem] Last packet not received: last recv pack=%d, expected=%d\r\n",
-								packno, xmodempacknum);
-							set_ota_UpDating(0);//1130
-						}
-						setXmodemServerReceiveFileEnd(1);
-						waitingForEOT = 0;
-				    }
-				}
-			else
-			{
-			    errorCount = 0;
-				eofCount = 0;
-				if (waitingForEOT)
+				if (errorCount >= 10)
 				{
-					LOG("[Xmodem] Unexpected payload while waiting for EOT: length=%d, firstByte=0x%02x, last pack=%u/%d\r\n",
-						length, tcp_server_recvbuf[0], expectedLastPackno, xmodempacknum);
+					if (waitingForEOT)
+					{
+						LOG("[Xmodem] EOT not received after last packet(mode=%s, pack=%u/%d), treat transfer as complete\r\n",
+								lastPacketMode, expectedLastPackno, xmodempacknum);
+						transferCompletedWithoutEOT = 1;
+					}
+					else
+					{
+						LOG("[Xmodem] Last packet not received: last recv pack=%d, expected=%d\r\n",
+								packno, xmodempacknum);
+						set_ota_UpDating(0);//1130
+					}
+					setXmodemServerReceiveFileEnd(1);
+					waitingForEOT = 0;
 				}
 			}
 		}
@@ -718,12 +810,12 @@ void *lwip_data_TASK(void *param)
 			if (transferCompletedWithoutEOT)
 			{
 				LOG("[Xmodem] Transfer end without EOT: file already saved, receiveEOT=%d, last pack=%d/%d\r\n",
-					getXmodemServerReceiveEOT(), packno, xmodempacknum);
+						getXmodemServerReceiveEOT(), packno, xmodempacknum);
 			}
 			else
 			{
 				LOG("[Xmodem] Transfer end: receiveFileEnd=1, receiveEOT=%d, waitingForEOT=%d, last pack=%d/%d\r\n",
-					getXmodemServerReceiveEOT(), waitingForEOT, packno, xmodempacknum);
+						getXmodemServerReceiveEOT(), waitingForEOT, packno, xmodempacknum);
 			}
 			stopReadingAfterFileEnd = 1;
 			findfirstpack = 0;
@@ -735,13 +827,14 @@ void *lwip_data_TASK(void *param)
 			packbase = 0;
 			otafilenamestr[0] = '\0';
 			otafilenamestr1[0] = '\0';
+			rx_cache_len = 0;
 			xmodem_close_ota_file_if_open();
 			setXmodemServerReceiveSOH(0);
 			setXmodemServerEnd(1);
 			setXmodemServerReceiveEOT(0);
 			setXmodemServerReceiveFileEnd(0);
 		}
-		usleep(5*1000);
+		usleep(500);
 	}
 }
 
