@@ -127,24 +127,8 @@ int main(int argc, char **argv)
         // for(int i = 0; i < 16; i++){
         //     set_emcu_fault(0x00+i, SET_ERROR);//设置所有故障
         // }
-
-        // for(int i = 0; i < 16; i++){
-        //     set_emcu_fault(0x10+i, SET_ERROR);//设置所有故障
-        // }
-        //         for(int i = 0; i < 16; i++){
-        //     set_emcu_fault(0x20+i, SET_ERROR);//设置所有故障
-        // }
-        //         for(int i = 0; i < 16; i++){
-        //     set_emcu_fault(0x30+i, SET_ERROR);//设置所有故障
-        // }
-        // set_emcu_fault(0x40, SET_ERROR);//设置所有故障
         sleep(5);
         // main_test();
-        // LOG("DAqX_FaultCode1 = %d\r\n", DAqX_FaultCode1[0]);//一级故障
-        // for(int i = 0; i < 15; i++){
-        //     printf("DAq_version[%d] = %d\r\n",i, DAq_version[i]);//一级故障
-        // }
-
 
         // printf("data.get_usBatMaxTempCellIndex = %ld\n", get_usBatMaxTempCellIndex());
         // printf("data. get_usBatCellTempMaxValue( = %d\n",  get_usBatCellTempMaxValue());
@@ -159,10 +143,12 @@ int main(int argc, char **argv)
         // printf("get_ota_UpDating(): %d\r\n",get_ota_UpDating());
         // printf("get_BCUFD() = %d\r\n",get_BCU_CAN_FD());
 
-        // for(int i = (0x6002-0x3000);i< (0x601F-0x3000);i++){
+        // for(int i = (0x5030-0x3000);i< (0x504F-0x3000);i++){
         //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
         // }
-
+        // for(int i = (0x5050-0x3000);i< (0x506F-0x3000);i++){
+        //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
+        // }
         // for(int i = (0x6097-0x3000);i<= (0x6099-0x3000);i++){
         //      printf("Mobud[0x%x] = 0x %x, = %d \r\n",i,modbusBuff[i],modbusBuff[i]);//ota上载寄存器判断       
         // }

@@ -10,6 +10,22 @@
 extern unsigned short g_ota_flag;
 pthread_mutex_t modbus_reg_mutex = PTHREAD_MUTEX_INITIALIZER;//所有写modbusBuff寄存器的时候都会调用加锁
 atomic_int rtc_sync_pending = 0;
+#define MDBUS_SN_END           0x506F
+#define BCU_SN_CANFD_ID        0x1824E510
+#define BCU_SN_CANFD_LEN       64U
+#define BCU_SN_DATA_LEN        32U
+#define BCU_SN_FLAG_OFFSET     63U
+#define BCU_SN_WRITE_FLAG      1U
+#define RTC_FIELD_YEAR         (1U << 0)
+#define RTC_FIELD_MONTH        (1U << 1)
+#define RTC_FIELD_DAY          (1U << 2)
+#define RTC_FIELD_HOUR         (1U << 3)
+#define RTC_FIELD_MINUTE       (1U << 4)
+#define RTC_FIELD_SECOND       (1U << 5)
+#define RTC_FIELD_ALL          (RTC_FIELD_YEAR | RTC_FIELD_MONTH | RTC_FIELD_DAY | \
+                                RTC_FIELD_HOUR | RTC_FIELD_MINUTE | RTC_FIELD_SECOND)
+static int BatterySNCodeSend(uint16_t address, const uint8_t *data, uint16_t data_len);
+static void ModbusSNPrintHex(const char *tag, const uint8_t *data, uint16_t data_len);
 //测试使用
 static uint64_t get_time_us(void)
 {
@@ -23,7 +39,7 @@ static uint64_t get_time_us(void)
     return (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
 }
 
-// modbus接收数据处理，只处理06的写入操作
+// modbus接收数据处理
  void modbus_write_reg_deal(modbus_t *ctx, const uint8_t *query, int req_length)
 {
     int header_length = 0;
@@ -38,7 +54,7 @@ static uint64_t get_time_us(void)
 	}
     header_length = modbus_get_header_length(ctx); // 获取数据长度
 	if (req_length < header_length + 5) return;
-    if (query[header_length] == 0x06) // 功能码
+    if (query[header_length] == MODBUS_FC_WRITE_SINGLE_REGISTER) // 功能码
     {
         // 获取目标地址和数据
         address = (query[header_length + 1] << 8) | query[header_length + 2];
@@ -145,6 +161,30 @@ static uint64_t get_time_us(void)
             }
         }
     }
+    else if (query[header_length] == MODBUS_FC_WRITE_MULTIPLE_REGISTERS)
+    {
+        uint16_t quantity = 0;
+        uint8_t byte_count = 0;
+        const uint8_t *write_data = NULL;
+
+        if (req_length < header_length + 6) {
+            return;
+        }
+
+        address = (query[header_length + 1] << 8) | query[header_length + 2];
+        quantity = (query[header_length + 3] << 8) | query[header_length + 4];
+        byte_count = query[header_length + 5];
+        write_data = &query[header_length + 6];
+
+        if ((quantity == 0) || (byte_count != quantity * 2) ||
+            (req_length < header_length + 6 + byte_count)) {
+            return;
+		}
+		printf("[ModbusTcp] Write multiple registers, address: 0x%x, quantity: %u, byte_count: %u\r\n",
+			   address, quantity, byte_count);
+		ModbusSNPrintHex("[ModbusTcp] SN input", write_data, byte_count);
+        BatterySNCodeSend(address, write_data, byte_count);
+    }
 }
 
 /********************************************************************************
@@ -199,6 +239,50 @@ int set_modbus_reg_val(uint16_t addr, uint16_t set_val)
 	return 0;
 }
 
+static int validate_rtc_time(const Rtc_Ip_TimedateType *timeData)
+{
+	if (timeData == NULL)
+	{
+		return -1;
+	}
+
+	if (timeData->year < 2000 || timeData->year > 2099 ||
+		timeData->month < 1 || timeData->month > 12 ||
+		timeData->day < 1 || timeData->day > 31 ||
+		timeData->hour > 23 ||
+		timeData->minutes > 59 ||
+		timeData->seconds > 59)
+	{
+		return -1;
+	}
+
+	struct tm check_time = {0};
+	check_time.tm_year = timeData->year - 1900;
+	check_time.tm_mon = timeData->month - 1;
+	check_time.tm_mday = timeData->day;
+	check_time.tm_hour = timeData->hour;
+	check_time.tm_min = timeData->minutes;
+	check_time.tm_sec = timeData->seconds;
+	check_time.tm_isdst = -1;
+
+	if (mktime(&check_time) == (time_t)-1)
+	{
+		return -1;
+	}
+
+	if ((uint16_t)(check_time.tm_year + 1900) != timeData->year ||
+		(uint16_t)(check_time.tm_mon + 1) != timeData->month ||
+		(uint16_t)check_time.tm_mday != timeData->day ||
+		(uint16_t)check_time.tm_hour != timeData->hour ||
+		(uint16_t)check_time.tm_min != timeData->minutes ||
+		(uint8_t)check_time.tm_sec != timeData->seconds)
+	{
+		return -1;
+	}
+
+	return 0;
+}
+
 static int update_system_time(const Rtc_Ip_TimedateType *timeData)
 {
 	if (timeData == NULL)
@@ -250,16 +334,6 @@ static int update_system_time(const Rtc_Ip_TimedateType *timeData)
     {
         LOG("System time not updated, diff=%ld s\r\n", diff);
     }
-	// 设置系统时间
-	struct timespec ts;
-	ts.tv_sec = calibrated_time;
-	ts.tv_nsec = 0;
-
-	if (clock_settime(CLOCK_REALTIME, &ts) == -1)
-	{
-		perror("clock_settime failed (need root?)");
-		return -1;
-	}
 	return 0;
 }
 
@@ -273,66 +347,148 @@ static int update_system_time(const Rtc_Ip_TimedateType *timeData)
 static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 {
 	static Rtc_Ip_TimedateType TmData = {0};
+	static uint8_t rtc_field_mask = 0;
+	uint8_t field_bit = 0;
 
 	if (address == MDBUS_RTC_YEAR) // 年
 	{
 		TmData.year = data;
-		return 0; // 成功
+		field_bit = RTC_FIELD_YEAR;
 	}
 	else if (address == MDBUS_RTC_MONTH) // 月
 	{
 		TmData.month = data;
-		return 0; // 成功
+		field_bit = RTC_FIELD_MONTH;
 	}
 	else if (address == MDBUS_RTC_DAY) // 日
 	{
 		TmData.day = data;
-		return 0; // 成功
+		field_bit = RTC_FIELD_DAY;
 	}
 	else if (address == MDBUS_RTC_HOUR) // 时
 	{
 		TmData.hour = data;
-		return 0; // 成功
+		field_bit = RTC_FIELD_HOUR;
 	}
 	else if (address == MDBUS_RTC_MINUTE) // 分
 	{
 		TmData.minutes = data;
-		return 0; // 成功
+		field_bit = RTC_FIELD_MINUTE;
 	}
 	else if (address == MDBUS_RTC_SECOND) // 秒
 	{
-		static uint8_t rtccount = 0;
 		TmData.seconds = (uint8_t)data;
-		// uint64_t t_start = get_time_us();
-		LOG("RTC Set Success!  \r\n");
-		set_TCU_TimeYear((TmData.year % 100));
-		set_TCU_TimeMonth(TmData.month);
-		set_TCU_TimeDay(TmData.day);
-		set_TCU_TimeHour(TmData.hour);
-		set_TCU_TimeMinute(TmData.minutes);
-		set_TCU_TimeSecond(TmData.seconds);
-		set_TCU_TimeCalFlg(1);
-
-		int ret = update_system_time(&TmData);
-		LOG("[ModbusTcp] rtc_Modbus_Deal\r\n");
-		for (int i = 0; i < 3; i++)
-		{
-			CANFDSendFcn_BCU_step();
-			usleep(1 * 1000);
-		}
-		set_TCU_TimeCalFlg(0); // RTC设置完毕标志位为0
-
-		// uint64_t t_end = get_time_us();
-		// LOG("update_system_time ret=%d, cost=%.3f ms\r\n",ret,(double)(t_end - t_start) / 1000.0);
-		return 1; // 完成
+		field_bit = RTC_FIELD_SECOND;
 	}
 	else
 	{
 		LOG("RTC Set Error!  \r\n");
 		return -1; // 失败
 	}
+
+	rtc_field_mask |= field_bit;
+	if ((rtc_field_mask & RTC_FIELD_ALL) != RTC_FIELD_ALL)
+	{
+		LOG("RTC data waiting, mask=0x%02x\r\n", rtc_field_mask);
+		return 0; // 成功
+	}
+
+	if (validate_rtc_time(&TmData) != 0)
+	{
+		LOG("RTC Set Error, invalid time %u-%02u-%02u %02u:%02u:%02u\r\n",
+			TmData.year, TmData.month, TmData.day,
+			TmData.hour, TmData.minutes, TmData.seconds);
+		rtc_field_mask = 0;
+		return -1;
+	}
+
+	LOG("RTC Set Success!  \r\n");
+	set_TCU_TimeYear((TmData.year % 100));
+	set_TCU_TimeMonth(TmData.month);
+	set_TCU_TimeDay(TmData.day);
+	set_TCU_TimeHour(TmData.hour);
+	set_TCU_TimeMinute(TmData.minutes);
+	set_TCU_TimeSecond(TmData.seconds);
+	set_TCU_TimeCalFlg(1);
+
+	int ret = update_system_time(&TmData);
+	LOG("[ModbusTcp] rtc_Modbus_Deal, ret=%d\r\n", ret);
+	for (int i = 0; i < 3; i++)
+	{
+		CANFDSendFcn_BCU_step();
+		usleep(1 * 1000);
+	}
+	set_TCU_TimeCalFlg(0); // RTC设置完毕标志位为0
+	rtc_field_mask = 0;
+
+	return (ret == 0) ? 1 : -1; // 完成
+}
+/********************************************************************************
+ * 函数名称： BatteryCalibration_ModBus_Deal
+ * 功能描述： ModBus设置电池标定指令
+ * 输入参数：
+ * 输出参数： 0 表示写入成功，1表示写入完成，-1表示失败。
+ *sqw
+ ********************************************************************************/
+static int BatterySNCodeSend(uint16_t address, const uint8_t *data, uint16_t data_len)
+{
+	static CAN_FD_MESSAGE tx_msg = {0};
+	if ((data == NULL) || (data_len < 3)) {
+		LOG("Invalid data pointer or length\n");
+		return -1;
+	}
+
+	if ((address < MDBUS_SN_START) || (address > MDBUS_SN_END) ||
+		((uint32_t)address + ((data_len + 1U) / 2U) - 1U > MDBUS_SN_END)) {
+		LOG("Invalid address or data length\n");
+		return -1;
+	}
+
+	if(data_len > BCU_SN_CANFD_LEN) {
+		LOG("SN write len exceed max len, data_len = %u\r\n", data_len);
+		return -1;
+	}
+	memset(&tx_msg, 0, sizeof(tx_msg));
+	tx_msg.Extended = 1;
+	tx_msg.Length = BCU_SN_CANFD_LEN;
+	tx_msg.ID = BCU_SN_CANFD_ID;
+	tx_msg.Remote = 0;
+	tx_msg.BRS = 1;
+	tx_msg.ProtocolMode = 1;
+	tx_msg.DLC = 15U;
+
+	memcpy(tx_msg.Data, data, (data_len > BCU_SN_DATA_LEN) ? BCU_SN_DATA_LEN : data_len);
+	tx_msg.Data[BCU_SN_FLAG_OFFSET] = BCU_SN_WRITE_FLAG;
+
+	ModbusSNPrintHex("[ModbusTcp] SN CANFD output", tx_msg.Data, BCU_SN_CANFD_LEN);
+	LOG("[ModbusTcp] SN write matched, address: 0x%x, len: %u, send CANFD ID: 0x%x\r\n",
+		address, data_len, tx_msg.ID);
+	Drv_bcu_canfd_send(&tx_msg);
+
+	return 0;
 }
 
+static void ModbusSNPrintHex(const char *tag, const uint8_t *data, uint16_t data_len)
+{
+	char data_str[BCU_SN_CANFD_LEN * 3 + 1] = {0};
+	uint16_t print_len = data_len;
+	int offset = 0;
+
+	if (data == NULL || tag == NULL) {
+		return;
+	}
+
+	if (print_len > BCU_SN_CANFD_LEN) {
+		print_len = BCU_SN_CANFD_LEN;
+	}
+
+	for (uint16_t i = 0; i < print_len; i++) {
+		offset += snprintf(data_str + offset, sizeof(data_str) - offset,
+			"%02X%s", data[i], (i < print_len - 1) ? " " : "");
+	}
+
+	LOG("%s len=%u data=%s\r\n", tag, data_len, data_str);
+}
 /********************************************************************************
  * 函数名称： BatteryCalibration_ModBus_Deal
  * 功能描述： ModBus设置电池标定指令

@@ -64,4 +64,7 @@
 
 #define MDBUS_SD_CAPACITY       0x5021  //SD卡使用百分比，单位: %
 #define MDBUS_ROOT_CAPACITY     0x5022  //系统盘使用百分比，单位: %
+
+#define MDBUS_SN_START          0x5050  
+
 #endif
