@@ -167,6 +167,7 @@ static int is_mount_point_active(const char *mount_point)
 static int unmount_sdcard_if_needed(const char *mount_point)
 {
     int attempt = 0;
+    int saved_errno = 0;
 
     if (!is_mount_point_active(mount_point)) {
         return 0;
@@ -182,51 +183,71 @@ static int unmount_sdcard_if_needed(const char *mount_point)
         }
 
         if (errno != EBUSY) {
-            LOG("[SD Card] umount %s failed: %s\n", mount_point, strerror(errno));
+            saved_errno = errno;
+            LOG("[SD Card] umount %s failed: %s\n", mount_point, strerror(saved_errno));
+            errno = saved_errno;
             return -1;
         }
 
         usleep(100 * 1000);
     }
 
-    LOG("[SD Card] umount %s failed after retries: %s\n", mount_point, strerror(errno));
+    saved_errno = errno;
+    LOG("[SD Card] umount %s failed after retries: %s\n", mount_point, strerror(saved_errno));
+    errno = saved_errno;
     return -1;
 }
 
-static int format_sdcard_ext4(const char *device)
+static int format_sdcard_fat32(const char *device, int *exit_code)
 {
+    if (exit_code) {
+        *exit_code = -1;
+    }
+
     if (!device) {
+        errno = EINVAL;
         return -1;
     }
 
     pid_t pid = fork();
     if (pid < 0) {
-        LOG("[SD Card] fork mkfs.ext4 failed: %s\n", strerror(errno));
+        LOG("[SD Card] fork mkfs.fat failed: %s\n", strerror(errno));
         return -1;
     }
 
     if (pid == 0) {
-        execlp("mkfs.ext4", "mkfs.ext4", "-F", device, (char *)NULL);
+        /* dosfstools normally provides mkfs.fat and a mkfs.vfat alias. */
+        execlp("mkfs.fat", "mkfs.fat", "-F", "32", device, (char *)NULL);
+        if (errno == ENOENT) {
+            execlp("mkfs.vfat", "mkfs.vfat", "-F", "32", device, (char *)NULL);
+        }
         _exit(127);
     }
 
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) {
-        LOG("[SD Card] waitpid mkfs.ext4 failed: %s\n", strerror(errno));
+        LOG("[SD Card] waitpid mkfs.fat failed: %s\n", strerror(errno));
         return -1;
     }
 
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        LOG("[SD Card] mkfs.ext4 failed for %s, status=%d\n", device, status);
+        if (exit_code && WIFEXITED(status)) {
+            *exit_code = WEXITSTATUS(status);
+        }
+        errno = (WIFEXITED(status) && WEXITSTATUS(status) == 127) ? ENOENT : EIO;
+        LOG("[SD Card] FAT32 format failed for %s, status=%d\n", device, status);
         return -1;
     }
 
-    LOG("[SD Card] mkfs.ext4 success: %s\n", device);
+    if (exit_code) {
+        *exit_code = 0;
+    }
+    LOG("[SD Card] FAT32 format success: %s\n", device);
     return 0;
 }
 // 检查设备是否已经挂载
 // 最简单实用的SD卡挂载函数
-int mount_sdcard_ext4(void) {
+static int mount_sdcard_fat32(void) {
 
     int ret;
     char *device = NULL;
@@ -253,11 +274,13 @@ int mount_sdcard_ext4(void) {
     }
     
     // 3. 尝试挂载
-    ret = mount(device, USB_MOUNT_POINT, "ext4", MS_RELATIME, NULL);
+    ret = mount(device, USB_MOUNT_POINT, "vfat", MS_RELATIME, NULL);
     
     if (ret != 0) {
+        int saved_errno = errno;
         free(device);
-        LOG("[SD] Mount failed: %s\n", strerror(errno));
+        LOG("[SD] Mount failed: %s\n", strerror(saved_errno));
+        errno = saved_errno;
         return -1;
     }
     
@@ -295,9 +318,9 @@ static int FillLocalTime(struct tm *nowTime)
 
     timeinfo = *tm_info;
     *nowTime = timeinfo;
-    LOG("[SD Card] Using local time: %d-%02d-%02d %02d:%02d:%02d",
-        timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-        timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    // LOG("[SD Card] Using local time: %d-%02d-%02d %02d:%02d:%02d",
+    //     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+    //     timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
     return 0;
 }
 /**
@@ -346,11 +369,11 @@ static int GetNowTime(struct tm *nowTime)
         if (memcmp(&bcu_tm, &last_bcu_time, sizeof(struct tm)) == 0) {
             // 时间没变，可能是旧数据
             if (difftime(current_time, last_bcu_update) > BCU_TIMEOUT_SEC) {
-                LOG("[SD Card] BCU time unchanged for %d sec, treat as stale", BCU_TIMEOUT_SEC);
+                // LOG("[SD Card] BCU time unchanged for %d sec, treat as stale", BCU_TIMEOUT_SEC);
                 return FillLocalTime(nowTime);
             } else {
                 // 时间没变，但在有效期内，继续使用（但不更新系统时间）
-                LOG("[SD Card] BCU time unchanged, skip update");
+                // LOG("[SD Card] BCU time unchanged, skip update");
                 *nowTime = bcu_tm;
                 return 0;
             }
@@ -1112,7 +1135,7 @@ void Drv_write_buffer_to_file(void)
         return;
     }
     
-    if (mount_sdcard_ext4() != 0)// 先检查存储器状态 不存在 标记错误 直接退出
+    if (mount_sdcard_fat32() != 0)// 先检查存储器状态 不存在 标记错误 直接退出
     {
         //LOG("[SD Card] SD_FAULT\r\n");
         set_modbus_reg_val(MDBUS_SD_CAPACITY, 0);
@@ -1233,8 +1256,12 @@ QUIT_FLAG:
 int SD_Initialize(void)
 {
     char *device = NULL;
+    char device_path[PATH_MAX] = "unknown";
+    const char *failed_stage = NULL;
     int result = -1;
     int log_resume_result = 0;
+    int saved_errno = 0;
+    int mkfs_exit_code = -1;
 
     set_sd_format_in_progress(true);
     log_pause_for_sd_format();
@@ -1242,19 +1269,28 @@ int SD_Initialize(void)
 
     device = find_sd_card_simple();
     if (!device) {
+        failed_stage = "find SD device";
+        saved_errno = ENODEV;
         LOG("[SD Card] No SD device found for format\n");
         goto EXIT;
     }
+    snprintf(device_path, sizeof(device_path), "%s", device);
 
     if (unmount_sdcard_if_needed(USB_MOUNT_POINT) != 0) {
+        failed_stage = "unmount";
+        saved_errno = errno;
         goto EXIT;
     }
 
-    if (format_sdcard_ext4(device) != 0) {
+    if (format_sdcard_fat32(device, &mkfs_exit_code) != 0) {
+        failed_stage = "format FAT32";
+        saved_errno = errno;
         goto EXIT;
     }
 
-    if (mount_sdcard_ext4() != 0) {
+    if (mount_sdcard_fat32() != 0) {
+        failed_stage = "mount FAT32";
+        saved_errno = errno;
         goto EXIT;
     }
 
@@ -1269,6 +1305,11 @@ EXIT:
     log_resume_result = log_resume_after_sd_format();
     if (log_resume_result != 0) {
         printf("[SD Card] log_resume_after_sd_format failed: %d\n", log_resume_result);
+    }
+    if (result != 0) {
+        LOG("[SD Card] format failed: stage=%s, device=%s, errno=%d (%s), mkfs_exit_code=%d\n",
+            failed_stage ? failed_stage : "unknown", device_path, saved_errno,
+            saved_errno ? strerror(saved_errno) : "none", mkfs_exit_code);
     }
     LOG("[SD Card] SD card format finished, result=%d\n", result);
     return result;

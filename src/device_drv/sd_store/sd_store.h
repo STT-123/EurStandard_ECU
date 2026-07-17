@@ -54,9 +54,9 @@ typedef struct
 
 static int  Drv_check_and_update_message(const CAN_FD_MESSAGE *msg);
 static void Drv_RTCGetTime(Rtc_Ip_TimedateType *rtcTime);
-static int  mount_sdcard_ext4(void);
+static int  mount_sdcard_fat32(void);
 static int  unmount_sdcard_if_needed(const char *mount_point);
-static int  format_sdcard_ext4(const char *device);
+static int  format_sdcard_fat32(const char *device, int *exit_code);
 static int judgeTimetoUpdate(struct tm *nowTime);
 static int should_store_frame(uint32_t msg_id);
 static uint8_t CalculateDLC(uint8_t data_length);

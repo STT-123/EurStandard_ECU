@@ -1,11 +1,15 @@
 /*
+ * Sponsored License - for use in support of a program or activity
+ * sponsored by MathWorks.  Not for government, commercial or other
+ * non-sponsored organizational use.
+ *
  * File: CANFDRcvFcn_BCU.h
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 5.286
- * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Mon Jun 29 11:55:26 2026
+ * Model version                  : 6.3
+ * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
+ * C/C++ source code generated on : Fri Jul 17 14:52:24 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -90,8 +94,8 @@ typedef struct {
   uint16_T CANFDUnpack2_o37;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o38;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o39;           /* '<S1>/CAN FD Unpack2' */
-  uint16_T CANFDUnpack_o24;            /* '<S1>/CAN FD Unpack' */
   uint16_T CANFDUnpack_o25;            /* '<S1>/CAN FD Unpack' */
+  uint16_T CANFDUnpack_o26;            /* '<S1>/CAN FD Unpack' */
   uint16_T CANFDUnpack5_o1;            /* '<S1>/CAN FD Unpack5' */
   uint16_T CANFDUnpack5_o2;            /* '<S1>/CAN FD Unpack5' */
   uint16_T CANFDUnpack5_o3;            /* '<S1>/CAN FD Unpack5' */
@@ -308,7 +312,7 @@ typedef struct {
   int_T CANFDUnpack11_ModeSignalID;    /* '<S1>/CAN FD Unpack11' */
   int_T CANFDUnpack11_StatusPortID;    /* '<S1>/CAN FD Unpack11' */
   uint16_T tmp[240];                   /* '<S4>/MATLAB Function2' */
-  uint16_T tmp_a[120];                 /* '<S3>/MATLAB Function' */
+  uint16_T tmp_k[120];                 /* '<S3>/MATLAB Function' */
   uint8_T U32_to_Folat_Curr_byteA;     /* '<S1>/U32_to_Folat_Curr' */
   uint8_T U32_to_Folat_Curr_byteB;     /* '<S1>/U32_to_Folat_Curr' */
   uint8_T U32_to_Folat_Curr_byteC;     /* '<S1>/U32_to_Folat_Curr' */
@@ -337,12 +341,12 @@ typedef struct {
   /* Computed Parameter: index_Value
    * Referenced by: '<Root>/index'
    */
-  uint32_T index_Value[110];
+  uint32_T index_Value[111];
 
   /* Computed Parameter: portDimensions_Value
    * Referenced by: '<Root>/portDimensions'
    */
-  uint32_T portDimensions_Value[110];
+  uint32_T portDimensions_Value[111];
 } ConstP_CANFDRcvFcn_BCU_T;
 
 /* Real-time Model Data Structure */
@@ -384,6 +388,7 @@ extern RT_MODEL_CANFDRcvFcn_BCU_T *const CANFDRcvFcn_BCU_M;
 extern uint16_T BCU_BCUVersion;        /* '<S1>/C Function14' */
 extern uint8_T BCU_BCUVersion_H;       /* '<S1>/CAN FD Unpack2' */
 extern uint8_T BCU_BCUVersion_L;       /* '<S1>/CAN FD Unpack2' */
+extern uint16_T BCU_BMUConnErrNum;     /* '<S1>/CAN FD Unpack' */
 extern uint16_T BCU_BatteryStatus;     /* '<S1>/CAN FD Unpack1' */
 extern uint16_T BCU_CapacityFlag;      /* '<S1>/CAN FD Unpack1' */
 extern uint16_T BCU_CoolingFlag;       /* '<S1>/CAN FD Unpack1' */
@@ -513,13 +518,14 @@ extern uint16_T usSingleBatVal[240];   /* '<S4>/MATLAB Function2' */
  * '<S61>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement50'
  * '<S62>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement51'
  * '<S63>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement52'
- * '<S64>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement6'
- * '<S65>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement7'
- * '<S66>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement8'
- * '<S67>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement9'
- * '<S68>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginTemp/MATLAB Function'
- * '<S69>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginVolt/MATLAB Function2'
- * '<S70>'  : 'CANFDRcvFcn_BCU/BCU_Info/Get_CompressorStatus/Compare To Constant'
+ * '<S64>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement53'
+ * '<S65>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement6'
+ * '<S66>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement7'
+ * '<S67>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement8'
+ * '<S68>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement9'
+ * '<S69>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginTemp/MATLAB Function'
+ * '<S70>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginVolt/MATLAB Function2'
+ * '<S71>'  : 'CANFDRcvFcn_BCU/BCU_Info/Get_CompressorStatus/Compare To Constant'
  */
 #endif                                 /* CANFDRcvFcn_BCU_h_ */
 
