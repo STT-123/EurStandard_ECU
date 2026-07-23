@@ -13,13 +13,24 @@
 #include "interface/setting/ip_setting.h"
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
+#include "interface/time/time_diff.h"
 #include "modbus_defines.h"
 #define _POSIX_C_SOURCE 199309L
-#define RECOVER_REPORT_TIME 5000
-#define FAULT_REPORT_TIME 3000
-#define PHY_STARTUP_GRACE_TIME 8000
+#define RECOVER_REPORT_TIME 3000
+#define FAULT_REPORT_TIME 5000
+#define PHY_STARTUP_MIN_TIME 30000
+#define PHY_STARTUP_STABLE_TIME 10000
+#define PHY_STARTUP_MAX_TIME 60000
 #define RECOVER_KM_DEFAULT_STATE 0 // 恢复接触器默认状态
 #define RECOVER_KM_ACTION_STATE 1  // 恢复接触器动作状态
+
+typedef enum
+{
+	PHY_SAMPLE_UNKNOWN = -1,
+	PHY_SAMPLE_LINK_DOWN = 0,
+	PHY_SAMPLE_LINK_UP = 1,
+	PHY_SAMPLE_ADMIN_DOWN = 2
+} phy_sample_state_t;
 
 int PHY_RECOVER = 0;
 int PHY_ERROR = 0;
@@ -57,9 +68,33 @@ static const fault_mapping_t fault_map_2H[] = {
 
 int CheckSinglePHYStatus(const char *ifname)
 {
-	FILE *fp;
+	FILE *fp = NULL;
 	char carrier_path[128];
 	int carrier = 0;
+	int fd = -1;
+	struct ifreq ifr;
+
+	if (!ifname) {
+		return PHY_SAMPLE_UNKNOWN;
+	}
+
+	/* 先区分接口管理性 DOWN 与接口 UP 后的物理断链。 */
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		return PHY_SAMPLE_UNKNOWN;
+	}
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+	if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+		close(fd);
+		return PHY_SAMPLE_UNKNOWN;
+	}
+	close(fd);
+
+	if (!(ifr.ifr_flags & IFF_UP)) {
+		return PHY_SAMPLE_ADMIN_DOWN;
+	}
 
 	snprintf(carrier_path, sizeof(carrier_path), "/sys/class/net/%s/carrier", ifname);
 
@@ -67,67 +102,109 @@ int CheckSinglePHYStatus(const char *ifname)
 	if (!fp)
 	{
 		LOG("[Abnormal] Failed to open %s\n", carrier_path);
-		return 0;
+		return PHY_SAMPLE_UNKNOWN;
 	}
 
 	if (fscanf(fp, "%d", &carrier) != 1)
 	{
 		LOG("[Abnormal] Failed to read carrier state for %s\n", ifname);
 		fclose(fp);
-		return 0;
+		return PHY_SAMPLE_UNKNOWN;
 	}
 
 	fclose(fp);
-	return (carrier == 1) ? 1 : 0;
+	return (carrier == 1) ? PHY_SAMPLE_LINK_UP : PHY_SAMPLE_LINK_DOWN;
 }
 void PHYlinktate(void)
 {
     static struct timespec phy_startup_tick = {0};
-    static struct timespec phy_last_check_tick = {0};
+    static struct timespec phy_state_tick = {0};
+    static struct timespec phy_startup_up_tick = {0};
     static int initialized = 0;
-    static int pending_link_state = -1; // 1:物理链路正常, 0:物理链路断开
+    static int monitor_enabled = 0;
+    static int startup_up_timing = 0;
+    static int pending_link_state = -1; // 1:链路正常, 0:链路不可用
     static int reported_link_state = -1; // 1:已上报恢复, 0:已上报故障
 
-    int eth1_status = CheckSinglePHYStatus(NET_ETH_1);
+    int phy_sample = CheckSinglePHYStatus(NET_ETH_1);
+    int link_state = -1;
+
+    if (phy_sample == PHY_SAMPLE_LINK_UP) {
+        link_state = 1;
+    } else if (phy_sample == PHY_SAMPLE_LINK_DOWN ||
+               phy_sample == PHY_SAMPLE_ADMIN_DOWN) {
+        link_state = 0;
+    }
 
     if (!initialized) {
         clock_gettime(CLOCK_MONOTONIC, &phy_startup_tick);
-        clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
-        pending_link_state = eth1_status;
+        clock_gettime(CLOCK_MONOTONIC, &phy_state_tick);
         initialized = 1;
     }
 
-    // 上电初期链路训练、自协商可能尚未完成，先只跟踪状态不报码。
-    if (reported_link_state == -1) {
-        if (eth1_status != pending_link_state) {
-            pending_link_state = eth1_status;
-            clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
+    /*
+     * 状态未知时不按断链累计。驱动初始化或接口切换期间，
+     * carrier 可能暂时返回 EINVAL。
+     */
+    if (link_state < 0) {
+        pending_link_state = -1;
+        startup_up_timing = 0;
+        return;
+    }
+
+    /*
+     * 启动阶段过滤目标板固有的 eth1 down/up：
+     * 至少等待30秒，并要求链路连续稳定10秒后才启用正常监控。
+     * 若60秒后仍连续不可用5秒，则报告真实的启动无链路故障。
+     */
+    if (!monitor_enabled) {
+        if (link_state == 1) {
+            if (!startup_up_timing) {
+                clock_gettime(CLOCK_MONOTONIC, &phy_startup_up_tick);
+                startup_up_timing = 1;
+            }
+            pending_link_state = 1;
+        } else {
+            startup_up_timing = 0;
+            if (pending_link_state != 0) {
+                pending_link_state = 0;
+                clock_gettime(CLOCK_MONOTONIC, &phy_state_tick);
+            }
         }
 
-        if (GetTimeDifference_ms(phy_startup_tick) < PHY_STARTUP_GRACE_TIME) {
+        if (link_state == 1 &&
+            GetTimeDifference_ms(phy_startup_tick) >= PHY_STARTUP_MIN_TIME &&
+            GetTimeDifference_ms(phy_startup_up_tick) >= PHY_STARTUP_STABLE_TIME) {
+            monitor_enabled = 1;
+            reported_link_state = 1;
+            pending_link_state = 1;
+            clock_gettime(CLOCK_MONOTONIC, &phy_state_tick);
+            LOG("[PHY] Startup complete, link monitoring enabled\n");
             return;
         }
 
-        if (pending_link_state &&
-            GetTimeDifference_ms(phy_last_check_tick) >= RECOVER_REPORT_TIME) {
-            reported_link_state = 1;
-        } else if (!pending_link_state &&
-                   GetTimeDifference_ms(phy_last_check_tick) >= FAULT_REPORT_TIME) {
+        if (link_state == 0 &&
+            GetTimeDifference_ms(phy_startup_tick) >= PHY_STARTUP_MAX_TIME &&
+            GetTimeDifference_ms(phy_state_tick) >= FAULT_REPORT_TIME) {
+            set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
+            LOG("PHY_LINK_FAULT ERROR (startup timeout)\r");
+            monitor_enabled = 1;
             reported_link_state = 0;
+            pending_link_state = 0;
         }
         return;
     }
 
     // 状态变化时才重置计时起点
-    if (eth1_status != pending_link_state) {
-        pending_link_state = eth1_status;
-        clock_gettime(CLOCK_MONOTONIC, &phy_last_check_tick);
+    if (link_state != pending_link_state) {
+        pending_link_state = link_state;
+        clock_gettime(CLOCK_MONOTONIC, &phy_state_tick);
     }
 
     if (pending_link_state) {
         // 连续物理链路正常达到恢复门限才清故障
         if (reported_link_state != 1 &&
-            GetTimeDifference_ms(phy_last_check_tick) >= RECOVER_REPORT_TIME) {
+            GetTimeDifference_ms(phy_state_tick) >= RECOVER_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_RECOVER);
             LOG("PHY_LINK_FAULT OK\r");
             reported_link_state = 1;
@@ -135,7 +212,7 @@ void PHYlinktate(void)
     } else {
         // 连续物理链路断开达到故障门限才置故障
         if (reported_link_state != 0 &&
-            GetTimeDifference_ms(phy_last_check_tick) >= FAULT_REPORT_TIME) {
+            GetTimeDifference_ms(phy_state_tick) >= FAULT_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
             LOG("PHY_LINK_FAULT ERROR\r");
             reported_link_state = 0;
