@@ -895,17 +895,17 @@ xcpcleanup:
 void FinshhBCUBMUOtaAndCleanup(void)
 {
     set_ota_deviceType(0);//停止升级
-    set_ota_OTAStart(0);
+    set_OTA_XCPConnect(0);
 	delete_files_with_prefix(USB_MOUNT_POINT, "XC");//  这个要删除升级文件，判断xcpstatus状态，成功或者失败删除
     delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
     delete_files_with_prefix(USB_MOUNT_POINT, "tar"); 
-
 	set_ota_UpDating(0);//1130(升级结束)
 	memset(&xcpstatus,0,sizeof(xcpstatus));
     set_OTA_XCPConnect(0);//删除跳转到BOOT的条件,OTA_XCPConnect为0xFF才会跳转到BOOT
     set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);
 	set_modbus_reg_val(OTASTATUSREGADDR, OTAIDLE);
     CANFDSendFcn_BCU_step();
+    set_ota_OTAStart(0);
 }
 
 

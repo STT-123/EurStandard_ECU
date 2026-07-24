@@ -170,7 +170,9 @@ void *lwip_data_TASK(void *param)
 							{
 								LOG("Received first pack !\r\n");
 								setXmodemServerReceiveSOH(1);
-								if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]),otafilenamestr, &filesize, &xmodempacknum) == 0)
+								if(GetOTAFILEInfo(&(tcp_server_recvbuf[3]), 128,
+												  otafilenamestr, sizeof(otafilenamestr),
+												  &filesize, &xmodempacknum) == 0)
 								{
 									LOG("[Xmodem] File name %s filesize %d packnum %d\r\n", otafilenamestr, filesize, xmodempacknum);
 									findfirstpack = 1;
@@ -839,81 +841,97 @@ xmodem_frame_done:
 }
 
 
-signed char GetOTAFILEInfo(unsigned char *databuf, char *name, int *filesize, int *xmodempacknum)
-
+static int get_next_xmodem_field(const unsigned char *data, size_t data_len,
+								 size_t *offset, const unsigned char **field,
+								 size_t *field_len)
 {
-	char namebuf[128] = {'\0'};
-	char filesizebuf[128] = {'\0'};
-	char filepacknumbuf[128] = {'\0'};
-	int idx = 0;
-	int idx1 = 0;
-	unsigned short i = 0;
-	if(databuf == NULL)
+	/* The existing sender may place extra NUL bytes between fields. */
+	while (*offset < data_len && data[*offset] == '\0')
+		(*offset)++;
+
+	if (*offset >= data_len)
+		return -1;
+
+	size_t start = *offset;
+	const unsigned char *end = memchr(data + start, '\0', data_len - start);
+	if (end == NULL)
+		return -1;
+
+	*field = data + start;
+	*field_len = (size_t)(end - (data + start));
+	*offset = (size_t)(end - data) + 1;
+	return (*field_len == 0) ? -1 : 0;
+}
+
+static int parse_positive_int_field(const unsigned char *field, size_t field_len,
+									int *value)
+{
+	char number[32];
+	char *end = NULL;
+	long parsed;
+
+	if (field_len == 0 || field_len >= sizeof(number))
+		return -1;
+
+	memcpy(number, field, field_len);
+	number[field_len] = '\0';
+
+	errno = 0;
+	parsed = strtol(number, &end, 10);
+	if (errno != 0 || end == number || *end != '\0' ||
+		parsed <= 0 || parsed > INT_MAX)
+		return -1;
+
+	*value = (int)parsed;
+	return 0;
+}
+
+signed char GetOTAFILEInfo(const unsigned char *databuf, size_t databuf_len,
+						   char *name, size_t name_size,
+						   int *filesize, int *xmodempacknum)
+{
+	const unsigned char *field;
+	size_t field_len;
+	size_t offset = 0;
+
+	if (databuf == NULL || name == NULL || name_size == 0 ||
+		filesize == NULL || xmodempacknum == NULL)
 	{
-		LOG("[Xmodem] databuf null\r\n");
+		LOG("[Xmodem] invalid file-info arguments\r\n");
 		return -1;
 	}
 
-	for( i = 0; i < 128; i++)
+	name[0] = '\0';
+
+	if (get_next_xmodem_field(databuf, databuf_len, &offset,
+							  &field, &field_len) != 0 ||
+		field_len >= name_size)
 	{
-
-		if(databuf[i] == 0x00)
-		{
-			idx++;
-		}else{
-		}
-		if(idx == 1)//根据实际代码可以看出，结束都有0x00标志开始，所以判断idx 1、3、5
-		{
-			idx1 = i;
-			for(int j = 0; j < idx1 + 2; j++)//idx1 + 2长度
-			{
-				namebuf[j] = databuf[idx + j - 1];//位置
-			}
-			memcpy(name, namebuf, 128);
-		}
-		else if(idx == 3)
-		{
-			for(int j = 0; j < i - idx1 - 2; j++)//i - idx1 - 2长度
-			{
-				filesizebuf[j] = databuf[idx1 + j + 2];//位置
-			}
-			idx += 1;
-			idx1 = i;
-		}
-
-		else if(idx == 5)
-		{
-			for(int j = 0; j < i - idx1 - 1; j++)//i - idx1 - 1 长度
-			{
-				filepacknumbuf[j] = databuf[idx1 + j + 1];//位置
-			}
-			idx1 = i;
-			break;
-		}
-
+		LOG("[Xmodem] invalid or oversized OTA filename\r\n");
+		return -1;
 	}
+	memcpy(name, field, field_len);
+	name[field_len] = '\0';
 
-	if (sscanf(filesizebuf, "%d", filesize) == 1)
+	if (get_next_xmodem_field(databuf, databuf_len, &offset,
+							  &field, &field_len) != 0 ||
+		parse_positive_int_field(field, field_len, filesize) != 0)
 	{
-		//printf(" filesize %s->%d success \r\n", filesize);
-	}
-	else
-	{
-		LOG("[Xmodem] filesize parse error: input='%s'\r\n", filesizebuf);
+		LOG("[Xmodem] filesize parse error\r\n");
+		name[0] = '\0';
 		return -2;
 	}
-	if (sscanf(filepacknumbuf, "%d", xmodempacknum) == 1)
+
+	if (get_next_xmodem_field(databuf, databuf_len, &offset,
+							  &field, &field_len) != 0 ||
+		parse_positive_int_field(field, field_len, xmodempacknum) != 0)
 	{
-		//printf(" xmodempacknum %s->%d success \r\n", xmodempacknum);
-	}
-	else
-	{
-		LOG("[Xmodem] xmodempacknum parse error: input='%s'\r\n", filepacknumbuf);
+		LOG("[Xmodem] xmodempacknum parse error\r\n");
+		name[0] = '\0';
 		return -3;
 	}
 
 	return 0;
-
 }
 
 

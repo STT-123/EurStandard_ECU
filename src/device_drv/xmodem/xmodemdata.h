@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <ctype.h>
+#include <limits.h>
 #include <sys/stat.h>
 
 #define SOH 0x01  //xmodem-128协议固定，XModem-128数据帧的数据头
@@ -27,7 +28,9 @@ extern volatile unsigned long curmsgtimer;
 
 // unsigned int OsIf_GetMilliseconds(void) ;
 unsigned short crcGet(unsigned char *ptr, int len);
-signed char GetOTAFILEInfo(unsigned char *databuf, char *name, int *filesize, int *xmodempacknum);
+signed char GetOTAFILEInfo(const unsigned char *databuf, size_t databuf_len,
+                           char *name, size_t name_size,
+                           int *filesize, int *xmodempacknum);
 signed char SaveOtaFile(char *name, unsigned char *buf, int totalpacknum, int curpackno, int datanum);
 void delete_files_with_prefix(const char *path, const char *prefix);
 #endif

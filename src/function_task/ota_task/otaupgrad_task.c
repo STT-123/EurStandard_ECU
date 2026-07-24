@@ -323,7 +323,7 @@ void *ota_Upgrade_Task(void *arg)
                         CANFDSendFcn_BCU_step();
                         usleep(200*1000);
                     }                 
-
+                    set_OTA_XCPConnect(0);//不能删***不然会触发OTA成功之后再次进入OTA导致失败的情况
                     // 主业务判断：检查BCU是否就绪
                     if (!is_bcu_can_ready()) {
                         LOG("[OTA] BCU not ready, waiting...\n");// 可以等待几秒或直接报错
@@ -365,7 +365,7 @@ void *ota_Upgrade_Task(void *arg)
                             set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
                             sleep(5);//这个延时不能删除，不然上位机不显示升级失败，直接变为升级完成
                             LOG("[OTA] xcpstatus.ErrorReg  = %d\r\n", xcpstatus.ErrorReg);
-                            LOG("[OTA] CAN ID 0x%x BCU OTA Failed \r\n");
+                            LOG("[OTA] CAN ID  0x%x BCU OTA Failed \r\n", get_ota_deviceID());
                         }
                     }else{
                         LOG("[OTA] bcu is not ready\r\n");
