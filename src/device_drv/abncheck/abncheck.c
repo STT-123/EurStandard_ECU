@@ -10,15 +10,16 @@
 #include "device_drv/bcu_deal/bcu_deal.h"
 #include "device_drv/bmu_deal/bmu_deal.h"
 #include "device_drv/modbustcp_pro/modbustcp_pro.h"
+#include "function_task/modbustcp_task/modbustcp_task.h"
 #include "interface/setting/ip_setting.h"
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
 #include "interface/time/time_diff.h"
 #include "modbus_defines.h"
 #define _POSIX_C_SOURCE 199309L
-#define RECOVER_REPORT_TIME 3000
-#define FAULT_REPORT_TIME 5000
-#define PHY_STARTUP_MIN_TIME 30000
+#define RECOVER_REPORT_TIME 5000
+#define FAULT_REPORT_TIME 3000
+#define PHY_STARTUP_MIN_TIME 40000
 #define PHY_STARTUP_STABLE_TIME 10000
 #define PHY_STARTUP_MAX_TIME 60000
 #define RECOVER_KM_DEFAULT_STATE 0 // 恢复接触器默认状态
@@ -128,9 +129,11 @@ void PHYlinktate(void)
 
     int phy_sample = CheckSinglePHYStatus(NET_ETH_1);
     int link_state = -1;
+    int physical_link_up = 0;
 
     if (phy_sample == PHY_SAMPLE_LINK_UP) {
         link_state = 1;
+        physical_link_up = 1;
     } else if (phy_sample == PHY_SAMPLE_LINK_DOWN ||
                phy_sample == PHY_SAMPLE_ADMIN_DOWN) {
         link_state = 0;
@@ -153,8 +156,17 @@ void PHYlinktate(void)
     }
 
     /*
+     * 启动宽限结束后，PHY故障同时监控Modbus TCP业务通信。
+     * 网线正常但无客户端，或客户端长时间没有有效请求，也按链路不可用处理。
+     */
+    if (monitor_enabled && physical_link_up &&
+        !modbus_tcp_communication_ok()) {
+        link_state = 0;
+    }
+
+    /*
      * 启动阶段过滤目标板固有的 eth1 down/up：
-     * 至少等待30秒，并要求链路连续稳定10秒后才启用正常监控。
+     * 至少等待PHY_STARTUP_MIN_TIME，并要求链路连续稳定后才启用正常监控。
      * 若60秒后仍连续不可用5秒，则报告真实的启动无链路故障。
      */
     if (!monitor_enabled) {
@@ -187,6 +199,7 @@ void PHYlinktate(void)
             GetTimeDifference_ms(phy_startup_tick) >= PHY_STARTUP_MAX_TIME &&
             GetTimeDifference_ms(phy_state_tick) >= FAULT_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
+            set_TCU_PHYError(1);//
             LOG("PHY_LINK_FAULT ERROR (startup timeout)\r");
             monitor_enabled = 1;
             reported_link_state = 0;
@@ -206,6 +219,7 @@ void PHYlinktate(void)
         if (reported_link_state != 1 &&
             GetTimeDifference_ms(phy_state_tick) >= RECOVER_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_RECOVER);
+            set_TCU_PHYError(0);//
             LOG("PHY_LINK_FAULT OK\r");
             reported_link_state = 1;
         }
@@ -214,7 +228,10 @@ void PHYlinktate(void)
         if (reported_link_state != 0 &&
             GetTimeDifference_ms(phy_state_tick) >= FAULT_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
-            LOG("PHY_LINK_FAULT ERROR\r");
+            set_TCU_PHYError(1);//
+            LOG("PHY_LINK_FAULT ERROR (%s)\r",
+                physical_link_up ? "modbus communication timeout"
+                                 : "physical link down");
             reported_link_state = 0;
         }
     }

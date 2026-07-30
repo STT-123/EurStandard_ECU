@@ -22,6 +22,49 @@ static int timeout_flag = 0;
 extern pthread_mutex_t modbus_reg_mutex;
 
 #define CONN_RESET_LOG_WINDOW_SEC 5
+#define MODBUS_REQUEST_TIMEOUT_SEC 10
+
+static pthread_mutex_t modbus_health_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int modbus_server_ready = 0;
+static int modbus_client_count = 0;
+static struct timespec modbus_last_request_tick = {0};
+static int modbus_request_received = 0;
+
+static void update_modbus_health(int server_ready, int client_count,
+                                 int request_received)
+{
+    pthread_mutex_lock(&modbus_health_mutex);
+    modbus_server_ready = server_ready;
+    modbus_client_count = client_count;
+    if (request_received) {
+        clock_gettime(CLOCK_MONOTONIC, &modbus_last_request_tick);
+        modbus_request_received = 1;
+    }
+    if (!server_ready || client_count <= 0) {
+        modbus_client_count = 0;
+        modbus_request_received = 0;
+    }
+    pthread_mutex_unlock(&modbus_health_mutex);
+}
+
+int modbus_tcp_communication_ok(void)
+{
+    struct timespec now;
+    long elapsed_ms;
+    int communication_ok = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    pthread_mutex_lock(&modbus_health_mutex);
+    if (modbus_server_ready && modbus_client_count > 0 &&
+        modbus_request_received) {
+        elapsed_ms = (now.tv_sec - modbus_last_request_tick.tv_sec) * 1000L +
+                     (now.tv_nsec - modbus_last_request_tick.tv_nsec) / 1000000L;
+        communication_ok = (elapsed_ms <= MODBUS_REQUEST_TIMEOUT_SEC * 1000L);
+    }
+    pthread_mutex_unlock(&modbus_health_mutex);
+
+    return communication_ok;
+}
 
 static void close_socket_quickly(int socket_fd)
 {
@@ -115,6 +158,7 @@ static void close_all_client_sockets(fd_set *refset, int server_socket, int *fdm
         (*fdmax)--;
     }
 
+    update_modbus_health(1, 0, 0);
     log_connected_clients(refset, server_socket, *fdmax);
 }
 
@@ -233,6 +277,7 @@ void *ModbusTCPServerTask(void *arg)
         FD_ZERO(&refset); //初始化集合为NULL
         FD_SET(server_socket, &refset); // 将服务器socket加入集合
         fdmax = server_socket;
+        update_modbus_health(1, 0, 0);
 
         while (!need_restart)
         {
@@ -292,6 +337,10 @@ void *ModbusTCPServerTask(void *arg)
                                 clientaddr.sin_port,
                                 newfd,
                                 count_connected_clients(&refset, server_socket, fdmax));
+                                update_modbus_health(
+                                    1,
+                                    count_connected_clients(&refset, server_socket, fdmax),
+                                    0);
                                 log_connected_clients(&refset, server_socket, fdmax);
                         }
                     }
@@ -304,6 +353,10 @@ void *ModbusTCPServerTask(void *arg)
                         rc = modbus_receive(ctx, query);// 接收Modbus请求
                         if (rc != -1)
                         {
+                            update_modbus_health(
+                                1,
+                                count_connected_clients(&refset, server_socket, fdmax),
+                                1);
                             modbus_write_reg_deal(ctx, query, rc); // 写寄存器处理
                             pthread_mutex_lock(&modbus_reg_mutex);
                             modbus_reply(ctx, query, rc, g_mb_mapping); // 回复寄存器
@@ -327,6 +380,10 @@ void *ModbusTCPServerTask(void *arg)
                                     fdmax--;
                                 }
                             }
+                            update_modbus_health(
+                                1,
+                                count_connected_clients(&refset, server_socket, fdmax),
+                                0);
                             log_connected_clients(&refset, server_socket, fdmax);
                         }
                     }
@@ -334,6 +391,7 @@ void *ModbusTCPServerTask(void *arg)
             }
         }
 
+        update_modbus_health(0, 0, 0);
         for (master_socket = 0; master_socket <= fdmax; master_socket++) {
             if (FD_ISSET(master_socket, &refset)) {
                 close_socket_quickly(master_socket);

@@ -1,11 +1,15 @@
 /*
+ * Sponsored License - for use in support of a program or activity
+ * sponsored by MathWorks.  Not for government, commercial or other
+ * non-sponsored organizational use.
+ *
  * File: CANFDSendFcn_BCU.c
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 5.1
- * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Thu May 28 14:06:47 2026
+ * Model version                  : 6.0
+ * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
+ * C/C++ source code generated on : Thu Jul 30 15:22:57 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -38,7 +42,11 @@ uint8_T TCU_TimeWeek;                  /* '<Root>/TCU_TimeWeek' */
 uint8_T TCU_TimeYear;                  /* '<Root>/TCU_TimeYear' */
 uint8_T TCU_BCUCapacityFlag;           /* '<Root>/TCU_BCUCapacityFlag' */
 uint8_T TCU_CoolingFlag;               /* '<Root>/TCU_CoolingFlag' */
+uint8_T TCU_PHYError;                  /* '<Root>/TCU_PHYError' */
 CAN_FD_MESSAGE_BUS CANSendMsg;         /* '<Root>/CANSendMsg' */
+
+/* Block signals (default storage) */
+B_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_B;
 
 /* Block states (default storage) */
 DW_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_DW;
@@ -50,6 +58,11 @@ RT_MODEL_CANFDSendFcn_BCU_T *const CANFDSendFcn_BCU_M = &CANFDSendFcn_BCU_M_;
 /* Model step function */
 void CANFDSendFcn_BCU_step(void)
 {
+  /* DataTypeConversion: '<Root>/Data Type Conversion' incorporates:
+   *  Inport: '<Root>/TCU_HighVoltValue'
+   */
+  CANFDSendFcn_BCU_B.DataTypeConversion = TCU_HighVoltValue;
+
   /* S-Function (scanfdpack): '<Root>/CAN FD Pack' incorporates:
    *  Inport: '<Root>/OTA_XCPConnect'
    *  Inport: '<Root>/TCU_ACMuteSet'
@@ -60,8 +73,8 @@ void CANFDSendFcn_BCU_step(void)
    *  Inport: '<Root>/TCU_ECOMode'
    *  Inport: '<Root>/TCU_FcnStopSet'
    *  Inport: '<Root>/TCU_HighVoltType'
-   *  Inport: '<Root>/TCU_HighVoltValue'
    *  Inport: '<Root>/TCU_LifeCounter'
+   *  Inport: '<Root>/TCU_PHYError'
    *  Inport: '<Root>/TCU_PowerUpCmd'
    *  Inport: '<Root>/TCU_TimeCalFlg'
    *  Inport: '<Root>/TCU_TimeDay'
@@ -388,18 +401,27 @@ void CANFDSendFcn_BCU_step(void)
 
     /* --------------- START Packing signal 9 ------------------*/
     {
-      uint32_T packingValue = 0;
+      real32_T outValue = 0;
 
       {
-        uint32_T result = (uint32_T) (TCU_HighVoltValue);
+        real32_T result = CANFDSendFcn_BCU_B.DataTypeConversion;
 
-        /* no scaling required */
-        packingValue = result;
+        /* no offset to apply */
+        result = result * (1 / 0.1F);
+
+        /* round to closest integer value for integer CAN signal */
+        outValue = roundf(result);
       }
 
       {
         uint16_T packedValue;
-        packedValue = (uint16_T) (packingValue);
+        if (outValue > (real32_T)(65535)) {
+          packedValue = (uint16_T) 65535;
+        } else if (outValue < (real32_T)(0)) {
+          packedValue = (uint16_T) 0;
+        } else {
+          packedValue = (uint16_T) (outValue);
+        }
 
         {
           {
@@ -444,6 +466,34 @@ void CANFDSendFcn_BCU_step(void)
       uint32_T packingValue = 0;
 
       {
+        uint32_T result = (uint32_T) (TCU_PHYError);
+
+        /* no scaling required */
+        packingValue = result;
+      }
+
+      {
+        uint8_T packedValue;
+        if (packingValue > (uint8_T)(15)) {
+          packedValue = (uint8_T) 15;
+        } else {
+          packedValue = (uint8_T) (packingValue);
+        }
+
+        {
+          {
+            CANSendMsg.Data[21] = CANSendMsg.Data[21] | (uint8_T)((uint8_T)
+              ((uint8_T)(packedValue & (uint8_T)0xFU) << 4));
+          }
+        }
+      }
+    }
+
+    /* --------------- START Packing signal 12 ------------------*/
+    {
+      uint32_T packingValue = 0;
+
+      {
         uint32_T result = (uint32_T) (TCU_PowerUpCmd);
 
         /* no scaling required */
@@ -462,7 +512,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 12 ------------------*/
+    /* --------------- START Packing signal 13 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -485,7 +535,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 13 ------------------*/
+    /* --------------- START Packing signal 14 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -508,7 +558,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 14 ------------------*/
+    /* --------------- START Packing signal 15 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -531,7 +581,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 15 ------------------*/
+    /* --------------- START Packing signal 16 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -554,7 +604,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 16 ------------------*/
+    /* --------------- START Packing signal 17 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -577,7 +627,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 17 ------------------*/
+    /* --------------- START Packing signal 18 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -600,7 +650,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 18 ------------------*/
+    /* --------------- START Packing signal 19 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -623,7 +673,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 19 ------------------*/
+    /* --------------- START Packing signal 20 ------------------*/
     {
       uint32_T packingValue = 0;
 

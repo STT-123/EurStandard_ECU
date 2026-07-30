@@ -25,5 +25,6 @@ extern const uint16_t REGISTERS_START_ADDRESS;
 extern char modbus_ip[16];
 void modbusTcpServerTaskCreate(void);
 int get_timeout_flag();
+int modbus_tcp_communication_ok(void);
 
 #endif

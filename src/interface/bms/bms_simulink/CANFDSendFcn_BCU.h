@@ -1,11 +1,15 @@
 /*
+ * Sponsored License - for use in support of a program or activity
+ * sponsored by MathWorks.  Not for government, commercial or other
+ * non-sponsored organizational use.
+ *
  * File: CANFDSendFcn_BCU.h
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 5.1
- * Simulink Coder version         : 25.2 (R2025b) 28-Jul-2025
- * C/C++ source code generated on : Thu May 28 14:06:47 2026
+ * Model version                  : 6.0
+ * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
+ * C/C++ source code generated on : Thu Jul 30 15:22:57 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -36,6 +40,10 @@
 /* user code (top of header file) */
 #include "modbustcp_task.h"
 
+/* Block signals (default storage) */
+typedef struct {
+  real32_T DataTypeConversion;         /* '<Root>/Data Type Conversion' */
+} B_CANFDSendFcn_BCU_T;
 
 /* Block states (default storage) for system '<Root>' */
 typedef struct {
@@ -46,6 +54,9 @@ typedef struct {
 struct tag_RTM_CANFDSendFcn_BCU_T {
   const char_T * volatile errorStatus;
 };
+
+/* Block signals (default storage) */
+extern B_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_B;
 
 /* Block states (default storage) */
 extern DW_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_DW;
@@ -78,6 +89,7 @@ extern uint8_T TCU_TimeWeek;           /* '<Root>/TCU_TimeWeek' */
 extern uint8_T TCU_TimeYear;           /* '<Root>/TCU_TimeYear' */
 extern uint8_T TCU_BCUCapacityFlag;    /* '<Root>/TCU_BCUCapacityFlag' */
 extern uint8_T TCU_CoolingFlag;        /* '<Root>/TCU_CoolingFlag' */
+extern uint8_T TCU_PHYError;           /* '<Root>/TCU_PHYError' */
 extern CAN_FD_MESSAGE_BUS CANSendMsg;  /* '<Root>/CANSendMsg' */
 
 /* Model entry point functions */

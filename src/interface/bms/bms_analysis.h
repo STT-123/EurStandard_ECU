@@ -132,7 +132,7 @@ uint8_T get_TCU_TimeYear(void);
 void set_TCU_FcnStopSet(uint8_T value) ;
 void set_TCU_HighVoltType(uint8_T value) ;
 void set_TCU_HighVoltValue(uint16_T value) ;
-
+void set_TCU_PHYError(uint8_T value) ;
 uint8_T get_BCU_TimeYearValue(void) ;
 uint8_T get_BCU_TimeMonthValue(void) ;
 uint8_T get_BCU_TimeDayValue(void) ;

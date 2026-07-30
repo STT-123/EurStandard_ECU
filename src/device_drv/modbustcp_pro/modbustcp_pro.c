@@ -463,8 +463,10 @@ static int BatterySNCodeSend(uint16_t address, const uint8_t *data, uint16_t dat
 	ModbusSNPrintHex("[ModbusTcp] SN CANFD output", tx_msg.Data, BCU_SN_CANFD_LEN);
 	LOG("[ModbusTcp] SN write matched, address: 0x%x, len: %u, send CANFD ID: 0x%x\r\n",
 		address, data_len, tx_msg.ID);
-	Drv_bcu_canfd_send(&tx_msg);
-
+	for(int i = 0; i < 3; i++) {
+		Drv_bcu_canfd_send(&tx_msg);
+		usleep(5 * 1000);
+	}
 	return 0;
 }
 

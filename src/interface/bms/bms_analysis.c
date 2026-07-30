@@ -364,7 +364,8 @@ uint8_T get_TCU_HighVoltType(void) { return TCU_HighVoltType; }
 void set_TCU_HighVoltValue(uint16_T value) { TCU_HighVoltValue = value; }
 uint16_T get_TCU_HighVoltValue(void) { return TCU_HighVoltValue; }
 
-
+void set_TCU_PHYError(uint8_T value) { TCU_PHYError = value; }
+uint8_T get_TCU_PHYError(void) { return TCU_PHYError; }
 uint8_T get_BCU_TimeYearValue(void) { return BCU_TimeYear; }
 uint8_T get_BCU_TimeMonthValue(void) { return BCU_TimeMonth; }
 uint8_T get_BCU_TimeDayValue(void) { return BCU_TimeDay; }
