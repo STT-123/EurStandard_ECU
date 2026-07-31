@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 6.0
+ * Model version                  : 6.2
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Thu Jul 30 15:22:57 2026
+ * C/C++ source code generated on : Fri Jul 31 16:02:35 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -58,10 +58,11 @@ RT_MODEL_CANFDSendFcn_BCU_T *const CANFDSendFcn_BCU_M = &CANFDSendFcn_BCU_M_;
 /* Model step function */
 void CANFDSendFcn_BCU_step(void)
 {
-  /* DataTypeConversion: '<Root>/Data Type Conversion' incorporates:
+  /* Gain: '<Root>/Gain' incorporates:
+   *  DataTypeConversion: '<Root>/Data Type Conversion'
    *  Inport: '<Root>/TCU_HighVoltValue'
    */
-  CANFDSendFcn_BCU_B.DataTypeConversion = TCU_HighVoltValue;
+  CANFDSendFcn_BCU_B.Gain = 0.1F * (real32_T)TCU_HighVoltValue;
 
   /* S-Function (scanfdpack): '<Root>/CAN FD Pack' incorporates:
    *  Inport: '<Root>/OTA_XCPConnect'
@@ -404,7 +405,7 @@ void CANFDSendFcn_BCU_step(void)
       real32_T outValue = 0;
 
       {
-        real32_T result = CANFDSendFcn_BCU_B.DataTypeConversion;
+        real32_T result = CANFDSendFcn_BCU_B.Gain;
 
         /* no offset to apply */
         result = result * (1 / 0.1F);

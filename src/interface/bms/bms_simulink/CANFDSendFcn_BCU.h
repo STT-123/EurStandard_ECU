@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 6.0
+ * Model version                  : 6.2
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Thu Jul 30 15:22:57 2026
+ * C/C++ source code generated on : Fri Jul 31 16:02:35 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -42,7 +42,7 @@
 
 /* Block signals (default storage) */
 typedef struct {
-  real32_T DataTypeConversion;         /* '<Root>/Data Type Conversion' */
+  real32_T Gain;                       /* '<Root>/Gain' */
 } B_CANFDSendFcn_BCU_T;
 
 /* Block states (default storage) for system '<Root>' */
