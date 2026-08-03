@@ -10,6 +10,7 @@
 #include <sys/mount.h>
 #include <sys/wait.h>
 #include <stdatomic.h>
+#include <fcntl.h>
 
 extern pthread_mutex_t ftp_file_io_mutex;
 
@@ -759,13 +760,40 @@ static int is_valid_date_name(const char *name) {
     return 1;
 }
 
+static int is_valid_date_zip_name(const char *name)
+{
+    size_t len;
+
+    if (!name) return 0;
+    len = strlen(name);
+    if (len != 12 || strcmp(name + 8, ".zip") != 0) return 0;
+    if (name[0] != '2' || name[1] != '0') return 0;
+    for (int i = 2; i < 8; ++i) {
+        if (name[i] < '0' || name[i] > '9') return 0;
+    }
+    return 1;
+}
+
 static void Func_DeleteOldestFolder(void)
 {
     DIR *dir = opendir(USB_MOUNT_POINT);
     if (!dir) { perror("opendir"); return; }
 
     char oldest[256] = ""; // 初始为空
+    char current_date[9] = {0};
+    char previous_date[9] = {0};
+    struct tm now_time = {0};
     struct dirent *entry;
+
+    if (GetNowTime(&now_time) == 0) {
+        struct tm previous_time = now_time;
+        previous_time.tm_mday -= 1;
+        previous_time.tm_isdst = -1;
+        strftime(current_date, sizeof(current_date), "%Y%m%d", &now_time);
+        if (mktime(&previous_time) != (time_t)-1) {
+            strftime(previous_date, sizeof(previous_date), "%Y%m%d", &previous_time);
+        }
+    }
 
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 ||
@@ -777,22 +805,48 @@ static void Func_DeleteOldestFolder(void)
         snprintf(fullPath, sizeof(fullPath), "%s/%s", USB_MOUNT_POINT, entry->d_name);
 
         struct stat st;
-        if (stat(fullPath, &st) == 0 && S_ISDIR(st.st_mode)) {
-            if (!is_valid_date_name(entry->d_name)) {
-                continue; // 跳过非日期文件夹，如 "log"
+        if (stat(fullPath, &st) == 0) {
+            char date_name[9] = {0};
+
+            if (S_ISDIR(st.st_mode) && is_valid_date_name(entry->d_name)) {
+                memcpy(date_name, entry->d_name, 8);
+            } else if (S_ISREG(st.st_mode) && is_valid_date_zip_name(entry->d_name)) {
+                memcpy(date_name, entry->d_name, 8);
+            } else {
+                continue;
             }
-            if (oldest[0] == '\0' || strcmp(entry->d_name, oldest) < 0) {
-                strncpy(oldest, entry->d_name, sizeof(oldest) - 1);
+            if ((current_date[0] != '\0' && strcmp(date_name, current_date) == 0) ||
+                (previous_date[0] != '\0' && strcmp(date_name, previous_date) == 0)) {
+                continue;
+            }
+            if (oldest[0] == '\0' || strcmp(date_name, oldest) < 0) {
+                strncpy(oldest, date_name, sizeof(oldest) - 1);
             }
         }
     }
     closedir(dir);
 
     if (oldest[0] != '\0') {
-        char path[512];
-        snprintf(path, sizeof(path), "%s/%s", USB_MOUNT_POINT, oldest);
-        LOG("[SD Card] Deleting oldest folder: %s\n", path);
-        Drv_remove_directory(path);
+        char folder_path[512];
+        char zip_path[512];
+        struct stat st;
+
+        snprintf(folder_path, sizeof(folder_path), "%s/%s", USB_MOUNT_POINT, oldest);
+        snprintf(zip_path, sizeof(zip_path), "%s/%s.zip", USB_MOUNT_POINT, oldest);
+
+        if (stat(folder_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+            LOG("[SD Card] Deleting oldest folder: %s\n", folder_path);
+            if (Drv_remove_directory(folder_path) != 0) {
+                LOG("[SD Card] Failed to delete folder %s: %s\n",
+                    folder_path, strerror(errno));
+            }
+        }
+        if (unlink(zip_path) == 0) {
+            LOG("[SD Card] Deleted oldest ZIP: %s\n", zip_path);
+        } else if (errno != ENOENT) {
+            LOG("[SD Card] Failed to delete ZIP %s: %s\n",
+                zip_path, strerror(errno));
+        }
     }
 }
 
@@ -866,6 +920,173 @@ static void Drv_init_can_id_history(void)
         can_msg_cache[i].ID = CAN_IDs[i];
         can_msg_cache[i].Length = 64; //
     }
+}
+
+static int run_archive_tool(const char *tool, char *const argv[], const char *working_dir)
+{
+    pid_t pid = fork();
+    int status = 0;
+
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        if (working_dir && chdir(working_dir) != 0) _exit(126);
+        execv(tool, argv);
+        _exit(127);
+    }
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) return -1;
+    }
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+}
+
+static int validate_zip_file(const char *zip_path)
+{
+    char *const argv[] = {"unzip", "-tqq", (char *)zip_path, NULL};
+    return run_archive_tool("/usr/bin/unzip", argv, NULL);
+}
+
+static int copy_file_and_sync(const char *source, const char *destination)
+{
+    int in_fd = -1;
+    int out_fd = -1;
+    int result = -1;
+    char buffer[64 * 1024];
+    ssize_t count;
+
+    in_fd = open(source, O_RDONLY);
+    if (in_fd < 0) goto EXIT;
+    out_fd = open(destination, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (out_fd < 0) goto EXIT;
+
+    while ((count = read(in_fd, buffer, sizeof(buffer))) > 0) {
+        ssize_t offset = 0;
+        while (offset < count) {
+            ssize_t written = write(out_fd, buffer + offset, (size_t)(count - offset));
+            if (written < 0) {
+                if (errno == EINTR) continue;
+                goto EXIT;
+            }
+            offset += written;
+        }
+    }
+    if (count < 0 || fsync(out_fd) != 0) goto EXIT;
+    result = 0;
+
+EXIT:
+    if (in_fd >= 0) close(in_fd);
+    if (out_fd >= 0) close(out_fd);
+    return result;
+}
+
+static void remove_old_log_date_zips(const char *keep_name)
+{
+    char log_path[PATH_MAX];
+    DIR *dir;
+    struct dirent *entry;
+
+    snprintf(log_path, sizeof(log_path), "%s/log", USB_MOUNT_POINT);
+    dir = opendir(log_path);
+    if (!dir) return;
+
+    while ((entry = readdir(dir)) != NULL) {
+        char old_path[512];
+        if (!is_valid_date_zip_name(entry->d_name) ||
+            strcmp(entry->d_name, keep_name) == 0) {
+            continue;
+        }
+        snprintf(old_path, sizeof(old_path), "%s/log/%s",
+                 USB_MOUNT_POINT, entry->d_name);
+        if (unlink(old_path) == 0) {
+            LOG("[SD Card] Removed old log ZIP: %s\n", old_path);
+        } else {
+            LOG("[SD Card] Failed to remove old log ZIP %s: %s\n",
+                old_path, strerror(errno));
+        }
+    }
+    closedir(dir);
+}
+
+static int archive_previous_day(const struct tm *now_time)
+{
+    static char completed_date[9] = {0};
+    static time_t last_attempt = 0;
+    struct tm previous;
+    time_t normalized;
+    time_t now;
+    char date_name[9];
+    char folder_path[128];
+    char zip_name[16];
+    char temp_zip_name[24];
+    char zip_path[128];
+    char temp_zip_path[128];
+    char log_dir[128];
+    char log_zip_path[128];
+    char log_temp_path[128];
+    struct stat st;
+
+    if (!now_time) return -1;
+    previous = *now_time;
+    previous.tm_mday -= 1;
+    previous.tm_isdst = -1;
+    normalized = mktime(&previous);
+    if (normalized == (time_t)-1 || !localtime_r(&normalized, &previous)) return -1;
+    strftime(date_name, sizeof(date_name), "%Y%m%d", &previous);
+    if (strcmp(completed_date, date_name) == 0) return 0;
+
+    now = time(NULL);
+    if (last_attempt != 0 && now != (time_t)-1 && difftime(now, last_attempt) < 60.0) {
+        return -1;
+    }
+    last_attempt = now;
+
+    snprintf(folder_path, sizeof(folder_path), "%s/%s", USB_MOUNT_POINT, date_name);
+    if (stat(folder_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        return -1;
+    }
+
+    snprintf(zip_name, sizeof(zip_name), "%s.zip", date_name);
+    snprintf(temp_zip_name, sizeof(temp_zip_name), "%s.tmp.zip", date_name);
+    snprintf(zip_path, sizeof(zip_path), "%s/%s", USB_MOUNT_POINT, zip_name);
+    snprintf(temp_zip_path, sizeof(temp_zip_path), "%s/%s", USB_MOUNT_POINT, temp_zip_name);
+
+    if (stat(zip_path, &st) != 0 || !S_ISREG(st.st_mode) ||
+        validate_zip_file(zip_path) != 0) {
+        char *const zip_argv[] = {
+            "zip", "-9", "-r", "-q", temp_zip_name, date_name, NULL
+        };
+        unlink(temp_zip_path);
+        LOG("[SD Card] Compressing previous day folder: %s\n", folder_path);
+        if (run_archive_tool("/usr/bin/zip", zip_argv, USB_MOUNT_POINT) != 0 ||
+            validate_zip_file(temp_zip_path) != 0 ||
+            rename(temp_zip_path, zip_path) != 0) {
+            LOG("[SD Card] Failed to create verified ZIP for %s\n", date_name);
+            unlink(temp_zip_path);
+            return -1;
+        }
+    }
+
+    snprintf(log_dir, sizeof(log_dir), "%s/log", USB_MOUNT_POINT);
+    if (stat(log_dir, &st) != 0 && mkdir(log_dir, 0777) != 0) {
+        LOG("[SD Card] Failed to create %s: %s\n", log_dir, strerror(errno));
+        return -1;
+    }
+    snprintf(log_zip_path, sizeof(log_zip_path), "%s/log/%s",
+             USB_MOUNT_POINT, zip_name);
+    snprintf(log_temp_path, sizeof(log_temp_path), "%s/log/%s.tmp",
+             USB_MOUNT_POINT, zip_name);
+    unlink(log_temp_path);
+    if (copy_file_and_sync(zip_path, log_temp_path) != 0 ||
+        validate_zip_file(log_temp_path) != 0 ||
+        rename(log_temp_path, log_zip_path) != 0) {
+        LOG("[SD Card] Failed to publish verified ZIP to %s\n", log_dir);
+        unlink(log_temp_path);
+        return -1;
+    }
+
+    remove_old_log_date_zips(zip_name);
+    memcpy(completed_date, date_name, sizeof(completed_date));
+    LOG("[SD Card] Previous day ZIP ready: %s and %s\n", zip_path, log_zip_path);
+    return 0;
 }
 // 获取从当天00:00:00开始的秒.毫秒
 // 获取UTC时间戳（秒.毫秒）
@@ -1104,11 +1325,17 @@ void Drv_write_buffer_to_file(void)
 {
     static char filePath[512] = {0}; // 当前使用的文件路径
     int ret = 0;
+    int dateChanged = 0;
     // 根据当前时间创建一个文件路径
     struct tm nowTimeInfo = {0};
     DoubleRingBuffer *drb = &canDoubleRingBuffer;
 
     GetNowTime(&nowTimeInfo);// 获取当前时间
+
+    dateChanged = judgeTimetoUpdate(&nowTimeInfo);
+    if (dateChanged) {
+        newFileNeeded = true;
+    }
 
     if (sdcard_is_formatting()) {
         return;
@@ -1143,9 +1370,6 @@ void Drv_write_buffer_to_file(void)
         goto QUIT_FLAG;
     }
    
-
-    checkSDCardCapacity();//检测SD 卡容量
-
 
     if (newFileNeeded)// 判断是否需要重新创建一个文件开始写
     {
@@ -1239,14 +1463,19 @@ void Drv_write_buffer_to_file(void)
     // 创建新文件的两个条件
     // 1. 当前写的文件大小超过10M
     // 2. 系统中不存在当前日志命名的文件夹（日期变化了）
-    if ((fileSize > (SD_FILE_SIZE) )|| (judgeTimetoUpdate(&nowTimeInfo))) // 大于10M或者年月日发生变化
+    if (fileSize > SD_FILE_SIZE)
     {
         LOG("[SD Card] fileSize = %ld\r\n",fileSize);
-        LOG("[SD Card] judgeTimetoUpdate = %d\r\n",judgeTimetoUpdate(&nowTimeInfo));
         newFileNeeded = true; // 下一轮就要创建新文件
     }
     
     fclose(file);// 关闭文件
+
+    /* 当天文件已落盘后，再安全归档前一天的目录。 */
+    archive_previous_day(&nowTimeInfo);
+
+    /* 先归档、后清理，避免容量清理提前删除待归档目录。 */
+    checkSDCardCapacity();
 
 QUIT_FLAG:
     pthread_mutex_unlock(&inactiveBuffer->mutex);
