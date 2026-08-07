@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 6.2
+ * Model version                  : 6.3
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Fri Jul 31 16:02:35 2026
+ * C/C++ source code generated on : Wed Aug  5 17:00:25 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -87,8 +87,6 @@ extern uint8_T TCU_TimeMonth;          /* '<Root>/TCU_TimeMonth' */
 extern uint8_T TCU_TimeSecond;         /* '<Root>/TCU_TimeSecond' */
 extern uint8_T TCU_TimeWeek;           /* '<Root>/TCU_TimeWeek' */
 extern uint8_T TCU_TimeYear;           /* '<Root>/TCU_TimeYear' */
-extern uint8_T TCU_BCUCapacityFlag;    /* '<Root>/TCU_BCUCapacityFlag' */
-extern uint8_T TCU_CoolingFlag;        /* '<Root>/TCU_CoolingFlag' */
 extern uint8_T TCU_PHYError;           /* '<Root>/TCU_PHYError' */
 extern CAN_FD_MESSAGE_BUS CANSendMsg;  /* '<Root>/CANSendMsg' */
 

@@ -200,6 +200,7 @@ void PHYlinktate(void)
             GetTimeDifference_ms(phy_state_tick) >= FAULT_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
             set_TCU_PHYError(1);//
+            set_TCU_PowerUpCmd(BMS_POWER_OFF);
             LOG("PHY_LINK_FAULT ERROR (startup timeout)\r");
             monitor_enabled = 1;
             reported_link_state = 0;
@@ -229,6 +230,7 @@ void PHYlinktate(void)
             GetTimeDifference_ms(phy_state_tick) >= FAULT_REPORT_TIME) {
             set_emcu_fault(PHY_LINK_FAULT, SET_ERROR);
             set_TCU_PHYError(1);//
+            set_TCU_PowerUpCmd(BMS_POWER_OFF);
             LOG("PHY_LINK_FAULT ERROR (%s)\r",
                 physical_link_up ? "modbus communication timeout"
                                  : "physical link down");

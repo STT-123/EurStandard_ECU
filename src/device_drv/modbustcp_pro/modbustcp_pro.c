@@ -96,27 +96,8 @@ static uint64_t get_time_us(void)
             {
                 save_ip_to_conffile(address, data);
 				LOG("[ModbusTcp] Set IP %d\r\n",data);
-            }
-			else if (address == MDBUS_BCU_CAPACITY)
-			{
-				if(data == 5 || data == 6){
-					LOG("[ModbusTcp] Set BCU Capacity %d\r\n",data);
-					set_TCU_BCUCapacityFlag(data);
-				}else{
-					LOG("[ModbusTcp] Invalid BCU Capacity %d\r\n",data);
-				}
-
-			}
-			else if (address == MDBUS_BCU_COOLING)
-			{
-				if(data == 1 || data == 2){
-					LOG("[ModbusTcp] Set BCU Cooling %d\r\n",data);
-					set_TCU_CoolingFlag(data);
-				}else{
-					LOG("[ModbusTcp] Invalid BCU Cooling %d\r\n",data);
-				}
-			}	
-            // 重启
+            }	
+           	// 重启
             else if ((address == MDBUS_ECU_REBOOT) && (data == 1))
             {
 				LOG("[ModbusTcp] Set Reboot %d\r\n",data);

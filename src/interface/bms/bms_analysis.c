@@ -317,13 +317,6 @@ uint8_T get_TCU_ChargerWorkSts(void) { return TCU_ChargerWorkSts; }
 void set_TCU_ECOMode(uint8_T value) { TCU_ECOMode = value; }
 uint8_T get_TCU_ECOMode(void) { return TCU_ECOMode; }
 
-
-void set_TCU_BCUCapacityFlag(uint8_T value) { TCU_BCUCapacityFlag = value; }
-uint8_T get_TCU_BCUCapacityFlag(void) { return TCU_BCUCapacityFlag; }
-
-void set_TCU_CoolingFlag(uint8_T value) { TCU_CoolingFlag = value; }
-uint8_T get_TCU_CoolingFlag(void) { return TCU_CoolingFlag; }
-
 void set_TCU_LifeCounter(uint8_T value) { TCU_LifeCounter = value; }
 uint8_T get_TCU_LifeCounter(void) { return TCU_LifeCounter; }
 

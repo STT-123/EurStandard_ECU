@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 6.3
+ * Model version                  : 6.6
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Fri Jul 17 14:52:24 2026
+ * C/C++ source code generated on : Thu Aug  6 10:07:50 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -46,17 +46,17 @@ typedef struct {
   real_T CANFDUnpack2_o17;             /* '<S1>/CAN FD Unpack2' */
   real_T CANFDUnpack2_o18;             /* '<S1>/CAN FD Unpack2' */
   real_T CANFDUnpack2_o23;             /* '<S1>/CAN FD Unpack2' */
+  real32_T CANFDUnpack1_o6;            /* '<S1>/CAN FD Unpack1' */
+  real32_T CANFDUnpack1_o7;            /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o8;            /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o9;            /* '<S1>/CAN FD Unpack1' */
-  real32_T CANFDUnpack1_o10;           /* '<S1>/CAN FD Unpack1' */
-  real32_T CANFDUnpack1_o11;           /* '<S1>/CAN FD Unpack1' */
-  real32_T CANFDUnpack1_o22;           /* '<S1>/CAN FD Unpack1' */
+  real32_T CANFDUnpack1_o20;           /* '<S1>/CAN FD Unpack1' */
+  real32_T CANFDUnpack1_o25;           /* '<S1>/CAN FD Unpack1' */
+  real32_T CANFDUnpack1_o26;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o27;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o28;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o29;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o30;           /* '<S1>/CAN FD Unpack1' */
-  real32_T CANFDUnpack1_o31;           /* '<S1>/CAN FD Unpack1' */
-  real32_T CANFDUnpack1_o32;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack2_o12;           /* '<S1>/CAN FD Unpack2' */
   real32_T CANFDUnpack2_o13;           /* '<S1>/CAN FD Unpack2' */
   real32_T CANFDUnpack2_o15;           /* '<S1>/CAN FD Unpack2' */
@@ -67,17 +67,17 @@ typedef struct {
   uint16_T CANFDUnpack1_o1;            /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o2;            /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o3;            /* '<S1>/CAN FD Unpack1' */
+  uint16_T CANFDUnpack1_o14;           /* '<S1>/CAN FD Unpack1' */
+  uint16_T CANFDUnpack1_o15;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o16;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o17;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o18;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o19;           /* '<S1>/CAN FD Unpack1' */
-  uint16_T CANFDUnpack1_o20;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o21;           /* '<S1>/CAN FD Unpack1' */
+  uint16_T CANFDUnpack1_o22;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o23;           /* '<S1>/CAN FD Unpack1' */
   uint16_T CANFDUnpack1_o24;           /* '<S1>/CAN FD Unpack1' */
-  uint16_T CANFDUnpack1_o25;           /* '<S1>/CAN FD Unpack1' */
-  uint16_T CANFDUnpack1_o26;           /* '<S1>/CAN FD Unpack1' */
-  uint16_T CANFDUnpack1_o35;           /* '<S1>/CAN FD Unpack1' */
+  uint16_T CANFDUnpack1_o33;           /* '<S1>/CAN FD Unpack1' */
   uint16_T BCU_Curr2_H;                /* '<S1>/U32_to_Folat_Curr' */
   uint16_T BCU_Curr2_L;                /* '<S1>/U32_to_Folat_Curr' */
   uint16_T CANFDUnpack2_o3;            /* '<S1>/CAN FD Unpack2' */
@@ -171,9 +171,9 @@ typedef struct {
   uint16_T CANFDUnpack11_o30;          /* '<S1>/CAN FD Unpack11' */
   uint16_T CANFDUnpack11_o31;          /* '<S1>/CAN FD Unpack11' */
   uint16_T CANFDUnpack11_o32;          /* '<S1>/CAN FD Unpack11' */
-  int16_T CANFDUnpack1_o33;            /* '<S1>/CAN FD Unpack1' */
+  int16_T CANFDUnpack1_o31;            /* '<S1>/CAN FD Unpack1' */
+  int16_T CANFDUnpack1_o32;            /* '<S1>/CAN FD Unpack1' */
   int16_T CANFDUnpack1_o34;            /* '<S1>/CAN FD Unpack1' */
-  int16_T CANFDUnpack1_o36;            /* '<S1>/CAN FD Unpack1' */
   int16_T CANFDUnpack2_o19;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o24;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o25;            /* '<S1>/CAN FD Unpack2' */
@@ -390,8 +390,6 @@ extern uint8_T BCU_BCUVersion_H;       /* '<S1>/CAN FD Unpack2' */
 extern uint8_T BCU_BCUVersion_L;       /* '<S1>/CAN FD Unpack2' */
 extern uint16_T BCU_BMUConnErrNum;     /* '<S1>/CAN FD Unpack' */
 extern uint16_T BCU_BatteryStatus;     /* '<S1>/CAN FD Unpack1' */
-extern uint16_T BCU_CapacityFlag;      /* '<S1>/CAN FD Unpack1' */
-extern uint16_T BCU_CoolingFlag;       /* '<S1>/CAN FD Unpack1' */
 extern uint16_T BCU_Curr;              /* '<S1>/Data Type Conversion46' */
 extern uint32_T BCU_EngryAccumulateChrg;/* '<S1>/Data Type Conversion18' */
 extern uint32_T BCU_EngryAccumulateDisChrg;/* '<S1>/Data Type Conversion20' */
@@ -513,19 +511,17 @@ extern uint16_T usSingleBatVal[240];   /* '<S4>/MATLAB Function2' */
  * '<S56>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement46'
  * '<S57>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement47'
  * '<S58>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement48'
- * '<S59>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement49'
- * '<S60>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement5'
- * '<S61>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement50'
- * '<S62>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement51'
- * '<S63>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement52'
- * '<S64>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement53'
- * '<S65>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement6'
- * '<S66>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement7'
- * '<S67>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement8'
- * '<S68>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement9'
- * '<S69>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginTemp/MATLAB Function'
- * '<S70>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginVolt/MATLAB Function2'
- * '<S71>'  : 'CANFDRcvFcn_BCU/BCU_Info/Get_CompressorStatus/Compare To Constant'
+ * '<S59>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement5'
+ * '<S60>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement51'
+ * '<S61>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement52'
+ * '<S62>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement53'
+ * '<S63>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement6'
+ * '<S64>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement7'
+ * '<S65>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement8'
+ * '<S66>'  : 'CANFDRcvFcn_BCU/BCU_Info/Write Measurement9'
+ * '<S67>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginTemp/MATLAB Function'
+ * '<S68>'  : 'CANFDRcvFcn_BCU/BCU_Info/AssginVolt/MATLAB Function2'
+ * '<S69>'  : 'CANFDRcvFcn_BCU/BCU_Info/Get_CompressorStatus/Compare To Constant'
  */
 #endif                                 /* CANFDRcvFcn_BCU_h_ */
 
