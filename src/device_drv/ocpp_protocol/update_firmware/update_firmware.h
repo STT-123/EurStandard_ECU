@@ -12,7 +12,7 @@
 #include "message_queue.h"
 #include "interface/log/log.h"
 
-#define MAX_PATH_LENGTH 256
+#define MAX_PATH_LENGTH 512
 typedef enum
 {
 	Downloading,
@@ -25,7 +25,6 @@ typedef enum
 
 
 void* firmware_download_worker(void* arg);
-const char* extract_after_xc(const char* url);
 int download_file(const char *url,const char *filetype);
 void handle_update_firmware(struct lws *wsi, json_object *json);
 struct json_object *FirmwareStatusNotification(OCPP_Download_STATUS Status) ;

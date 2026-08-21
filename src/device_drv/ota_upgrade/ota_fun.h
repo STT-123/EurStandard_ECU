@@ -1,6 +1,7 @@
 #ifndef _OTA_FUN_H
 #define _OTA_FUN_H 
 #include <string.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <stdatomic.h>
 
@@ -17,8 +18,16 @@
 #define OTASUCCESS 0x0100			// OTA升级成功
 #define OTAFAILED 0x0200			// OTA升级失败
 
-#define OTAFILENAMEMAXLENGTH 128
+#define OTAFILENAMEMAXLENGTH 256
+#define OTA_PATH_MAX_LENGTH 512
 #define MAX_FILE_COUNT 20
+
+/* OTA files live on the local persistent data partition, independent of SD logs. */
+#define OTA_BASE_PATH      "/userdata/xcharge"
+#define OTA_ROOT_PATH      "/userdata/xcharge/ota"
+#define OTA_INCOMING_PATH  OTA_ROOT_PATH "/incoming"
+#define OTA_EXTRACT_PATH   OTA_ROOT_PATH "/extract"
+#define OTA_READY_PATH     OTA_ROOT_PATH "/ready"
 
 /*
  * Unified OTA error bits for ECU / BCU / BMU upgrade flows.
@@ -100,8 +109,8 @@ typedef struct
 {
 	_Atomic unsigned char OTAFileType; //文件类型
 	char OTAFilename[OTAFILENAMEMAXLENGTH];//其他ota文件名
-	char OTAUdsSblFilename[MAX_FILE_COUNT][OTAFILENAMEMAXLENGTH];//专门给AC使用的
-	char OTAUdsFilename[MAX_FILE_COUNT][OTAFILENAMEMAXLENGTH];//专门给AC使用的
+	char OTAUdsSblFilename[MAX_FILE_COUNT][OTA_PATH_MAX_LENGTH];//专门给AC使用的绝对路径
+	char OTAUdsFilename[MAX_FILE_COUNT][OTA_PATH_MAX_LENGTH];//专门给AC使用的绝对路径
 	_Atomic unsigned int deviceID;//CAN 设备ID 
 	_Atomic unsigned char deviceType;	//设备类型
 	_Atomic unsigned char OTAStart;	//OTA 烧文件开始标志
@@ -161,6 +170,9 @@ extern UpgradeInfo g_max_upgrade;
  const char* get_ota_OTAUdsFilename(int index);
  void set_ota_OTAUdsFilename(int index, const char* filename);
 int unzipfile(char * cp_filepath,unsigned int * error_status, file_type_t file_type);
+int ensure_ota_storage_dirs(void);
+void cleanup_ota_staging_files(void);
+bool ota_filename_is_safe(const char *filename);
 static int extract_index(const char* section) ;
 static int find_ota_files_simple(const char *extract_dir,file_type_t file_type, char *conf_path, size_t conf_len,char *deb_path, size_t deb_len);
 static int compute_file_md5(const char *filepath, char *out_md5) ;

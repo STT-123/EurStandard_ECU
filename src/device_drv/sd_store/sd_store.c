@@ -4,6 +4,7 @@
 #include "interface/log/log.h"
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
+#include "interface/bms/bms_analysis.h"
 #include "interface/modbus/modbus_defines.h"
 #include <time.h>
 #include <ftw.h>
@@ -11,6 +12,7 @@
 #include <sys/wait.h>
 #include <stdatomic.h>
 #include <fcntl.h>
+#include <math.h>
 
 extern pthread_mutex_t ftp_file_io_mutex;
 
@@ -43,7 +45,28 @@ static struct timeval first_tv = {0, 0};
 static int first_time_captured = 0;
 static pthread_mutex_t sd_format_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool sd_format_in_progress = false;
+static unsigned int sd_consecutive_write_successes = 0;
 extern  atomic_int rtc_sync_pending ;
+
+#define SD_RECOVERY_SUCCESS_COUNT 3U
+
+static void mark_sd_failed(void)
+{
+    sd_consecutive_write_successes = 0;
+    set_emcu_fault(SD_FAULT, SET_ERROR);
+}
+
+static void mark_sd_write_success(void)
+{
+    if (sd_consecutive_write_successes < SD_RECOVERY_SUCCESS_COUNT) {
+        sd_consecutive_write_successes++;
+        if (sd_consecutive_write_successes == SD_RECOVERY_SUCCESS_COUNT) {
+            set_emcu_fault(SD_FAULT, SET_RECOVER);
+            LOG("[SD Card] Recovered after %u consecutive successful writes\n",
+                SD_RECOVERY_SUCCESS_COUNT);
+        }
+    }
+}
 
 static void update_sd_capacity_register(float usage_percent)
 {
@@ -152,10 +175,14 @@ static int is_mount_point_active(const char *mount_point)
         return 0;
     }
 
-    char line[256];
+    char device[PATH_MAX];
+    char mounted_at[PATH_MAX];
+    char filesystem[64];
+    char options[256];
     int mounted = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        if (strstr(line, mount_point)) {
+    while (fscanf(fp, "%4095s %4095s %63s %255s %*d %*d",
+                  device, mounted_at, filesystem, options) == 4) {
+        if (strcmp(mounted_at, mount_point) == 0) {
             mounted = 1;
             break;
         }
@@ -163,6 +190,51 @@ static int is_mount_point_active(const char *mount_point)
 
     fclose(fp);
     return mounted;
+}
+
+/*
+ * SD 卡运行中掉线时，旧挂载通常仍保留在 /proc/mounts 中。
+ * 关闭 zlog 的 SD 文件句柄并延迟卸载，让 /mnt/sda 重新显示为
+ * 内部存储目录，然后在内部存储上恢复普通日志。
+ */
+static int switch_logs_to_internal_storage(void)
+{
+    int saved_errno = 0;
+    int result = 0;
+
+    log_pause_for_sd_format();
+    leave_mount_point_if_needed(USB_MOUNT_POINT);
+
+    if (is_mount_point_active(USB_MOUNT_POINT) &&
+        umount2(USB_MOUNT_POINT, MNT_DETACH) != 0) {
+        saved_errno = errno;
+        result = -1;
+    }
+
+    if (ensure_mount_point(USB_MOUNT_POINT) != 0 ||
+        ensure_mount_point(ZLOG_DATA_FILE_PATH) != 0) {
+        if (saved_errno == 0) {
+            saved_errno = errno;
+        }
+        result = -1;
+    }
+
+    if (log_resume_after_sd_format() != 0) {
+        if (saved_errno == 0) {
+            saved_errno = errno;
+        }
+        result = -1;
+    }
+
+    if (result == 0) {
+        LOG("[SD Card] SD unavailable, logging switched to internal storage: %s\n",
+            ZLOG_DATA_FILE_PATH);
+    } else {
+        printf("[SD Card] Failed to switch logging to internal storage: %s\n",
+               saved_errno ? strerror(saved_errno) : "zlog initialization failed");
+    }
+
+    return result;
 }
 
 static int unmount_sdcard_if_needed(const char *mount_point)
@@ -251,6 +323,7 @@ static int format_sdcard_fat32(const char *device, int *exit_code)
 static int mount_sdcard_fat32(void) {
 
     int ret;
+    int log_was_paused = 0;
     char *device = NULL;
     
     // 先检查/proc/mounts
@@ -263,14 +336,26 @@ static int mount_sdcard_fat32(void) {
     if (!device) {
         return -1;
     }
+
+    /*
+     * zlog 可能正在写未挂载时的内部 /mnt/sda/log。
+     * 挂载前关闭旧文件句柄，挂载后再在 SD 卡上重新打开。
+     */
+    log_pause_for_sd_format();
+    log_was_paused = 1;
     
     // 2. 创建挂载点目录
     // mkdir - 创建目录（最简单的API）
     if (mkdir(USB_MOUNT_POINT, 0755) != 0) {
         if (errno != EEXIST) {  // 如果目录已存在，不算是错误
-            LOG("[SD_Card] create /mnt/sda failed: %s\n", strerror(errno));
+            int saved_errno = errno;
             free(device);
-           return -1;
+            if (log_was_paused) {
+                log_resume_after_sd_format();
+            }
+            LOG("[SD_Card] create /mnt/sda failed: %s\n", strerror(saved_errno));
+            errno = saved_errno;
+            return -1;
         }
     }
     
@@ -280,12 +365,23 @@ static int mount_sdcard_fat32(void) {
     if (ret != 0) {
         int saved_errno = errno;
         free(device);
+        if (log_was_paused) {
+            log_resume_after_sd_format();
+        }
         LOG("[SD] Mount failed: %s\n", strerror(saved_errno));
         errno = saved_errno;
         return -1;
     }
-    
-    LOG("[SD_Card] Mount suceefully: %s -> %s\n", device, USB_MOUNT_POINT);
+
+    if (ensure_mount_point(ZLOG_DATA_FILE_PATH) != 0) {
+        printf("[SD Card] create %s failed after mount: %s\n",
+               ZLOG_DATA_FILE_PATH, strerror(errno));
+    }
+    if (log_was_paused && log_resume_after_sd_format() != 0) {
+        printf("[SD Card] zlog reinitialization failed after mount\n");
+    }
+
+    LOG("[SD_Card] Mount successfully: %s -> %s\n", device, USB_MOUNT_POINT);
     free(device);
     return 0;
 } 
@@ -563,7 +659,10 @@ static int AscFileWriteTimeHeader(FILE *file, struct tm *timeinfo)
         return -1;
     }
     
-    fflush(file); // 确保数据写入磁盘
+    if (fflush(file) != 0 || ferror(file)) {
+        LOG("[SD Card] ERROR: Failed to flush ASC header: %s\n", strerror(errno));
+        return -1;
+    }
     LOG("[SD Card] === AscFileWriteTimeHeader COMPLETED SUCCESSFULLY ===\n");
     return 0;
 }
@@ -1084,8 +1183,19 @@ static int archive_previous_day(const struct tm *now_time)
     }
 
     remove_old_log_date_zips(zip_name);
+
+    /*
+     * log 目录中的 ZIP 已经复制、校验并原子发布成功，
+     * 根目录下的中间 ZIP 不再需要保留。删除失败只记录
+     * 日志，不影响已完成的归档结果。
+     */
+    if (unlink(zip_path) != 0 && errno != ENOENT) {
+        LOG("[SD Card] Failed to remove source ZIP %s after publishing: %s\n",
+            zip_path, strerror(errno));
+    }
+
     memcpy(completed_date, date_name, sizeof(completed_date));
-    LOG("[SD Card] Previous day ZIP ready: %s and %s\n", zip_path, log_zip_path);
+    LOG("[SD Card] Previous day ZIP ready: %s\n", log_zip_path);
     return 0;
 }
 // 获取从当天00:00:00开始的秒.毫秒
@@ -1326,6 +1436,7 @@ void Drv_write_buffer_to_file(void)
     static char filePath[512] = {0}; // 当前使用的文件路径
     int ret = 0;
     int dateChanged = 0;
+    bool write_failed = false;
     // 根据当前时间创建一个文件路径
     struct tm nowTimeInfo = {0};
     DoubleRingBuffer *drb = &canDoubleRingBuffer;
@@ -1366,7 +1477,7 @@ void Drv_write_buffer_to_file(void)
     {
         //LOG("[SD Card] SD_FAULT\r\n");
         set_modbus_reg_val(MDBUS_SD_CAPACITY, 0);
-        set_emcu_fault(SD_FAULT, SET_ERROR);
+        mark_sd_failed();
         goto QUIT_FLAG;
     }
    
@@ -1385,28 +1496,36 @@ void Drv_write_buffer_to_file(void)
     else
     {
         LOG("[SD Card] ERROR: OpenNowWriteAscFile failed for: %s\n", filePath);
+        mark_sd_failed();
+        switch_logs_to_internal_storage();
         goto QUIT_FLAG; // 打开失败 直接返回
     }
-  
-    fseek(file, 0, SEEK_END);
-    long startFileSize = ftell(file);
 
-    if (newFileNeeded)// 如果是新创建的文件
+    if (fseek(file, 0, SEEK_END) != 0) {
+        LOG("[SD Card] ERROR: Initial fseek failed: %s\n", strerror(errno));
+        write_failed = true;
+    }
+
+    if (!write_failed && newFileNeeded)// 如果是新创建的文件
     {
         LOG("[SD Card] 9. Writing headers for new file\n");
         // 先写入当前文件头
         if (AscFileWriteTimeHeader(file, &nowTimeInfo) != 0) {
             LOG("[SD Card] ERROR: Failed to write time header\n");
+            write_failed = true;
         } else {
             //printf("9.1 Time header written\n");
+            newFileNeeded = false;// 文件头写入成功后才清除标志
         }
-        newFileNeeded = false;// 标记不需要重新创建了      
     }
 
     // 如果不是新创建的文件 从文件的末尾追加写入
-    fseek(file, 0, SEEK_END);
+    if (!write_failed && fseek(file, 0, SEEK_END) != 0) {
+        LOG("[SD Card] ERROR: fseek before data write failed: %s\n", strerror(errno));
+        write_failed = true;
+    }
     // printf("sd storage start\r\n");
-    while (inactiveBuffer->count > 0)
+    while (!write_failed && inactiveBuffer->count > 0)
     {
         CAN_LOG_MESSAGE *logMsg = &inactiveBuffer->buffer[inactiveBuffer->readIndex];
 
@@ -1449,16 +1568,30 @@ void Drv_write_buffer_to_file(void)
         }
 
         size_t written = fwrite(line, 1, (size_t)lineLen, file);
-        (void)written; // 如需可检查 written == (size_t)lineLen
+        if (written != (size_t)lineLen) {
+            int saved_errno = errno;
+            LOG("[SD Card] ERROR: fwrite failed, expected=%d, actual=%zu, errno=%d (%s)\n",
+                lineLen, written, saved_errno, strerror(saved_errno));
+            write_failed = true;
+            break;
+        }
 
         inactiveBuffer->readIndex = (inactiveBuffer->readIndex + 1) % BUFFER_SIZE;
         inactiveBuffer->count--;
 
     }
-    fflush(file);
+    if (!write_failed && (fflush(file) != 0 || ferror(file))) {
+        LOG("[SD Card] ERROR: fflush failed: %s\n", strerror(errno));
+        write_failed = true;
+    }
 
-    fseek(file, 0, SEEK_END);// 写完之后 计算文件大小
-    long fileSize = ftell(file);
+    long fileSize = -1;
+    if (!write_failed) {
+        if (fseek(file, 0, SEEK_END) != 0 || (fileSize = ftell(file)) < 0) {
+            LOG("[SD Card] ERROR: Failed to determine file size: %s\n", strerror(errno));
+            write_failed = true;
+        }
+    }
 
     // 创建新文件的两个条件
     // 1. 当前写的文件大小超过10M
@@ -1469,7 +1602,18 @@ void Drv_write_buffer_to_file(void)
         newFileNeeded = true; // 下一轮就要创建新文件
     }
     
-    fclose(file);// 关闭文件
+    if (fclose(file) != 0) {
+        LOG("[SD Card] ERROR: fclose failed: %s\n", strerror(errno));
+        write_failed = true;
+    }
+
+    if (write_failed) {
+        mark_sd_failed();
+        switch_logs_to_internal_storage();
+        goto QUIT_FLAG;
+    }
+
+    mark_sd_write_success();
 
     /* 当天文件已落盘后，再安全归档前一天的目录。 */
     archive_previous_day(&nowTimeInfo);
@@ -1642,7 +1786,6 @@ void checkRootCapacity(void)
     }
     if (usage_percent > 80.0f) {
         LOG("Error:   The root partition usage rate has exceeded 80%%, and the space is tight!");
-        set_emcu_fault(SD_FAULT, SET_ERROR);
     }
     // 或者用更简单的方法（避免PRIu64）
     // printf("Simple format:\n");

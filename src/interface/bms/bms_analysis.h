@@ -78,9 +78,6 @@ uint8_T get_OTA_XCPConnect(void);
 void set_TCU_ACMuteSet(uint8_T value);
 uint8_T get_TCU_ACMuteSet(void);
 
-void set_TCU_BCUEINSet(uint32_T value);
-uint32_T get_TCU_BCUEINSet(void);
-
 void set_TCU_ChargerWorkSts(uint8_T value);
 uint8_T get_TCU_ChargerWorkSts(void);
 

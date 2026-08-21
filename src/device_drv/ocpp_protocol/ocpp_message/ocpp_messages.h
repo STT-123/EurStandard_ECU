@@ -35,6 +35,7 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
 void handle_call_message(struct lws *wsi, json_object *json);
 void handle_call_result_message(struct lws *wsi, json_object *json);
 void handle_call_error_message(struct lws *wsi, json_object *json);
+void handle_trigger_report_energy_storage_status_v2(struct lws *wsi, json_object *json);
 void handle_heartbeat(struct lws *wsi, json_object *json);
 int process_ocpp_message(struct lws *wsi, const char *message);
 void handle_ChangeConfiguration(struct lws *wsi, json_object *json);

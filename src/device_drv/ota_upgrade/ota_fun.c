@@ -5,11 +5,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include "ota_fun.h"
 #include "sd_store.h"
 #include "ota_ecu_update.h"
 #include "ota_other_update.h"
 #include "interface/log/log.h"
+#include "interface/ini/ini.h"
 
 #define COPY_BUFFER_SIZE (10*1024 * 1024)  // 10MB buffer
 #define BAT_ECU_TARGET_PATH "/opt/xcharge/bat_ecu"
@@ -22,6 +24,78 @@ static int global_max_index = -1;      // 当前最大 X
 
 // 互斥锁保护非原子变量
 pthread_mutex_t ota_mutex = PTHREAD_MUTEX_INITIALIZER;//多读一写适合读写锁
+
+bool ota_filename_is_safe(const char *filename)
+{
+    size_t len;
+
+    if (!filename || filename[0] == '\0') {
+        return false;
+    }
+
+    len = strlen(filename);
+    if (len >= OTAFILENAMEMAXLENGTH || strstr(filename, "..") != NULL) {
+        return false;
+    }
+
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char ch = (unsigned char)filename[i];
+        if (!isalnum(ch) && ch != '_' && ch != '-' && ch != '.') {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static int ensure_directory(const char *path)
+{
+    struct stat st;
+
+    if (mkdir(path, 0750) == 0) {
+        return 0;
+    }
+    if (errno != EEXIST) {
+        LOG("[OTA] Failed to create directory %s: %s\n", path, strerror(errno));
+        return -1;
+    }
+    if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        LOG("[OTA] Path exists but is not a directory: %s\n", path);
+        return -1;
+    }
+    return 0;
+}
+
+int ensure_ota_storage_dirs(void)
+{
+    if (ensure_directory(OTA_BASE_PATH) != 0 ||
+        ensure_directory(OTA_ROOT_PATH) != 0 ||
+        ensure_directory(OTA_INCOMING_PATH) != 0 ||
+        ensure_directory(OTA_EXTRACT_PATH) != 0 ||
+        ensure_directory(OTA_READY_PATH) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+void cleanup_ota_staging_files(void)
+{
+    const char *dirs[] = {
+        OTA_INCOMING_PATH,
+        OTA_EXTRACT_PATH,
+        OTA_READY_PATH
+    };
+
+    if (ensure_ota_storage_dirs() != 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); ++i) {
+        if (!clean_directory(dirs[i])) {
+            LOG("[OTA] Failed to clean staging directory: %s\n", dirs[i]);
+        }
+    }
+}
 
  unsigned int get_ota_deviceID(void) {
     return atomic_load(&g_otactrl.deviceID);
@@ -121,8 +195,8 @@ inline void set_ota_OTAFileType(unsigned char value) {
  void set_ota_OTAUdsSblFilename(int index, const char* filename) {
     pthread_mutex_lock(&ota_mutex);
     if (index >= 0 && index < MAX_FILE_COUNT && filename) {
-        strncpy(g_otactrl.OTAUdsSblFilename[index], filename, OTAFILENAMEMAXLENGTH - 1);
-        g_otactrl.OTAUdsSblFilename[index][OTAFILENAMEMAXLENGTH - 1] = '\0';
+        strncpy(g_otactrl.OTAUdsSblFilename[index], filename, OTA_PATH_MAX_LENGTH - 1);
+        g_otactrl.OTAUdsSblFilename[index][OTA_PATH_MAX_LENGTH - 1] = '\0';
     }
     pthread_mutex_unlock(&ota_mutex);
 }
@@ -140,8 +214,8 @@ inline void set_ota_OTAFileType(unsigned char value) {
  void set_ota_OTAUdsFilename(int index, const char* filename) {
     pthread_mutex_lock(&ota_mutex);
     if (index >= 0 && index < MAX_FILE_COUNT && filename) {
-        strncpy(g_otactrl.OTAUdsFilename[index], filename, OTAFILENAMEMAXLENGTH - 1);
-        g_otactrl.OTAUdsFilename[index][OTAFILENAMEMAXLENGTH - 1] = '\0';
+        strncpy(g_otactrl.OTAUdsFilename[index], filename, OTA_PATH_MAX_LENGTH - 1);
+        g_otactrl.OTAUdsFilename[index][OTA_PATH_MAX_LENGTH - 1] = '\0';
     }
     pthread_mutex_unlock(&ota_mutex);
 }
@@ -257,7 +331,7 @@ static int find_ota_files_simple(const char *extract_dir, file_type_t file_type,
 
 
 static int compute_file_md5(const char *filepath, char *out_md5) {
-    char cmd[512];
+    char cmd[OTA_PATH_MAX_LENGTH + 64];
     FILE *fp;
     snprintf(cmd, sizeof(cmd), "md5sum \"%s\" | cut -d' ' -f1", filepath);
     fp = popen(cmd, "r");
@@ -371,25 +445,44 @@ static int handler(void* user, const char* section, const char* name,
 }
 int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_type){
 
-    char sd_source_file[512] = {'\0'};//SD的路径
+    char source_file[512] = {'\0'};
+    char extract_dir[512] = {'\0'};
+    int extract_dir_created = 0;
+    int result = -1;
 
-    // 步骤1: 检查SD卡的文件是否存在
+    if (!cp_filepath || !error_status) {
+        LOG("[OTA] Invalid unzip arguments\n");
+        return -1;
+    }
+
+    if (!ota_filename_is_safe(get_ota_OTAFilename())) {
+        LOG("[OTA] Unsafe OTA filename rejected: %s\n",
+            get_ota_OTAFilename() ? get_ota_OTAFilename() : "(null)");
+        *error_status |= OTA_ERR_SOURCE_PACKAGE_MISSING;
+        return -1;
+    }
+
+    if (ensure_ota_storage_dirs() != 0) {
+        *error_status |= OTA_ERR_EXTRACT_FAILED;
+        goto upcelanup;
+    }
+
+    // 步骤1: 检查本地OTA接收目录中的文件是否存在
     if(*error_status == 0)
     {      
-        snprintf(sd_source_file, sizeof(sd_source_file), "%s/%s", USB_MOUNT_POINT, get_ota_OTAFilename());
+        snprintf(source_file, sizeof(source_file), "%s/%s", OTA_INCOMING_PATH, get_ota_OTAFilename());
         
-        LOG("Source file path: %s\n", sd_source_file);
+        LOG("Source file path: %s\n", source_file);
         // 检查源文件是否存在
-        if (access(sd_source_file, F_OK) != 0) {
-            LOG("[OTA] source file does not exist: %s\n", sd_source_file);
+        if (access(source_file, F_OK) != 0) {
+            LOG("[OTA] source file does not exist: %s\n", source_file);
             *error_status |= OTA_ERR_SOURCE_PACKAGE_MISSING;
             goto upcelanup;
         }         
     }
 
-    // 步骤2: 在tmp创建临时文件夹
-    char extract_dir[512] = {0};
-    snprintf(extract_dir, sizeof(extract_dir), "/tmp/ota_extract_%d", (int)getpid());
+    // 步骤2: 在本地持久分区创建本次解压工作目录
+    snprintf(extract_dir, sizeof(extract_dir), "%s/ota_extract_%d", OTA_EXTRACT_PATH, (int)getpid());
 
     if (access(extract_dir, F_OK) == 0) { // 清理已存在的目录
         LOG("[OTA] Cleaning existing directory: %s\n", extract_dir);
@@ -403,10 +496,11 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
         *error_status |= OTA_ERR_EXTRACT_FAILED;
         goto upcelanup;
     }
+    extract_dir_created = 1;
 
-    // 步骤3: 将SD 卡的文件解压到tmp内
-    char tar_cmd[512] = {0};
-    snprintf(tar_cmd, sizeof(tar_cmd), "tar -xf \"%s\" -C \"%s\"", sd_source_file, extract_dir);
+    // 步骤3: 将OTA包解压到本地工作目录
+    char tar_cmd[(OTA_PATH_MAX_LENGTH * 2) + 64] = {0};
+    snprintf(tar_cmd, sizeof(tar_cmd), "tar -xf \"%s\" -C \"%s\"", source_file, extract_dir);
 
     LOG("[OTA] Executing tar command: %s\n", tar_cmd);
     int ret = system(tar_cmd);
@@ -520,17 +614,32 @@ int unzipfile(char * cp_filepath,unsigned int *error_status, file_type_t file_ty
         goto upcelanup;
     }
 
-    return 1;
+    result = 1;
 
 upcelanup:
-    return -1;
+    if (extract_dir_created) {
+        if (!clean_directory(extract_dir) || rmdir(extract_dir) != 0) {
+            LOG("[OTA] Failed to remove extract directory %s: %s\n",
+                extract_dir, strerror(errno));
+        }
+    }
+    return result;
 }
 
 int copy_file(const char *src, const char *dst)
 {
     int fd_in = -1, fd_out = -1;
     char *buffer = NULL;
+    char temp_path[PATH_MAX] = {0};
+    struct stat mode_source;
+    mode_t target_mode = 0644;
     bool success = false;
+
+    if (!src || !dst ||
+        snprintf(temp_path, sizeof(temp_path), "%s.tmp.XXXXXX", dst) >= (int)sizeof(temp_path)) {
+        LOG("[OTA] Invalid or oversized copy path\n");
+        return false;
+    }
 
     // 打开源文件（只读）
     fd_in = open(src, O_RDONLY);
@@ -539,10 +648,20 @@ int copy_file(const char *src, const char *dst)
         goto cleanup;
     }
 
-    // 创建目标文件（写入，权限 0644）
-    fd_out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (stat(dst, &mode_source) == 0 || fstat(fd_in, &mode_source) == 0) {
+        if ((mode_source.st_mode & 0777) != 0) {
+            target_mode = mode_source.st_mode & 0777;
+        }
+    }
+
+    // 在目标目录中先写临时文件，成功后原子替换目标。
+    fd_out = mkstemp(temp_path);
     if (fd_out == -1) {
-        LOG("[OTA] Failed to create target file %s: %s\n", dst, strerror(errno));
+        LOG("[OTA] Failed to create temporary target for %s: %s\n", dst, strerror(errno));
+        goto cleanup;
+    }
+    if (fchmod(fd_out, target_mode) != 0) {
+        LOG("[OTA] Failed to set temporary file mode: %s\n", strerror(errno));
         goto cleanup;
     }
 
@@ -576,8 +695,21 @@ int copy_file(const char *src, const char *dst)
     // 同步到磁盘（可选，提高可靠性）
     if (fsync(fd_out) != 0) {
         LOG("[OTA] fsync failed: %s\n", strerror(errno));
-        // 可选择是否视为失败
+        goto cleanup;
     }
+
+    if (close(fd_out) != 0) {
+        LOG("[OTA] Failed to close target file %s: %s\n", dst, strerror(errno));
+        fd_out = -1;
+        goto cleanup;
+    }
+    fd_out = -1;
+
+    if (rename(temp_path, dst) != 0) {
+        LOG("[OTA] Failed to atomically replace %s: %s\n", dst, strerror(errno));
+        goto cleanup;
+    }
+    temp_path[0] = '\0';
 
     success = true;
 
@@ -586,9 +718,8 @@ cleanup:
     if (fd_in != -1) close(fd_in);
     if (fd_out != -1) close(fd_out);
 
-    if (!success && dst) {
-        // 复制失败时删除不完整的文件
-        unlink(dst);
+    if (!success && temp_path[0] != '\0') {
+        unlink(temp_path);
     }
 
     return success;

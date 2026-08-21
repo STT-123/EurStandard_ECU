@@ -7,6 +7,8 @@
 #include "device_drv/xmodem/xmodemdata.h"
 #include "device_drv/sd_store/sd_store.h"
 #include "interface/can/mycan.h"
+#include "interface/time/time_diff.h"
+#include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
 
 XCPStatus xcpstatus = {0};
 unsigned int OTA_RecvPacketCount = 0;
@@ -29,7 +31,7 @@ static int build_expected_bin_path(char *out_path, size_t out_len)
     }
 
     strcpy(dot, ".bin");
-    snprintf(out_path, out_len, "%s/%s", USB_MOUNT_POINT, filenametmp);
+    snprintf(out_path, out_len, "%s/%s", OTA_READY_PATH, filenametmp);
     return 0;
 }
 
@@ -451,7 +453,7 @@ static int SendLastPacket(FILE*rfile, unsigned char lastpackdatanum, XCPStatus *
         xcpstatus->ErrorDeviceID = get_ota_deviceID();
         return -1;
     } else {
-        LOG("[OTA] file read %d byte data success!\r\n", rnum);
+        LOG("[OTA] file read %zu byte data success!\r\n", rnum);
     }
 
     xcpstatus->XCPCMDOuttimeTimes = 1;
@@ -779,7 +781,7 @@ void XCP_OTA(int count)
                 (access(otafilenamestr1, F_OK) == 0)) {
                 LOG("[OTA] Reuse prechecked BCU bin before XCP OTA: %s\r\n", otafilenamestr1);
             } else {
-                ret = unzipfile(USB_MOUNT_POINT,(unsigned int *)&xcpstatus.ErrorReg,FILE_TYPE_BIN);
+                ret = unzipfile(OTA_READY_PATH,(unsigned int *)&xcpstatus.ErrorReg,FILE_TYPE_BIN);
                 if(ret < 0){
                     goto xcpcleanup;
                 }
@@ -896,9 +898,7 @@ void FinshhBCUBMUOtaAndCleanup(void)
 {
     set_ota_deviceType(0);//停止升级
     set_OTA_XCPConnect(0);
-	delete_files_with_prefix(USB_MOUNT_POINT, "XC");//  这个要删除升级文件，判断xcpstatus状态，成功或者失败删除
-    delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
-    delete_files_with_prefix(USB_MOUNT_POINT, "tar"); 
+	cleanup_ota_staging_files();
 	set_ota_UpDating(0);//1130(升级结束)
 	memset(&xcpstatus,0,sizeof(xcpstatus));
     set_OTA_XCPConnect(0);//删除跳转到BOOT的条件,OTA_XCPConnect为0xFF才会跳转到BOOT

@@ -2,16 +2,16 @@
 #include "device_drv/sd_store/sd_store.h"
 #include "ocpp_messages.h"
 #include "ocpp_app_update.h"
+#include "device_drv/ota_upgrade/ota_fun.h"
 int g_ocppdownload_flag = 0;
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
-    size_t realsize = size * nmemb;
     FILE *fp = (FILE *)userp;
     size_t written = fwrite(contents, size, nmemb, fp);
     if (written != nmemb) {
         fprintf(stderr, "写入文件失败\n");
     }
-    return realsize;
+    return written * size;
 }
 
 
@@ -23,7 +23,7 @@ int download_file(const char *url,const char *filetype) {
     CURLcode res;
     char download_filename[MAX_PATH_LENGTH];
 
-    if (!url || !filetype) {
+    if (!url || !filetype || !ota_filename_is_safe(filetype)) {
         fprintf(stderr, "Error: url or filetype is NULL\n");
         return -1;
     }
@@ -33,7 +33,17 @@ int download_file(const char *url,const char *filetype) {
         fprintf(stderr, "curl init failed\n");
         return -1;
     }
-    snprintf(download_filename, MAX_PATH_LENGTH, "%s/%s", USB_MOUNT_POINT, filetype);
+    if (ensure_ota_storage_dirs() != 0) {
+        fprintf(stderr, "local OTA storage is unavailable\n");
+        curl_easy_cleanup(curl);
+        return -1;
+    }
+    int path_len = snprintf(download_filename, MAX_PATH_LENGTH, "%s/%s", OTA_INCOMING_PATH, filetype);
+    if (path_len < 0 || path_len >= MAX_PATH_LENGTH) {
+        fprintf(stderr, "OTA download path is too long\n");
+        curl_easy_cleanup(curl);
+        return -1;
+    }
     LOG("Download File...........: %s\n", download_filename);
     fp = fopen(download_filename, "wb");
     if (!fp) {
@@ -53,11 +63,27 @@ int download_file(const char *url,const char *filetype) {
         fprintf(stderr, "Download File Failed: %s\n", curl_easy_strerror(res));
         LOG("Download File Failed\r\n");
         fclose(fp);
+        unlink(download_filename);
         curl_easy_cleanup(curl);
         return -1;
     }
 
-    fclose(fp);
+    int persist_error = 0;
+    if (fflush(fp) != 0) {
+        persist_error = 1;
+    }
+    if (fsync(fileno(fp)) != 0) {
+        persist_error = 1;
+    }
+    if (fclose(fp) != 0) {
+        persist_error = 1;
+    }
+    if (persist_error) {
+        LOG("[OCPP] Failed to persist downloaded OTA file: %s\n", download_filename);
+        unlink(download_filename);
+        curl_easy_cleanup(curl);
+        return -1;
+    }
     curl_easy_cleanup(curl);
     LOG("Download File. Success: %s\n", download_filename);
     // get_check_upgarde_file_type(DOWNLOAD_FILENAME,filetype);
@@ -65,25 +91,47 @@ int download_file(const char *url,const char *filetype) {
     return 0;
 }
 
-const char* extract_after_xc(const char* url) {
-    const char *xc_pos = strstr(url, "XC");
-    return xc_pos ? xc_pos : NULL;
+static int extract_ota_filename_from_url(const char *url, char *out, size_t out_size) {
+    const char *start;
+    const char *end;
+    size_t len;
+
+    if (!url || !out || out_size == 0) {
+        return -1;
+    }
+
+    start = strrchr(url, '/');
+    start = start ? start + 1 : url;
+    end = strpbrk(start, "?#");
+    len = end ? (size_t)(end - start) : strlen(start);
+    if (len == 0 || len >= out_size) {
+        return -1;
+    }
+
+    memcpy(out, start, len);
+    out[len] = '\0';
+    return ota_filename_is_safe(out) ? 0 : -1;
 }
 
 void* firmware_download_worker(void* arg) {
     char *url = (char*)arg;
+    char filetype[OTAFILENAMEMAXLENGTH] = {0};
 
-    char *filetype = extract_after_xc(url);
-    if (filetype) {
+    if (extract_ota_filename_from_url(url, filetype, sizeof(filetype)) == 0) {
         LOG("The firmware file name is: %s\n", filetype);
     } else {
-        
         LOG("Extracting file name failed\n");
-        return;
+        free(url);
+        return NULL;
     }
-    g_ocppdownload_flag = 1;
+    if (__sync_lock_test_and_set(&g_ocppdownload_flag, 1) != 0) {
+        LOG("[OCPP] Another firmware download is already running\n");
+        send_ocpp_message(FirmwareStatusNotification(DownloadFailed));
+        free(url);
+        return NULL;
+    }
     int success = download_file(url,filetype); // 阻塞上传
-    g_ocppdownload_flag = 0;
+    __sync_lock_release(&g_ocppdownload_flag);
     sleep(1);
     if(0 == success)
     {
@@ -141,6 +189,10 @@ void handle_update_firmware(struct lws *wsi, json_object *json) {
 
     // Step 2: 启动异步上传（不要阻塞！）
     char *url_copy = strdup(location); // 避免悬空指针
+    if (!url_copy) {
+        send_ocpp_message(FirmwareStatusNotification(DownloadFailed));
+        return;
+    }
     pthread_t tid;
     if (pthread_create(&tid, NULL, firmware_download_worker, url_copy) == 0) {
         pthread_detach(tid);
@@ -214,5 +266,3 @@ struct json_object *FirmwareStatusNotification(OCPP_Download_STATUS Status) {
 
     return msg;
 }
-
-

@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include "interface/log/log.h"
 #include "ip_setting.h"
+#include "device_drv/sd_store/sd_store.h"
 pthread_t AnormalDetectionTask_TASKHandle = 0;
 
 

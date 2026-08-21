@@ -1,4 +1,5 @@
 #include <time.h>
+#include <execinfo.h>
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
 #include "interface/log/log.h"
@@ -11,6 +12,8 @@
 #include "function_task/bmu_task/bmu_task.h"
 #include "function_task/ota_task/otaupgrad_task.h"
 #include "function_task/xmodem_task/xmodem_task.h"
+#include "function_task/sd_task/sd_task.h"
+#include "function_task/ftp_task/ftp_task.h"
 #include "function_task/abnormal_check_task/abnormal_check_task.h"
 #include "device_drv/abncheck/abncheck.h"
 #include "ocpp_send.h"
@@ -37,51 +40,27 @@ static void printf_version(void)
 void crash_handler(int sig) {
     void *array[20];
     size_t size;
-    
-    // 区分信号类型
+
+    /* 信号处理中不能调用 zlog，否则可能与日志互斥锁死锁。 */
     if (sig == SIGINT || sig == SIGTERM) {
-        // 正常退出信号
-        printf("\nProgram exit... (sign: %d)\n", sig);
-        
         if (sig == SIGINT) {
-            printf("reason: Ctrl+C \n");
+            static const char message[] = "Program exit: SIGINT\n";
+            write(STDERR_FILENO, message, sizeof(message) - 1);
         } else {
-            printf("reason: termination signal\n");
+            static const char message[] = "Program exit: SIGTERM\n";
+            write(STDERR_FILENO, message, sizeof(message) - 1);
         }
-        
-        // 清理资源
-        // close_all_connections();
-        
-        exit(0);  // 正常退出码
+        _exit(0);
     }
-    else {
-        // 真正的崩溃信号
-        LOG("!!! Program crash !!!\r\n");
-        switch(sig) {
-            case SIGSEGV: LOG("Segmentation fault (null pointer/memory overflow)\n"); break;
-            case SIGABRT: LOG("Program abort (assert/abort call)\n"); break;
-            case SIGBUS:  LOG("Bus error (memory alignment issue)\n"); break;
-            case SIGFPE:  LOG("Arithmetic exception (division by zero, etc.)\n"); break;
-            case SIGILL:  LOG("Illegal instruction\n"); break;
-            default:      LOG("Unknown error\n"); break;
-        }
-        
-        LOG("Crash stack trace:\n");// 获取堆栈跟踪
-        size = backtrace(array, 20);
-        if(size >= 3){
-            for (size_t i = 0; i < size; i++) {
-                uintptr_t addr = (uintptr_t)array[i];
-                LOG("Error Addr[%d] = 0x%x\r",i,addr);
-            }
-        }
-        backtrace_symbols_fd(array, size, STDERR_FILENO);
-        
-        // fprintf(stderr, "\n调试建议:\n");
-        // fprintf(stderr, "1. 使用地址信息定位问题\n");
-        // fprintf(stderr, "2. 检查 0x404198 附近的代码\n");
-        
-        exit(1);  // 异常退出码
+
+    {
+        static const char message[] = "Program fatal signal; stack trace follows:\n";
+        write(STDERR_FILENO, message, sizeof(message) - 1);
     }
+
+    size = backtrace(array, 20);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    _exit(128 + sig);
 }
 
 void setup_crash_handler() {
@@ -120,8 +99,6 @@ int main(int argc, char **argv)
     abnormalDetectionTaskCreate(); // 异常监测任务
     // ocppCommunicationTaskCreate(); //ocpp通信任务
     FtpServiceThreadCreate();//查一下ftp会自己复制，或者自己复制一份
-    int index1 = 0;
-
     while(1)
     {
         // for(int i = 0; i < 16; i++){
@@ -226,7 +203,6 @@ void main_test(void){
 	CanMes.Length = 1;
 	CanMes.ID = 111;
 	CanMes.Data[0] = 0xCF;
-    int counter = 0;
     // 测试堆内存泄漏
     // size_t size = 2 * 1024 * sizeof(int);  // 8KB
     // int* ptr = malloc(size);

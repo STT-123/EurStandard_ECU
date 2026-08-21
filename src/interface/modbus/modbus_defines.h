@@ -44,7 +44,7 @@
 #define MDBUS_SET_SOC  	   	   0x6715  //SOCCmd
 #define MDBUS_ENESAV_CTL 	   0x6718	//节能模式使能控制
 #define MDBUS_OFFGRID_STA 	   0x6719	//离网模式状态
-#define MDBUS_ECU_REBOOT  	   0x6720	//ECU重启
+#define MDBUS_ECU_REBOOT       0x6720  // ECU、BCU重启
 #define MDBUS_SD_FROMAT  	   0x6721	//SD卡格式化
 
 #define MDBUS_VOLCAL_MODE  	   0x6734	//电压校准模式

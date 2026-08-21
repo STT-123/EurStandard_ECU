@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 6.6
+ * Model version                  : 6.9
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Thu Aug  6 10:07:50 2026
+ * C/C++ source code generated on : Tue Aug 18 16:53:38 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -41,11 +41,11 @@
 
 /* Block signals (default storage) */
 typedef struct {
-  real_T CANFDUnpack2_o11;             /* '<S1>/CAN FD Unpack2' */
-  real_T CANFDUnpack2_o14;             /* '<S1>/CAN FD Unpack2' */
+  real_T CANFDUnpack2_o10;             /* '<S1>/CAN FD Unpack2' */
+  real_T CANFDUnpack2_o13;             /* '<S1>/CAN FD Unpack2' */
+  real_T CANFDUnpack2_o16;             /* '<S1>/CAN FD Unpack2' */
   real_T CANFDUnpack2_o17;             /* '<S1>/CAN FD Unpack2' */
-  real_T CANFDUnpack2_o18;             /* '<S1>/CAN FD Unpack2' */
-  real_T CANFDUnpack2_o23;             /* '<S1>/CAN FD Unpack2' */
+  real_T CANFDUnpack2_o22;             /* '<S1>/CAN FD Unpack2' */
   real32_T CANFDUnpack1_o6;            /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o7;            /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o8;            /* '<S1>/CAN FD Unpack1' */
@@ -57,10 +57,10 @@ typedef struct {
   real32_T CANFDUnpack1_o28;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o29;           /* '<S1>/CAN FD Unpack1' */
   real32_T CANFDUnpack1_o30;           /* '<S1>/CAN FD Unpack1' */
+  real32_T CANFDUnpack2_o11;           /* '<S1>/CAN FD Unpack2' */
   real32_T CANFDUnpack2_o12;           /* '<S1>/CAN FD Unpack2' */
-  real32_T CANFDUnpack2_o13;           /* '<S1>/CAN FD Unpack2' */
+  real32_T CANFDUnpack2_o14;           /* '<S1>/CAN FD Unpack2' */
   real32_T CANFDUnpack2_o15;           /* '<S1>/CAN FD Unpack2' */
-  real32_T CANFDUnpack2_o16;           /* '<S1>/CAN FD Unpack2' */
   real32_T InWaterPressure;            /* '<S1>/CAN FD Unpack3' */
   real32_T OutWaterPressure;           /* '<S1>/CAN FD Unpack3' */
   real32_T TMS_Power_Req;              /* '<S1>/CAN FD Unpack3' */
@@ -87,13 +87,12 @@ typedef struct {
   uint16_T CANFDUnpack2_o7;            /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o8;            /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o9;            /* '<S1>/CAN FD Unpack2' */
-  uint16_T CANFDUnpack2_o10;           /* '<S1>/CAN FD Unpack2' */
+  uint16_T CANFDUnpack2_o19;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o20;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o21;           /* '<S1>/CAN FD Unpack2' */
-  uint16_T CANFDUnpack2_o22;           /* '<S1>/CAN FD Unpack2' */
+  uint16_T CANFDUnpack2_o36;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o37;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack2_o38;           /* '<S1>/CAN FD Unpack2' */
-  uint16_T CANFDUnpack2_o39;           /* '<S1>/CAN FD Unpack2' */
   uint16_T CANFDUnpack_o25;            /* '<S1>/CAN FD Unpack' */
   uint16_T CANFDUnpack_o26;            /* '<S1>/CAN FD Unpack' */
   uint16_T CANFDUnpack5_o1;            /* '<S1>/CAN FD Unpack5' */
@@ -174,14 +173,14 @@ typedef struct {
   int16_T CANFDUnpack1_o31;            /* '<S1>/CAN FD Unpack1' */
   int16_T CANFDUnpack1_o32;            /* '<S1>/CAN FD Unpack1' */
   int16_T CANFDUnpack1_o34;            /* '<S1>/CAN FD Unpack1' */
-  int16_T CANFDUnpack2_o19;            /* '<S1>/CAN FD Unpack2' */
+  int16_T CANFDUnpack2_o18;            /* '<S1>/CAN FD Unpack2' */
+  int16_T CANFDUnpack2_o23;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o24;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o25;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o26;            /* '<S1>/CAN FD Unpack2' */
-  int16_T CANFDUnpack2_o27;            /* '<S1>/CAN FD Unpack2' */
-  int16_T CANFDUnpack2_o30;            /* '<S1>/CAN FD Unpack2' */
+  int16_T CANFDUnpack2_o29;            /* '<S1>/CAN FD Unpack2' */
+  int16_T CANFDUnpack2_o32;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack2_o33;            /* '<S1>/CAN FD Unpack2' */
-  int16_T CANFDUnpack2_o34;            /* '<S1>/CAN FD Unpack2' */
   int16_T CANFDUnpack_o1;              /* '<S1>/CAN FD Unpack' */
   int16_T CANFDUnpack_o2;              /* '<S1>/CAN FD Unpack' */
   int16_T CANFDUnpack_o3;              /* '<S1>/CAN FD Unpack' */
@@ -260,16 +259,16 @@ typedef struct {
   int16_T AmbientTemp;                 /* '<S1>/CAN FD Unpack3' */
   int16_T InWaterTemp;                 /* '<S1>/CAN FD Unpack3' */
   int16_T OutWaterTemp;                /* '<S1>/CAN FD Unpack3' */
+  uint8_T CANFDUnpack2_o27;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o28;            /* '<S1>/CAN FD Unpack2' */
-  uint8_T CANFDUnpack2_o29;            /* '<S1>/CAN FD Unpack2' */
+  uint8_T CANFDUnpack2_o30;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o31;            /* '<S1>/CAN FD Unpack2' */
-  uint8_T CANFDUnpack2_o32;            /* '<S1>/CAN FD Unpack2' */
+  uint8_T CANFDUnpack2_o34;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o35;            /* '<S1>/CAN FD Unpack2' */
-  uint8_T CANFDUnpack2_o36;            /* '<S1>/CAN FD Unpack2' */
+  uint8_T CANFDUnpack2_o39;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o40;            /* '<S1>/CAN FD Unpack2' */
-  uint8_T CANFDUnpack2_o41;            /* '<S1>/CAN FD Unpack2' */
+  uint8_T CANFDUnpack2_o42;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack2_o43;            /* '<S1>/CAN FD Unpack2' */
-  uint8_T CANFDUnpack2_o44;            /* '<S1>/CAN FD Unpack2' */
   uint8_T CANFDUnpack4_o61;            /* '<S1>/CAN FD Unpack4' */
   uint8_T CANFDUnpack5_o31;            /* '<S1>/CAN FD Unpack5' */
   uint8_T DTCLevel;                    /* '<S1>/CAN FD Unpack3' */
@@ -341,12 +340,12 @@ typedef struct {
   /* Computed Parameter: index_Value
    * Referenced by: '<Root>/index'
    */
-  uint32_T index_Value[111];
+  uint32_T index_Value[110];
 
   /* Computed Parameter: portDimensions_Value
    * Referenced by: '<Root>/portDimensions'
    */
-  uint32_T portDimensions_Value[111];
+  uint32_T portDimensions_Value[110];
 } ConstP_CANFDRcvFcn_BCU_T;
 
 /* Real-time Model Data Structure */

@@ -6,6 +6,7 @@
 #include "device_drv/xmodem/xmodemdata.h"
 #include "device_drv/ota_upgrade/ota_fun.h"
 #include "device_drv/sd_store/sd_store.h"
+#include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
 
 #define APP_PATH  "/opt/xcharge"  
 
@@ -16,7 +17,6 @@ void ECU_OTA(void)
     LOG("[OTA] ECU_OTA start!, get_ota_OTAStart():%d\r\n", get_ota_OTAStart());
     if (!get_ota_OTAStart()) return;
 
-    char sd_source_file[512] = {'\0'};//SD的路径
     memset(&ecustatus, 0, sizeof(ECUStatus));//异常状态
     LOG("[OTA] get_ota_deviceType() : %d \r\n", get_ota_deviceType());
     LOG("[OTA] can id 0x%x device ota start!\r\n", get_ota_deviceID());
@@ -50,11 +50,10 @@ void ECU_OTA(void)
         // 完成操作
         if(ecustatus.ErrorReg == 0)
         {
-            set_modbus_reg_val(OTAPPROGRESSREGADDR, 100); // 进度100%               
-            FinshhECUOtaAndCleanup();// 完成OTA清理工作            
+            set_modbus_reg_val(OTAPPROGRESSREGADDR, 100); // 进度100%
+            set_modbus_reg_val(OTASTATUSREGADDR, OTASUCCESS);
             system("sync");// 确保数据写入磁盘
-            sleep(5);
-            system("reboot");
+            sleep(5); // 保留成功状态，确保上位机能够读到
             LOG("[OTA] OTA process completed successfully\n");
         }else{
             LOG("[OTA] can id 0x%x device ota failed, error register val 0x%x!\r\n", get_ota_deviceID(), ecustatus.ErrorReg);
@@ -78,10 +77,7 @@ void FinshhECUOtaAndCleanup(void)
     set_ota_deviceType(0);
     set_ota_OTAStart(0);
     LOG("[OTA ECU] OTA finished, cleaning up...\n");
-    delete_files_with_prefix(USB_MOUNT_POINT, "XC");//  这个要删除升级文件，判断xcpstatus状态，成功或者失败删除
-    delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
-    delete_files_with_prefix(USB_MOUNT_POINT, "deb"); // 删除升级文件
-    delete_files_with_prefix(USB_MOUNT_POINT, "tar"); // 删除升级文件
+    cleanup_ota_staging_files();
 	set_ota_UpDating(0);//1130(升级结束)
 	ecustatus.CANStartOTA = 0;
     set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);

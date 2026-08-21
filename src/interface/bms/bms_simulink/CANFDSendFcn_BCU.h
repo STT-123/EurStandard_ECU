@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 6.3
+ * Model version                  : 6.4
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Wed Aug  5 17:00:25 2026
+ * C/C++ source code generated on : Tue Aug 18 17:01:21 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -71,7 +71,6 @@ extern DW_CANFDSendFcn_BCU_T CANFDSendFcn_BCU_DW;
  */
 extern uint8_T OTA_XCPConnect;         /* '<Root>/OTA_XCPConnect' */
 extern uint8_T TCU_ACMuteSet;          /* '<Root>/TCU_ACMuteSet' */
-extern uint32_T TCU_BCUEINSet;         /* '<Root>/TCU_BCUEINSet' */
 extern uint8_T TCU_ChargerWorkSts;     /* '<Root>/TCU_ChargerWorkSts' */
 extern uint8_T TCU_ECOMode;            /* '<Root>/TCU_ECOMode' */
 extern uint8_T TCU_FcnStopSet;         /* '<Root>/TCU_FcnStopSet' */

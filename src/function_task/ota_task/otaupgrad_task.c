@@ -12,6 +12,8 @@
 #include "interface/modbus/modbus_defines.h"
 #include "device_drv/bcu_deal/bcu_deal.h"
 #include "device_drv/bmu_deal/bmu_deal.h"
+#include "device_drv/abncheck/abncheck.h"
+#include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
 #include <ctype.h>
 pthread_t OTAUpgrad_TASKHandle = 0;
 volatile unsigned int CurrentOTADeviceCanID = 0x1821FF10;
@@ -94,15 +96,18 @@ static int precheck_bcu_ota_package_before_boot(void)
 
     memset(&xcpstatus, 0, sizeof(xcpstatus));
 
-    if (filename == NULL || filename[0] == '\0') {
+    if (!ota_filename_is_safe(filename)) {
         xcpstatus.ErrorReg = OTA_ERR_SOURCE_PACKAGE_MISSING;
         xcpstatus.ErrorDeviceID = get_ota_deviceID();
-        LOG("[OTA] Empty BCU OTA file name before boot precheck\r\n");
+        LOG("[OTA] Invalid BCU OTA file name before boot precheck: %s\r\n",
+            filename ? filename : "(null)");
         return -1;
     }
 
     if (has_file_extension(filename, ".bin")) {
-        snprintf(source_file, sizeof(source_file), "%s/%s", USB_MOUNT_POINT, filename);
+        char ready_file[512] = {'\0'};
+
+        snprintf(source_file, sizeof(source_file), "%s/%s", OTA_INCOMING_PATH, filename);
         if (access(source_file, F_OK) != 0) {
             xcpstatus.ErrorReg = OTA_ERR_SOURCE_PACKAGE_MISSING;
             xcpstatus.ErrorDeviceID = get_ota_deviceID();
@@ -110,11 +115,19 @@ static int precheck_bcu_ota_package_before_boot(void)
             return -1;
         }
 
+        snprintf(ready_file, sizeof(ready_file), "%s/%s", OTA_READY_PATH, filename);
+        if (ensure_ota_storage_dirs() != 0 || !copy_file(source_file, ready_file)) {
+            xcpstatus.ErrorReg = OTA_ERR_COPY_TARGET_FAILED;
+            xcpstatus.ErrorDeviceID = get_ota_deviceID();
+            LOG("[OTA] Failed to stage direct BCU bin: %s -> %s\r\n", source_file, ready_file);
+            return -1;
+        }
+
         memset(&g_max_upgrade, 0, sizeof(g_max_upgrade));
         strncpy(g_max_upgrade.upgrade_file, filename, sizeof(g_max_upgrade.upgrade_file) - 1);
         LOG("[OTA] Direct BCU bin precheck mode: %s\r\n", source_file);
     } else {
-        ret = unzipfile(USB_MOUNT_POINT, (unsigned int *)&xcpstatus.ErrorReg, FILE_TYPE_BIN);
+        ret = unzipfile(OTA_READY_PATH, (unsigned int *)&xcpstatus.ErrorReg, FILE_TYPE_BIN);
         if (ret < 0) {
             LOG("[OTA] BCU OTA package precheck failed before boot. file=%s, ErrorReg=0x%x\r\n",
                 filename, xcpstatus.ErrorReg);
@@ -136,6 +149,10 @@ static int precheck_bcu_ota_package_before_boot(void)
 
 void *ota_Upgrade_Task(void *arg)
 {
+    if (ensure_ota_storage_dirs() != 0) {
+        LOG("[OTA] Local OTA storage initialization failed: %s\r\n", OTA_ROOT_PATH);
+    }
+
     CurrentOTADeviceCanID = ACPOTACANID;
     unsigned char ECUOtaFlag = 0;
     unsigned char ACPOtaFlag = 0;
@@ -144,8 +161,6 @@ void *ota_Upgrade_Task(void *arg)
     unsigned char BCUOtaFlag = 0;
     unsigned char BMUOtaFlag = 0;
     unsigned char ReOtaFlag = 0;
-    char matched_filename[256] = {0};
-
 #if 0
     sleep(10);
     //BMU
@@ -199,7 +214,14 @@ void *ota_Upgrade_Task(void *arg)
                     set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
                     sleep(5);//这个延时不能删除，不然上位机不显示升级失败，直接变为升级完成
                 }
+                int ecu_ota_success = (ecustatus.ErrorReg == 0);
                 FinshhECUOtaAndCleanup();
+                if (ecu_ota_success)
+                {
+                    system("sync"); // 确保OTA目标文件和临时目录清理都已落盘
+                    LOG("[OTA] ECU OTA cleanup completed, rebooting system...\n");
+                    system("reboot");
+                }
             }
             else if (get_ota_deviceType() == ACP ||get_ota_deviceType() == DCDC)
             {
@@ -402,7 +424,8 @@ void *ota_Upgrade_Task(void *arg)
                             {
                                 CurrentOTADeviceCanID = (0x1821D << 12) | ((i + 1) << 8) | 0x10;
                                 set_ota_deviceID(CurrentOTADeviceCanID);
-                                LOG("[OTA] Start OTA try %d, CAN ID 0x%x BMU %d\r\n", ReOtaFlag + 1, get_ota_deviceID());
+                                LOG("[OTA] Start OTA try %d, CAN ID 0x%x BMU %d\r\n",
+                                    ReOtaFlag + 1, get_ota_deviceID(), i + 1);
                                 LOG("[OTA] get_ota_deviceID() ==  : %x\r\n", get_ota_deviceID());                  
                                 XCP_OTA(i+ReOtaFlag);
 

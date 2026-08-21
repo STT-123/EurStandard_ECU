@@ -6,6 +6,7 @@
 #include "interface/bms/bms_analysis.h"
 #include "interface/log/log.h"
 #include "device_drv/sd_store/sd_store.h"
+#include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
 flashDataType flashData = {0};
 appDataType appData[SUP_MAX_BLOCK + 1] = {0};
 UDSStatus udsstatus = {0};
@@ -1294,7 +1295,7 @@ void UDS_OTA(void)
                     {
                         LOG("sblfilenumber:%d.",sblfilenumber);
 
-                        char otafilenamestr1[OTAFILENAMEMAXLENGTH + 2] = {'\0'};
+                        char otafilenamestr1[OTA_PATH_MAX_LENGTH] = {'\0'};
                         if(udsstatus.ErrorReg == 0)
                         {
                             memcpy(&otafilenamestr1, get_ota_OTAUdsSblFilename(i), strlen(get_ota_OTAUdsSblFilename(i)));
@@ -1306,7 +1307,7 @@ void UDS_OTA(void)
                         int transferRes = udsServer36(ACOTACANID,otafilenamestr1,rfile);//首帧和连续帧
                         usleep(5*1000);
 
-                        memset(otafilenamestr1, '\0', OTAFILENAMEMAXLENGTH + 2);
+                        memset(otafilenamestr1, '\0', sizeof(otafilenamestr1));
 
                         char *str = "w.bin";
                         memcpy(&otafilenamestr1, str, strlen(str));
@@ -1402,7 +1403,7 @@ void UDS_OTA(void)
                         }
 
 
-                        char otafilenamestr1[OTAFILENAMEMAXLENGTH + 2] = {'\0'};
+                        char otafilenamestr1[OTA_PATH_MAX_LENGTH] = {'\0'};
                         if(udsstatus.ErrorReg == 0)
                         {
                             memcpy(&otafilenamestr1, get_ota_OTAUdsFilename(i), strlen(get_ota_OTAUdsFilename(i)));
@@ -1459,7 +1460,7 @@ void UDS_OTA(void)
                         usleep(150*1000);//延时
                         int transferRes = udsServer36(ACOTACANID,otafilenamestr1,rfile);//首帧和连续帧
                         usleep(100*1000);
-                        memset(otafilenamestr1, '\0', OTAFILENAMEMAXLENGTH + 2);
+                        memset(otafilenamestr1, '\0', sizeof(otafilenamestr1));
 
                         char *str = "w.bin";
                         memcpy(&otafilenamestr1, str, strlen(str));
@@ -1491,7 +1492,7 @@ void UDS_OTA(void)
 
                     if(ee00Flag)
                     {
-                        char otafilenamestr1[OTAFILENAMEMAXLENGTH + 2] = {'\0'};
+                        char otafilenamestr1[OTA_PATH_MAX_LENGTH] = {'\0'};
                         if(udsstatus.ErrorReg == 0)
 						{
 							memcpy(&otafilenamestr1, get_ota_OTAUdsFilename(ee00Number), strlen(get_ota_OTAUdsFilename(ee00Number)));
@@ -1525,7 +1526,7 @@ void UDS_OTA(void)
                         int transferRes = udsServer36(ACOTACANID,otafilenamestr1,rfile);//首帧和连续帧
                         usleep(100*1000);
 
-                        memset(otafilenamestr1, '\0', OTAFILENAMEMAXLENGTH + 2);
+                        memset(otafilenamestr1, '\0', sizeof(otafilenamestr1));
 
                         char *str = "w.bin";
                         memcpy(&otafilenamestr1, str, strlen(str));
@@ -1611,9 +1612,7 @@ void FinishACOtaAndCleanup(void)
 	set_modbus_reg_val(AC_APP_OTAFILENUMBER, 0);
 	set_ota_deviceType(0);//停止升级
 	set_ota_OTAStart(0);
-	delete_files_with_prefix(USB_MOUNT_POINT, "AC");//  这个要删除升级文件，判断xcpstatus状态，成功或者失败删除
-	delete_files_with_prefix(USB_MOUNT_POINT, "XC");//  这个要删除升级文件，判断xcpstatus状态，成功或者失败删除
-	delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
+	cleanup_ota_staging_files();
 	set_ota_UpDating(0);//1130(升级结束)
 	udsstatus.CANStartOTA = 0;
 	SBl_index = 0;

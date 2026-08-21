@@ -101,8 +101,8 @@ char *generate_unique_id() {
 
 // 处理CALLRESULT消息
 void handle_call_result_message(struct lws *wsi, json_object *json) {
-    json_object *msg_id_obj = json_object_array_get_idx(json, 1);
-    const char *msg_id = json_object_get_string(msg_id_obj);
+    (void)wsi;
+    (void)json;
 }
 
 // 处理CALLERROR消息
@@ -116,7 +116,7 @@ void handle_call_error_message(struct lws *wsi, json_object *json) {
     json_object *error_description_obj = json_object_array_get_idx(json, 3);
     const char *error_description = json_object_get_string(error_description_obj);
     
-    LOG("Processing CALLERROR messages, ID: %error code: %s, descriptor: %s\n", 
+    LOG("Processing CALLERROR messages, ID: %s, error code: %s, descriptor: %s\n",
             msg_id, error_code, error_description);
 }
 
@@ -370,7 +370,6 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
     
     for (int i = 0; i < n; i++) {
         memcpy(&network_buffer[i], &buffer[i], sizeof(tBatData)); 
-        unsigned int original_ts = buffer[i].uiTimeStamp;// 保存原始值用于调试
         network_buffer[i].uiTimeStamp = htonl(buffer[i].uiTimeStamp); // 转换为网络字节序
     }
     // printf("get_recent_data n = %d...data =%lu,\n", n,sizeof(tBatData));
@@ -419,7 +418,7 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
         size_t ret = ZSTD_compressStream(cstream, &out, &inHead);
         if (ZSTD_isError(ret)) {
             // fprintf(stderr, "compressStream head failed: %s\n", ZSTD_getErrorName(ret));
-            zlog_error(zlog_get_category("debug_file"), "compressStream head failed: %s", ZSTD_getErrorName(ret));
+            LOG("compressStream head failed: %s", ZSTD_getErrorName(ret));
             goto cleanup;
         }
     }
@@ -430,7 +429,7 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
         size_t ret = ZSTD_compressStream(cstream, &out, &inData);
         if (ZSTD_isError(ret)) {
             // fprintf(stderr, "compressStream data failed: %s\n", ZSTD_getErrorName(ret));
-             zlog_error(zlog_get_category("debug_file"), "compressStream data failed: %s", ZSTD_getErrorName(ret));
+            LOG("compressStream data failed: %s", ZSTD_getErrorName(ret));
             goto cleanup;
         }
     }
@@ -441,7 +440,7 @@ struct json_object *compress_detail_data(sqlite3 *db, int *out_ids, int *out_id_
         remaining = ZSTD_endStream(cstream, &out);
         if (ZSTD_isError(remaining)) {
             // fprintf(stderr, "endStream failed: %s\n", ZSTD_getErrorName(remaining));
-            zlog_error(zlog_get_category("debug_file"), "endStream failed: %s", ZSTD_getErrorName(remaining));
+            LOG("endStream failed: %s", ZSTD_getErrorName(remaining));
             goto cleanup;
         }
     } while (remaining > 0);

@@ -5,6 +5,8 @@
 #include "interface/log/log.h"
 #include "device_drv/xmodem/xmodemdata.h"
 #include "device_drv/sd_store/sd_store.h"
+#include "interface/time/time_diff.h"
+#include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
 #define ACPDC_BLOCK_SIZE 120
 IndependentStatus independentStatus = {0};
 
@@ -293,7 +295,10 @@ void ACPDCDC_OTA(void )
 		set_modbus_reg_val(OTASTATUSREGADDR, OTASTARTRUNNING);//0124.升级状态
 		memset(&independentStatus, 0, sizeof(IndependentStatus));
         char otafilenamestr1[OTAFILENAMEMAXLENGTH + 64] = {'\0'};
-		snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", USB_MOUNT_POINT, get_ota_OTAFilename());
+		snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", OTA_READY_PATH, get_ota_OTAFilename());
+		if (access(otafilenamestr1, F_OK) != 0) {
+			snprintf(otafilenamestr1, sizeof(otafilenamestr1), "%s/%s", OTA_INCOMING_PATH, get_ota_OTAFilename());
+		}
 		printf("otafilenamestr1 %s\r\n", otafilenamestr1);
 		printf("OTAStart:%d,deviceID:%d,OTAFilename:%s,OTAFileType:%d,deviceType:%d\n", get_ota_OTAStart(), get_ota_deviceID(), get_ota_OTAFilename(), get_ota_OTAFileType(), get_ota_deviceType());
         rfile = fopen(otafilenamestr1, "rb"); // Open the file for reading in binary mode
@@ -323,7 +328,7 @@ void ACPDCDC_OTA(void )
 					res = AcpDcUpgradesend(otafilenamestr1,rfile);//首帧和连续帧
 					usleep(5*1000);
 
-					memset(otafilenamestr1, '\0', OTAFILENAMEMAXLENGTH + 2);
+					memset(otafilenamestr1, '\0', sizeof(otafilenamestr1));
 
 					char *str = "w.bin";
 
@@ -348,7 +353,7 @@ void ACPDCDC_OTA(void )
 					res = AcpDcUpgradesend(otafilenamestr1,rfile);//首帧和连续帧
 					usleep(5*1000);
 
-					memset(otafilenamestr1, '\0', OTAFILENAMEMAXLENGTH + 2);
+					memset(otafilenamestr1, '\0', sizeof(otafilenamestr1));
 					// otafilenamestr1[0] = '0';
 					// otafilenamestr1[1] = ':';
 					char *str = "w.bin";
@@ -405,8 +410,7 @@ void FinishACPOtaAndCleanup(void)
 {
     set_ota_deviceType(0);             // 停止升级
     set_ota_OTAStart(0);
-    delete_files_with_prefix(USB_MOUNT_POINT, "ACP"); // 删除升级文件
-	delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
+    cleanup_ota_staging_files();
     independentStatus.CANStartOTA = 0;
     set_ota_UpDating(0);               // 升级结束标志
 	set_ota_acOTAFlag(0);
@@ -419,8 +423,7 @@ void FinishDCDCOtaAndCleanup(void)
 {
     set_ota_deviceType(0);            // 停止升级
     set_ota_OTAStart(0);
-    delete_files_with_prefix(USB_MOUNT_POINT, "DCDC"); // 删除升级文件
-	delete_files_with_prefix(USB_MOUNT_POINT, "md5"); // 删除升级文件
+    cleanup_ota_staging_files();
     independentStatus.CANStartOTA = 0;
     set_ota_UpDating(0);               // 升级结束标志
 	set_TCU_PowerUpCmd(BMS_POWER_DEFAULT);

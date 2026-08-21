@@ -23,7 +23,7 @@
 
 
 char matched_filename[256] = {0};
-#define TCU_LOG_FILENAME       "/mnt/sda/log/app_project.log"   /*LOG文件名*/
+#define TCU_LOG_FILENAME       OTA_ROOT_PATH "/ota_update.log"
 
 pthread_mutex_t 				Log_DebugOut_mutex_lock;
 
@@ -305,12 +305,12 @@ int get_check_upgarde_file_type(const char *filename,const char *filetype,char *
 	{
 		memset(str, 0, sizeof(str));
 		LOG("[OCPP] 44444\r\n");
-		sprintf(str, "cd %s && tar xvf %s", USB_MOUNT_POINT, filename); 
+		sprintf(str, "cd %s && tar xvf %s", OTA_READY_PATH, filename);
 		Log_DebugOut("%s \r\n", str);
 		system(str);
 		//校验MD5值
 		memset(str, 0, sizeof(str));
-		sprintf(str, "cd %s \n md5sum -c %s \n", USB_MOUNT_POINT, APP_UPGRADE_FILE_MD5);
+		sprintf(str, "cd %s \n md5sum -c %s \n", OTA_READY_PATH, APP_UPGRADE_FILE_MD5);
 		Log_DebugOut("str:%s \r\n", str);
 		fp = NULL;
 		fp = popen(str, "r"); //进入文件
@@ -356,12 +356,12 @@ int get_check_upgarde_file_type(const char *filename,const char *filetype,char *
 	if (any_script_flag == true) //解压压缩包 校验应用的MD5值
 	{
 		memset(str, 0, sizeof(str));
-		sprintf(str, "cd %s \n tar xvf %s \n", USB_MOUNT_POINT, filename);
+		sprintf(str, "cd %s \n tar xvf %s \n", OTA_READY_PATH, filename);
 		Log_DebugOut("%s \r\n", str);
 		system(str);
 		//校验MD5值
 		memset(str, 0, sizeof(str));
-		sprintf(str, "cd %s \n md5sum -c %s \n", USB_MOUNT_POINT, ANY_SCRIPT_FILE_MD5);
+		sprintf(str, "cd %s \n md5sum -c %s \n", OTA_READY_PATH, ANY_SCRIPT_FILE_MD5);
 		Log_DebugOut("%s \r\n", str);
 		fp = NULL;
 		fp = popen(str, "r"); //进入文件
@@ -454,7 +454,7 @@ int get_check_ac_upgarde_file_type(const char *filename,
 
 				// strncpy(g_otactrl.OTAUdsSblFilename[*sbl_index], ota_filename, sizeof(g_otactrl.OTAUdsSblFilename[*sbl_index]) - 1);
 				    
-    			snprintf(g_otactrl.OTAUdsSblFilename[*sbl_index], sizeof(g_otactrl.OTAUdsSblFilename[*sbl_index]), "%s/%s", USB_MOUNT_POINT, ota_filename);
+				snprintf(g_otactrl.OTAUdsSblFilename[*sbl_index], sizeof(g_otactrl.OTAUdsSblFilename[*sbl_index]), "%s/%s", OTA_READY_PATH, ota_filename);
 				// printf("AC_SBL_%d: %s\n", *sbl_index, g_otactrl.OTAUdsSblFilename[*sbl_index]);
 
 
@@ -480,7 +480,7 @@ int get_check_ac_upgarde_file_type(const char *filename,
                 app_upgrade_flag = true;
 				memset(g_otactrl.OTAUdsFilename[*app_index],0 ,sizeof(g_otactrl.OTAUdsFilename[*app_index]));
 				// strncpy(g_otactrl.OTAUdsFilename[*app_index], ota_filename, sizeof(g_otactrl.OTAUdsFilename[*app_index]) - 1);
-				snprintf(g_otactrl.OTAUdsFilename[*app_index], sizeof(g_otactrl.OTAUdsFilename[*app_index]), "%s/%s", USB_MOUNT_POINT, ota_filename);
+				snprintf(g_otactrl.OTAUdsFilename[*app_index], sizeof(g_otactrl.OTAUdsFilename[*app_index]), "%s/%s", OTA_READY_PATH, ota_filename);
 				// printf("app_index:%d, ota_filename:%s\n", *app_index, ota_filename);
 
 
@@ -515,11 +515,11 @@ int get_check_ac_upgarde_file_type(const char *filename,
     // 解压并检查 APP 文件 MD5
     if (app_upgrade_flag)
     {
-        snprintf(str, sizeof(str), "cd %s && tar xvf %s", USB_MOUNT_POINT, filename);
+        snprintf(str, sizeof(str), "cd %s && tar xvf %s", OTA_READY_PATH, filename);
         Log_DebugOut("%s \r\n", str);
         system(str);
 
-        snprintf(str, sizeof(str), "cd %s && md5sum -c %s", USB_MOUNT_POINT, APP_UPGRADE_FILE_MD5);
+        snprintf(str, sizeof(str), "cd %s && md5sum -c %s", OTA_READY_PATH, APP_UPGRADE_FILE_MD5);
         Log_DebugOut("str:%s \r\n", str);
         fp = popen(str, "r");
         if (fp)
@@ -544,10 +544,10 @@ int get_check_ac_upgarde_file_type(const char *filename,
     // 脚本文件也做 MD5 检查
     if (any_script_flag)
     {
-        snprintf(str, sizeof(str), "cd %s && tar xvf %s", USB_MOUNT_POINT, filename);
+        snprintf(str, sizeof(str), "cd %s && tar xvf %s", OTA_READY_PATH, filename);
         system(str);
 
-        snprintf(str, sizeof(str), "cd %s && md5sum -c %s", USB_MOUNT_POINT, ANY_SCRIPT_FILE_MD5);
+        snprintf(str, sizeof(str), "cd %s && md5sum -c %s", OTA_READY_PATH, ANY_SCRIPT_FILE_MD5);
         fp = popen(str, "r");
         if (fp)
         {

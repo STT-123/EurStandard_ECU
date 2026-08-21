@@ -1,4 +1,6 @@
 #include "xmodem_task.h"
+#include "interface/time/time_diff.h"
+#include "interface/modbus/modbus_defines.h"
 #include "function_task/modbustcp_task/modbustcp_task.h"
 #include "interface/log/log.h"
 #include "device_drv/xmodem/xmodemstate.h"
@@ -57,7 +59,7 @@ void *XmodemCommTask(void *arg)
             if ((curotaCtrregval != prvotaCtrregval) && (get_ota_OTAStart() == 0))
             {
                 LOG("[Xmodem] ota curotaCtrregval 0x%x prvotaCtrregval 0x%x\n", curotaCtrregval, prvotaCtrregval);
-
+                LOG("[Xmodem] ota sblfilenumber =%d appfilenumber =%d\n", sblfilenumber, appfilenumber);
                 if (curotaCtrregval == 0x0000)
                 {
                     set_modbus_reg_val(OTASTATUSREGADDR, 0);

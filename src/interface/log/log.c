@@ -5,11 +5,32 @@
 #include <sys/types.h>    // 必须包含
 #include <sys/stat.h>     // 必须包含，定义了struct stat
 #include <pthread.h>
+#include <errno.h>
+#include <stdio.h>
+
+zlog_category_t *log_printf = NULL;
+zlog_category_t *log_record = NULL;
+zlog_category_t *log_csv = NULL;
 
 static pthread_mutex_t g_log_output_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool g_log_file_output_enabled = true;
 static bool g_log_initialized = false;
 static bool g_log_paused = false;
+
+void log_output_lock(void)
+{
+    pthread_mutex_lock(&g_log_output_mutex);
+}
+
+void log_output_unlock(void)
+{
+    pthread_mutex_unlock(&g_log_output_mutex);
+}
+
+bool log_file_output_enabled_locked(void)
+{
+    return g_log_file_output_enabled;
+}
 
 bool log_file_output_enabled(void)
 {
@@ -24,24 +45,19 @@ bool log_file_output_enabled(void)
 
 void log_pause_for_sd_format(void)
 {
-    bool should_fini = false;
-
     pthread_mutex_lock(&g_log_output_mutex);
     g_log_file_output_enabled = false;
     if (!g_log_paused) {
         g_log_paused = true;
-        should_fini = g_log_initialized;
+        if (g_log_initialized) {
+            zlog_fini();
+        }
         g_log_initialized = false;
     }
-    pthread_mutex_unlock(&g_log_output_mutex);
-
-    if (should_fini) {
-        zlog_fini();
-    }
-
     log_printf = NULL;
     log_record = NULL;
     log_csv = NULL;
+    pthread_mutex_unlock(&g_log_output_mutex);
 }
 
 int log_resume_after_sd_format(void)
@@ -60,19 +76,64 @@ int log_resume_after_sd_format(void)
 // 0 成功
 // -1 配置文件不对
 // -2 初始化失败
+static int ensure_directory(const char *path, mode_t mode)
+{
+    struct stat st;
+
+    if (stat(path, &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+            return 0;
+        }
+        errno = ENOTDIR;
+        return -1;
+    }
+
+    if (errno != ENOENT) {
+        return -1;
+    }
+
+    if (mkdir(path, mode) != 0 && errno != EEXIST) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int log_init()
 {
     int rc = 0;
 
-    if (F_OK != access(ZLOG_DATA_FILE_PATH, 0))
-    {
-        system("mkdir " ZLOG_DATA_FILE_PATH); // 创建文件夹
+    /*
+     * /mnt/sda 未挂载时它是内部存储上的普通目录。
+     * 这里明确创建两级目录，使无 SD 卡时也能保存日志。
+     */
+    if (ensure_directory("/mnt/sda", 0755) != 0) {
+        printf("create /mnt/sda failed: %s\n", strerror(errno));
+        return -1;
     }
+    if (ensure_directory(ZLOG_DATA_FILE_PATH, 0755) != 0) {
+        printf("create %s failed: %s\n", ZLOG_DATA_FILE_PATH, strerror(errno));
+        return -1;
+    }
+
+    pthread_mutex_lock(&g_log_output_mutex);
+
+    if (g_log_initialized) {
+        g_log_paused = false;
+        g_log_file_output_enabled = true;
+        pthread_mutex_unlock(&g_log_output_mutex);
+        return 0;
+    }
+
+    log_printf = NULL;
+    log_record = NULL;
+    log_csv = NULL;
 
     rc = zlog_init(ZLOG_CONF_FILE_PATH);
     if (rc)
     {
-        printf("zlog init failed \n");
+        printf("zlog init failed: config=%s, rc=%d\n", ZLOG_CONF_FILE_PATH, rc);
+        pthread_mutex_unlock(&g_log_output_mutex);
         return -1;
     }
 
@@ -81,6 +142,8 @@ int log_init()
     {
         printf("get log_printf fail \n");
         zlog_fini();
+        log_printf = NULL;
+        pthread_mutex_unlock(&g_log_output_mutex);
         return -2;
     }
 
@@ -89,6 +152,9 @@ int log_init()
     {
         printf("get log_record fail \n");
         zlog_fini();
+        log_printf = NULL;
+        log_record = NULL;
+        pthread_mutex_unlock(&g_log_output_mutex);
         return -3;
     }
 
@@ -97,10 +163,13 @@ int log_init()
     {
         printf("get log_csv fail \n");
         zlog_fini();
+        log_printf = NULL;
+        log_record = NULL;
+        log_csv = NULL;
+        pthread_mutex_unlock(&g_log_output_mutex);
         return -4;
     }
 
-    pthread_mutex_lock(&g_log_output_mutex);
     g_log_initialized = true;
     g_log_paused = false;
     g_log_file_output_enabled = true;

@@ -307,9 +307,6 @@ uint8_T get_OTA_XCPConnect(void) { return OTA_XCPConnect; }
 void set_TCU_ACMuteSet(uint8_T value) { TCU_ACMuteSet = value; }
 uint8_T get_TCU_ACMuteSet(void) { return TCU_ACMuteSet; }
 
-void set_TCU_BCUEINSet(uint32_T value) { TCU_BCUEINSet = value; }
-uint32_T get_TCU_BCUEINSet(void) { return TCU_BCUEINSet; }
-
 void set_TCU_ChargerWorkSts(uint8_T value) { TCU_ChargerWorkSts = value; }
 uint8_T get_TCU_ChargerWorkSts(void) { return TCU_ChargerWorkSts; }
 
@@ -685,7 +682,6 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
 
     static unsigned char OTA_XCPConnect_LAST = 0;
     static unsigned char TCU_ACMuteSet_LAST = 0;
-    static unsigned int TCU_BCUEINSet_LAST = 0;
     static unsigned char TCU_ChargerWorkSts_LAST = 0;
     static unsigned char TCU_ECOMode_LAST = 0;
     static unsigned char TCU_FcnStopSet_LAST = 0;
@@ -725,7 +721,6 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
 
         unsigned char current_OTA_XCPConnect = get_OTA_XCPConnect();
         unsigned char current_TCU_ACMuteSet = get_TCU_ACMuteSet();
-        unsigned int current_TCU_BCUEINSet = get_TCU_BCUEINSet();
         unsigned char current_TCU_ChargerWorkSts = get_TCU_ChargerWorkSts();
         unsigned char current_TCU_ECOMode = get_TCU_ECOMode();
         unsigned char current_TCU_FcnStopSet = get_TCU_FcnStopSet();
@@ -743,7 +738,6 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
         if (BCU_FaultInfoLv4_LAST != current_fault_lv4) {changed = 1;LOG("BCU_FaultInfoLv4 Change from [0x%x] to [0x%x]\r",BCU_FaultInfoLv4_LAST,current_fault_lv4);}
         if (OTA_XCPConnect_LAST != current_OTA_XCPConnect) {changed = 1;LOG("OTA_XCPConnect Change from [0x%x] to [0x%x]\r",OTA_XCPConnect_LAST,current_OTA_XCPConnect);}
         if (TCU_ACMuteSet_LAST != current_TCU_ACMuteSet) {changed = 1;LOG("TCU_ACMuteSet Change from [0x%x] to [0x%x]\r",TCU_ACMuteSet_LAST,current_TCU_ACMuteSet);}
-        if (TCU_BCUEINSet_LAST != current_TCU_BCUEINSet) {changed = 1;LOG("TCU_BCUEINSet Change from [0x%x] to [0x%x]\r",TCU_BCUEINSet_LAST,current_TCU_BCUEINSet);}
         if (TCU_ChargerWorkSts_LAST != current_TCU_ChargerWorkSts) {changed = 1;LOG("TCU_ChargerWorkSts Change from [0x%x] to [0x%x]\r",TCU_ChargerWorkSts_LAST,current_TCU_ChargerWorkSts);}
         if (TCU_ECOMode_LAST != current_TCU_ECOMode) {changed = 1;LOG("TCU_ECOMode Change from [0x%x] to [0x%x]\r",TCU_ECOMode_LAST,current_TCU_ECOMode);}
         if (TCU_FcnStopSet_LAST != current_TCU_FcnStopSet) {changed = 1;LOG("TCU_FcnStopSet Change from [0x%x] to [0x%x]\r",TCU_FcnStopSet_LAST,current_TCU_FcnStopSet);}
@@ -798,7 +792,6 @@ void Log_Bcu_Data(const CAN_FD_MESSAGE *msg)
 
         OTA_XCPConnect_LAST = current_OTA_XCPConnect;
         TCU_ACMuteSet_LAST = current_TCU_ACMuteSet;
-        TCU_BCUEINSet_LAST = current_TCU_BCUEINSet;
         TCU_ChargerWorkSts_LAST = current_TCU_ChargerWorkSts;
         TCU_ECOMode_LAST = current_TCU_ECOMode;
         TCU_FcnStopSet_LAST = current_TCU_FcnStopSet;

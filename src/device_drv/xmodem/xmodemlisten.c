@@ -42,8 +42,9 @@ void* Lwip_Listen_TASK(void* param)
     size = sizeof(remote);
     while (1)
     {
-        LOG("[Xmodem] otasock1 before accept: %d\n", otasock1);
-        otasock1 = accept(otasock, (struct sockaddr *)&remote, &size);
+		LOG("[Xmodem] otasock1 before accept: %d\n", otasock1);
+		otasock1 = accept(otasock, (struct sockaddr *)&remote, &size);
+		int accept_errno = errno;
         if (otasock1 > 0)
         {
             setClientConnected(1);
@@ -76,10 +77,18 @@ void* Lwip_Listen_TASK(void* param)
             }
             pthread_mutex_unlock(&task_mutex);
         }
-        else
-        {
-            LOG("[Xmodem] otasock1 error: %d\n", otasock1);
-        }
+		else
+		{
+			int stopping;
+			pthread_mutex_lock(&task_mutex);
+			stopping = xmodem_server_stopping;
+			pthread_mutex_unlock(&task_mutex);
+			if (!stopping)
+			{
+				LOG("[Xmodem] accept failed: errno=%d(%s)\n",
+					accept_errno, strerror(accept_errno));
+			}
+		}
 
         // 防止任务卡死
         usleep(100 * 1000); // 等价于 vTaskDelay(100 / portTICK_PERIOD_MS);

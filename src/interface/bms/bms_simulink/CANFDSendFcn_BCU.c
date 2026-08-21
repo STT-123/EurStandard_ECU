@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDSendFcn_BCU'.
  *
- * Model version                  : 6.3
+ * Model version                  : 6.4
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Wed Aug  5 17:00:25 2026
+ * C/C++ source code generated on : Tue Aug 18 17:01:21 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -24,7 +24,6 @@
 /* Exported block signals */
 uint8_T OTA_XCPConnect;                /* '<Root>/OTA_XCPConnect' */
 uint8_T TCU_ACMuteSet;                 /* '<Root>/TCU_ACMuteSet' */
-uint32_T TCU_BCUEINSet;                /* '<Root>/TCU_BCUEINSet' */
 uint8_T TCU_ChargerWorkSts;            /* '<Root>/TCU_ChargerWorkSts' */
 uint8_T TCU_ECOMode;                   /* '<Root>/TCU_ECOMode' */
 uint8_T TCU_FcnStopSet;                /* '<Root>/TCU_FcnStopSet' */
@@ -65,7 +64,6 @@ void CANFDSendFcn_BCU_step(void)
   /* S-Function (scanfdpack): '<Root>/CAN FD Pack' incorporates:
    *  Inport: '<Root>/OTA_XCPConnect'
    *  Inport: '<Root>/TCU_ACMuteSet'
-   *  Inport: '<Root>/TCU_BCUEINSet'
    *  Inport: '<Root>/TCU_ChargerWorkSts'
    *  Inport: '<Root>/TCU_ECOMode'
    *  Inport: '<Root>/TCU_FcnStopSet'
@@ -213,36 +211,6 @@ void CANFDSendFcn_BCU_step(void)
       uint32_T packingValue = 0;
 
       {
-        uint32_T result = (uint32_T) (TCU_BCUEINSet);
-
-        /* no scaling required */
-        packingValue = result;
-      }
-
-      {
-        uint32_T packedValue;
-        packedValue = (uint32_T) (packingValue);
-
-        {
-          {
-            CANSendMsg.Data[9] = CANSendMsg.Data[9] | (uint8_T)((uint32_T)
-              (packedValue & (uint32_T)0xFFU));
-            CANSendMsg.Data[8] = CANSendMsg.Data[8] | (uint8_T)((uint32_T)
-              ((uint32_T)(packedValue & (uint32_T)0xFF00U) >> 8));
-            CANSendMsg.Data[7] = CANSendMsg.Data[7] | (uint8_T)((uint32_T)
-              ((uint32_T)(packedValue & (uint32_T)0xFF0000U) >> 16));
-            CANSendMsg.Data[6] = CANSendMsg.Data[6] | (uint8_T)((uint32_T)
-              ((uint32_T)(packedValue & (uint32_T)0xFF000000U) >> 24));
-          }
-        }
-      }
-    }
-
-    /* --------------- START Packing signal 3 ------------------*/
-    {
-      uint32_T packingValue = 0;
-
-      {
         uint32_T result = (uint32_T) (TCU_ChargerWorkSts);
 
         /* no scaling required */
@@ -261,7 +229,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 4 ------------------*/
+    /* --------------- START Packing signal 3 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -289,7 +257,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 5 ------------------*/
+    /* --------------- START Packing signal 4 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -312,7 +280,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 6 ------------------*/
+    /* --------------- START Packing signal 5 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -340,7 +308,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 7 ------------------*/
+    /* --------------- START Packing signal 6 ------------------*/
     {
       real32_T outValue = 0;
 
@@ -375,7 +343,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 8 ------------------*/
+    /* --------------- START Packing signal 7 ------------------*/
     {
       static uint8_T lifeCounter = 0;  // 静态变量，自动递增
       real_T outValue = 0;
@@ -402,7 +370,7 @@ void CANFDSendFcn_BCU_step(void)
       CANSendMsg.Data[0] = CANSendMsg.Data[0] | (uint8_T)(packedValue);
     }
 
-    /* --------------- START Packing signal 9 ------------------*/
+    /* --------------- START Packing signal 8 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -430,7 +398,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 10 ------------------*/
+    /* --------------- START Packing signal 9 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -453,7 +421,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 11 ------------------*/
+    /* --------------- START Packing signal 10 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -476,7 +444,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 12 ------------------*/
+    /* --------------- START Packing signal 11 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -499,7 +467,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 13 ------------------*/
+    /* --------------- START Packing signal 12 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -522,7 +490,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 14 ------------------*/
+    /* --------------- START Packing signal 13 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -545,7 +513,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 15 ------------------*/
+    /* --------------- START Packing signal 14 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -568,7 +536,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 16 ------------------*/
+    /* --------------- START Packing signal 15 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -591,7 +559,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 17 ------------------*/
+    /* --------------- START Packing signal 16 ------------------*/
     {
       uint32_T packingValue = 0;
 
@@ -614,7 +582,7 @@ void CANFDSendFcn_BCU_step(void)
       }
     }
 
-    /* --------------- START Packing signal 18 ------------------*/
+    /* --------------- START Packing signal 17 ------------------*/
     {
       uint32_T packingValue = 0;
 
