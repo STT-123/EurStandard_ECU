@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <stdint.h>
 
 
 void* Lwip_Listen_TASK(void* param);

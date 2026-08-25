@@ -4,6 +4,7 @@
 #include "device_drv/abncheck/abncheck.h"
 #include "device_drv/bmu_deal/bmu_deal.h"
 #include "device_drv/sd_store/sd_store.h"
+#include "device_drv/ota_upgrade/ota_fun.h"
 
 static int BCU_CAN_FD = -1;
 #define BCU_FD_LOAD() __atomic_load_n(&BCU_CAN_FD, __ATOMIC_ACQUIRE)
@@ -19,6 +20,34 @@ my_event_data_t bcuCanEventData = {
 
 extern my_event_data_t bmuCanEventData ;
 static pthread_mutex_t can_recover_mutex = PTHREAD_MUTEX_INITIALIZER; //恢复锁，当需要can复位的时候，避免两个任务都复位
+
+/*
+ * AC OTA response ID is not finalized yet. During AC OTA, discard the known
+ * cyclic broadcast frames so they cannot be mistaken for a UDS response.
+ * Replace this temporary blacklist with an OTA response-ID whitelist once the
+ * response ID is confirmed.
+ */
+static bool is_ac_ota_broadcast_frame(canid_t can_id)
+{
+    static const canid_t filtered_ids[] = {
+        0x18FAE6E1, 0x18FA78F5, 0x18FA78F1,
+        0x18FAE6E2, 0x18FF45F4, 0x18FD7BE1,
+        0x18FFC13D, 0x18FFC13A, 0x18FFC13B,
+        0x18FFC13C
+    };
+    canid_t id = can_id & CAN_EFF_MASK;
+
+    if (!get_ota_OTAStart() || get_ota_deviceType() != AC) {
+        return false;
+    }
+
+    for (size_t i = 0; i < sizeof(filtered_ids) / sizeof(filtered_ids[0]); i++) {
+        if (id == filtered_ids[i]) {
+            return true;
+        }
+    }
+    return false;
+}
 
 // 最新值覆盖策略：队列满时清空历史，仅保留当前最新帧
 static void bcu_queue_post_latest_can(const struct can_frame *frame)
@@ -60,8 +89,9 @@ static void bcu_can_epoll_msg_transmit(void *arg)
     if (frame_type == 1)//1 表示CAN 数据-8
     {
         Convert_canfd_frame_to_can_fram(&canfd_rev, &can_rev);//把canfd转换成can
-        // 在OTA 的过程中，可以根据CAN ID进行过滤放在消息队列中，避免在OTA浪费计算
-        bcu_queue_post_latest_can(&can_rev);
+        if (!is_ac_ota_broadcast_frame(can_rev.can_id)) {
+            bcu_queue_post_latest_can(&can_rev);
+        }
     }
     else if (frame_type == 2)//2    表示CAN FD数据-64
     {

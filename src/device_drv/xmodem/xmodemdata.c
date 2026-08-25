@@ -11,6 +11,7 @@
 #include "device_drv/ota_upgrade/ota_fun.h"
 #include "device_drv/sd_store/sd_store.h"
 #include <poll.h>
+#include <sys/socket.h>
 
 #define XMODEM_EOT_WAIT_MS 2000
 
@@ -83,10 +84,31 @@ static void xmodem_close_ota_file_if_open(void)
 }
 
 
+static int send_xmodem_reply(int client_fd, unsigned char reply,
+					 const char *reason, int log_success)
+{
+	ssize_t sent;
+	do {
+		sent = send(client_fd, &reply, 1, MSG_NOSIGNAL);
+	} while (sent < 0 && errno == EINTR);
+
+	if (sent != 1) {
+		int saved_errno = errno;
+		LOG("[Xmodem] reply send FAILED: socket=%d reply=0x%02X reason=%s ret=%zd errno=%d(%s)\r\n",
+			client_fd, reply, reason, sent, saved_errno, strerror(saved_errno));
+		return -1;
+	}
+	if (log_success) {
+		LOG("[Xmodem] reply sent: socket=%d reply=0x%02X reason=%s ret=%zd\r\n",
+			client_fd, reply, reason, sent);
+	}
+	return 0;
+}
+
 void *lwip_data_TASK(void *param)
 {
-	LOG("[Xmodem] lwip_data_TASK %d\r\n", otasock1);
-	LOG("[Xmodem] otasock1 %d\r\n", otasock1);
+	const int client_fd = (int)(intptr_t)param;
+	LOG("[Xmodem] lwip_data_TASK started, owned socket=%d\r\n", client_fd);
 	char otafilenamestr[128] = {'\0'};//文件名
 	int filesize = 0;//总字节数
 	int xmodempacknum = 0;//总包数
@@ -112,12 +134,12 @@ void *lwip_data_TASK(void *param)
 	int rx_cache_len = 0;
 	while (1)
 	{
-		if ((otasock1 > 0) && (stopReadingAfterFileEnd == 0))
+		if ((client_fd >= 0) && (stopReadingAfterFileEnd == 0))
 		{
 			if (waitingForEOT)
 			{
 				struct pollfd eot_pollfd = {
-					.fd = otasock1,
+					.fd = client_fd,
 					.events = POLLIN
 				};
 				int poll_result;
@@ -152,7 +174,7 @@ void *lwip_data_TASK(void *param)
 			}
 
 			memset(tcp_server_recvbuf, 0, 2048);
-			int readLength = read(otasock1, tcp_server_recvbuf, 2048);
+			int readLength = read(client_fd, tcp_server_recvbuf, 2048);
 			curmsgtimer = OsIf_GetMilliseconds();
 			// LOG("[Xmodem] read length :%d\r\n", readLength);
 			if (readLength > 0)
@@ -206,7 +228,9 @@ void *lwip_data_TASK(void *param)
 						{
 							errpacknum = 0;
 							tcp_server_Txbuf[0] = ACK;
-							write(otasock1, tcp_server_Txbuf, 1);
+							send_xmodem_reply(client_fd, ACK,
+								tcp_server_recvbuf[1] == 0x00 ? "OTA header" : "SOH data",
+								tcp_server_recvbuf[1] == 0x00);
 							if(tcp_server_recvbuf[1] == 0x00) //文件起始帧filesize
 							{
 								LOG("Received first pack !\r\n");
@@ -271,8 +295,9 @@ void *lwip_data_TASK(void *param)
 									}
 									if (packno > xmodempacknum)
 									{
-										LOG("[Xmodem] Packet count mismatch(128B): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
+										LOG("[Xmodem] Drop excess packet(128B): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
 												packno, xmodempacknum, curpackno, prvpackno);
+										goto xmodem_frame_done;
 									}
 									if(packno != xmodempacknum)
 									{
@@ -429,8 +454,14 @@ void *lwip_data_TASK(void *param)
 												set_ota_OTAFileType(0);
 												if(strstr(otafilenamestr, "AC_SBL") != NULL)//XC_AC_SBL_<地址>_<长度>_<CRC>.bin    // Bootloader
 												{
-													if (SBl_index >= MAX_FILE_COUNT ||
-														sscanf(otafilenamestr, "XC_AC_SBL_%x_%x_%x", &parsed_addr, &parsed_len, &parsed_crc) != 3)
+													int parsed_fields = sscanf(otafilenamestr, "XC_AC_SBL_%x_%x_%x",
+														&parsed_addr, &parsed_len, &parsed_crc);
+													if (parsed_fields != 3)
+													{
+														parsed_fields = sscanf(otafilenamestr, "AC_SBL_%x_%x_%x",
+															&parsed_addr, &parsed_len, &parsed_crc);
+													}
+													if (SBl_index >= MAX_FILE_COUNT || parsed_fields != 3)
 													{
 														LOG("[Xmodem] Invalid AC SBL filename or too many files: %s\r\n", otafilenamestr);
 														set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
@@ -455,8 +486,14 @@ void *lwip_data_TASK(void *param)
 												}
 												else if(strstr(otafilenamestr, "AC_APP") != NULL)//XC_AC_APP_<地址>_<长度>_<CRC>.bin   // 应用程序
 												{
-													if (APP_index >= MAX_FILE_COUNT ||
-														sscanf(otafilenamestr, "XC_AC_APP_%x_%x_%x", &parsed_addr, &parsed_len, &parsed_crc) != 3)
+													int parsed_fields = sscanf(otafilenamestr, "XC_AC_APP_%x_%x_%x",
+														&parsed_addr, &parsed_len, &parsed_crc);
+													if (parsed_fields != 3)
+													{
+														parsed_fields = sscanf(otafilenamestr, "AC_APP_%x_%x_%x",
+															&parsed_addr, &parsed_len, &parsed_crc);
+													}
+													if (APP_index >= MAX_FILE_COUNT || parsed_fields != 3)
 													{
 														LOG("[Xmodem] Invalid AC APP filename or too many files: %s\r\n", otafilenamestr);
 														set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
@@ -551,7 +588,7 @@ void *lwip_data_TASK(void *param)
 						{
 							errpacknum++;
 							tcp_server_Txbuf[0] = NAK;
-							write(otasock1, tcp_server_Txbuf, 1);
+							send_xmodem_reply(client_fd, NAK, "invalid SOH frame", 1);
 						}
 					}
 					else if(length == 1029)
@@ -561,7 +598,9 @@ void *lwip_data_TASK(void *param)
 
 							errpacknum = 0;
 							tcp_server_Txbuf[0] = ACK;
-							write(otasock1, tcp_server_Txbuf, 1);
+							send_xmodem_reply(client_fd, ACK,
+								tcp_server_recvbuf[1] == 0x00 ? "OTA header" : "STX data",
+								tcp_server_recvbuf[1] == 0x00);
 
 							if(findfirstpack)
 							{
@@ -580,8 +619,9 @@ void *lwip_data_TASK(void *param)
 								}
 								if (packno > xmodempacknum)
 								{
-									LOG("[Xmodem] Packet count mismatch(1K): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
+									LOG("[Xmodem] Drop excess packet(1K): recv pack=%d exceeds expected=%d, raw=0x%02x prev=0x%02x\r\n",
 											packno, xmodempacknum, curpackno, prvpackno);
+									goto xmodem_frame_done;
 								}
 								if(packno != xmodempacknum)
 								{
@@ -730,7 +770,7 @@ void *lwip_data_TASK(void *param)
 						{
 							errpacknum++;
 							tcp_server_Txbuf[0] = NAK;
-							write(otasock1, tcp_server_Txbuf, 1);
+							send_xmodem_reply(client_fd, NAK, "invalid STX frame", 1);
 						}
 
 					}
@@ -751,7 +791,7 @@ void *lwip_data_TASK(void *param)
 										packno, xmodempacknum);
 							}
 							tcp_server_Txbuf[0] = ACK;
-							write(otasock1, tcp_server_Txbuf, 1);
+							send_xmodem_reply(client_fd, ACK, "EOT", 1);
 							setXmodemServerReceiveEOT(1);
 							setXmodemServerReceiveFileEnd(1);
 							waitingForEOT = 0;
@@ -912,12 +952,30 @@ xmodem_read_done:
 			rx_cache_len = 0;
 			xmodem_close_ota_file_if_open();
 			setXmodemServerReceiveSOH(0);
-			setXmodemServerEnd(1);
 			setXmodemServerReceiveEOT(0);
 			setXmodemServerReceiveFileEnd(0);
+			break;
 		}
 		usleep(500);
 	}
+
+	/* A data task owns exactly one accepted client connection.  Keep the
+	 * listening socket alive so the next BIN can create a fresh data task. */
+	pthread_detach(pthread_self());
+	pthread_mutex_lock(&task_mutex);
+	shutdown(client_fd, SHUT_RDWR);
+	close(client_fd);
+	if (otasock1 == client_fd)
+	{
+		otasock1 = -1;
+	}
+	setClientConnected(0);
+	LwIPTCPDataTaskRunning = 0;
+	LwIPTCPDataTaskHandle = 0;
+	pthread_mutex_unlock(&task_mutex);
+	LOG("[Xmodem] lwip_data_TASK exited, closed owned socket=%d, ready for next file\r\n",
+		client_fd);
+	return NULL;
 }
 
 

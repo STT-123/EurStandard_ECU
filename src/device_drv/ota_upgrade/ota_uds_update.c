@@ -92,7 +92,8 @@ signed char udsServer10(unsigned int id, uint8_t session)
 
 		if(UStatus ==0)
 		{
-			LOG("udsServer10 recv mycanmsg.data[1] :%02x\r\n", mycanmsg.data[1] );
+			LOG("udsServer10 recv CAN ID=0x%X, data: %02X %02X %02X !",
+				mycanmsg.can_id, mycanmsg.data[0], mycanmsg.data[1], mycanmsg.data[2]);
 			if (mycanmsg.data[1] == 0x50) {
 				LOG("udsstatus.udsReturnSuccess = true!");
 				udsstatus.udsReturnSuccess = true;
@@ -168,7 +169,8 @@ signed char udsServer27(unsigned int id, uint8_t session)
 			UStatus = queue_pend(&Queue_BCURevData, &mycanmsg,&err);
 			if(UStatus ==0)
 			{
-				LOG("udsServer27 recv mycanmsg.data[1] :%02x .", mycanmsg.data[1] );
+				LOG("udsServer27 seed recv CAN ID=0x%X, data: %02X %02X %02X !",
+					mycanmsg.can_id, mycanmsg.data[0], mycanmsg.data[1], mycanmsg.data[2]);
 
 				if (mycanmsg.data[1] == 0x67) 
 				{
@@ -244,7 +246,8 @@ signed char udsServer27(unsigned int id, uint8_t session)
 			UStatus = queue_pend(&Queue_BCURevData, &mycanmsg,&err);
 			if(UStatus ==0)
 			{
-				LOG("mycanmsg.data[1] :0x%x.", mycanmsg.data[1] );
+				LOG("udsServer27 key recv CAN ID=0x%X, data: %02X %02X %02X !",
+					mycanmsg.can_id, mycanmsg.data[0], mycanmsg.data[1], mycanmsg.data[2]);
 				if (mycanmsg.data[1] == 0x67)
 				{
 					if (mycanmsg.data[2] == 0x00) {
@@ -292,7 +295,9 @@ signed char udsServer27(unsigned int id, uint8_t session)
 
 signed char udsServer31(unsigned int id, uint32_t addr, uint32_t len)
 {
-
+	const int response_timeout_ms = 10000;
+	const int poll_interval_ms = 50;
+	const int max_poll_count = response_timeout_ms / poll_interval_ms;
 	CAN_MESSAGE CanMes;
 	CAN_MESSAGE CanMes_1;
 	unsigned int times = 0;
@@ -387,12 +392,21 @@ signed char udsServer31(unsigned int id, uint32_t addr, uint32_t len)
 			if (UStatus == 0)
 			{
 				printf("mycanmsg.data[1] :%d\r\n", mycanmsg.data[1]);
-				if (mycanmsg.data[1] == 0x71)
-				{
-					udsstatus.udsReturnSuccess = true;
-					return 0;
-				}
-				else
+					if (mycanmsg.data[1] == 0x71)
+					{
+						udsstatus.udsReturnSuccess = true;
+						return 0;
+					}
+					else if (mycanmsg.data[1] == 0x7f &&
+							 mycanmsg.data[2] == 0x31 &&
+							 mycanmsg.data[3] == 0x78)
+					{
+						LOG("udsServer31 erase response pending, continue waiting up to %dms !",
+							response_timeout_ms);
+						retry_count = 0;
+						continue;
+					}
+					else
 				{
 					printf("udsServer31 Return_2 false\r\n");
 					udsstatus.udsReturnSuccess = false;
@@ -400,15 +414,16 @@ signed char udsServer31(unsigned int id, uint32_t addr, uint32_t len)
 					return 1;
 				}
 			}
-			else
-			{
-				retry_count++;
-				usleep(50 * 1000);  // 等待100ms
-			}
-		} while (UStatus != 0 && retry_count < 10);
+				else
+				{
+					retry_count++;
+					usleep(poll_interval_ms * 1000);
+				}
+			} while (retry_count < max_poll_count);
 
-		// 超过重试次数仍失败
-		printf("udsstatus.ErrorReg = 13\r\n");
+			// 超过重试次数仍失败
+			LOG("udsServer31 erase response timeout after %dms !", response_timeout_ms);
+			printf("udsstatus.ErrorReg = 13\r\n");
 		udsstatus.ErrorReg = 13;
 		printf("canrevmsg0.Data[0] :%d\r\n", mycanmsg.data[0]);
 		printf("canrevmsg1.Data[0] :%d\r\n", mycanmsg.data[1]);
@@ -436,11 +451,11 @@ signed char udsServer31(unsigned int id, uint32_t addr, uint32_t len)
 
 signed char udsServer31_2(unsigned int id, uint32_t addr)
 {
-
+	const int response_timeout_ms = 1000;
+	const int poll_interval_ms = 50;
+	const int max_poll_count = response_timeout_ms / poll_interval_ms;
 	CAN_MESSAGE CanMes;
 	struct can_frame mycanmsg;
-	unsigned int times = 0;
-
 	int TStatus;
 	int UStatus;
 	int err;
@@ -462,34 +477,38 @@ signed char udsServer31_2(unsigned int id, uint32_t addr)
     udsstatus.udsServerID = 0x31;
     udsstatus.udsSession = 0x00;
 	queue_clear(&Queue_BCURevData);//清除一下CAN
+	LOG("udsServer31_2 routine 0x%04X: wait flow control up to %dms !",
+		addr, response_timeout_ms);
 
     TStatus = Drv_bcu_can_send(&CanMes);
     if(TStatus ==0)
     {
-
 		memset(&mycanmsg, 0, sizeof(mycanmsg));
-		usleep(300*1000);
-		UStatus = queue_pend(&Queue_BCURevData, &mycanmsg,&err);
-		if(UStatus ==0)
+		int retry_count = 0;
+		while (retry_count < max_poll_count)
 		{
-			printf("mycanmsg.data[0] :%d\r\n", mycanmsg.data[0] );
-			printf("mycanmsg.data[1] :%d\r\n", mycanmsg.data[1] );
-			printf("mycanmsg.data[2] :%d\r\n", mycanmsg.data[2] );
-			if (mycanmsg.data[0] == 0x30) {
-
-				udsstatus.udsReturnSuccess = true;
-			}
-			else
+			UStatus = queue_pend(&Queue_BCURevData, (uint8_t *)&mycanmsg, &err);
+			if (UStatus == 0)
 			{
-				printf("udsServer32_2 Return_1 false\r\n");
-				udsstatus.udsReturnSuccess = false;
-				udsstatus.ErrorReg = 15;
-				return 1;
+				LOG("udsServer31_2 routine 0x%04X flow control: %02X %02X %02X !",
+					addr, mycanmsg.data[0], mycanmsg.data[1], mycanmsg.data[2]);
+				if (mycanmsg.data[0] != 0x30)
+				{
+					udsstatus.udsReturnSuccess = false;
+					udsstatus.ErrorReg = 15;
+					return 1;
+				}
+				udsstatus.udsReturnSuccess = true;
+				break;
 			}
+			retry_count++;
+			usleep(poll_interval_ms * 1000);
 		}
-		else
+		if (retry_count >= max_poll_count)
 		{
-			printf("udsstatus.ErrorReg = 16\r\n");
+			LOG("udsServer31_2 routine 0x%04X flow-control timeout after %dms !",
+				addr, response_timeout_ms);
+			udsstatus.udsReturnSuccess = false;
 			udsstatus.ErrorReg = 16;
 			return 1;
 		}
@@ -524,15 +543,17 @@ signed char udsServer31_2(unsigned int id, uint32_t addr)
 	{
 		// 接收CAN消息，秘钥，是否超时或者否定回复
 		memset(&mycanmsg, 0, sizeof(mycanmsg));
-		usleep(300 * 1000);  // 初始等待 300ms
-
+		LOG("udsServer31_2 routine 0x%04X request sent, wait 0x71 response up to %dms !",
+			addr, response_timeout_ms);
 		int retry_count = 0;
-		while (retry_count < 10)
+		while (retry_count < max_poll_count)
 		{
-			UStatus = queue_pend(&Queue_BCURevData, &mycanmsg, &err);
+			UStatus = queue_pend(&Queue_BCURevData, (uint8_t *)&mycanmsg, &err);
 			if (UStatus == 0)
 			{
-				printf("mycanmsg.data[1] :%d\r\n", mycanmsg.data[1]);
+				LOG("udsServer31_2 routine 0x%04X response: %02X %02X %02X %02X !",
+					addr, mycanmsg.data[0], mycanmsg.data[1],
+					mycanmsg.data[2], mycanmsg.data[3]);
 				if (mycanmsg.data[1] == 0x71)
 				{
 					udsstatus.udsReturnSuccess = true;
@@ -540,7 +561,7 @@ signed char udsServer31_2(unsigned int id, uint32_t addr)
 				}
 				else
 				{
-					printf("udsServer31_2 Return_2 false\r\n");
+					LOG("udsServer31_2 routine 0x%04X invalid response, expected service 0x71 !", addr);
 					udsstatus.udsReturnSuccess = false;
 					udsstatus.ErrorReg = 18;
 					return 1;
@@ -549,14 +570,21 @@ signed char udsServer31_2(unsigned int id, uint32_t addr)
 			else
 			{
 				retry_count++;
-				usleep(50 * 1000);  // 重试前等待100ms
+				usleep(poll_interval_ms * 1000);
 			}
 		}
 
-		// 超过三次仍然接收失败
-		// printf("queue_pend 失败超过3次，退出，udsstatus.ErrorReg = 19\r\n");
+		LOG("udsServer31_2 routine 0x%04X response timeout after %dms !",
+			addr, response_timeout_ms);
 		udsstatus.udsReturnSuccess = false;
-		// udsstatus.ErrorReg = 19;
+		if (addr == 0x2108 || addr == 0xCBA5)
+		{
+			LOG("udsServer31_2 routine 0x%04X sent successfully without final response; "
+				"use jump/reset compatibility fallback !", addr);
+			udsstatus.udsReturnSuccess = true;
+			return 0;
+		}
+		udsstatus.ErrorReg = 19;
 		return 1;
 	}
 	else
@@ -1032,6 +1060,9 @@ signed char  udsServer36(uint32_t id, const char *filename,FILE *rfile) {
 
 signed char udsServer37(unsigned int id, uint16_t crc_value)
 {
+	const int response_timeout_ms = 5000;
+	const int poll_interval_ms = 50;
+	const int max_poll_count = response_timeout_ms / poll_interval_ms;
 	CAN_MESSAGE CanMes;
 	CAN_MESSAGE CanMes_1;
 	struct can_frame mycanmsg;
@@ -1068,24 +1099,26 @@ signed char udsServer37(unsigned int id, uint16_t crc_value)
 	{
 		// 接收CAN消息，验证秘钥，判断是否超时或否定回复
 		memset(&mycanmsg, 0, sizeof(mycanmsg));
+		LOG("udsServer37 request sent, expected CRC=0x%04X, wait response up to %dms !",
+			crc_value, response_timeout_ms);
 
 		int retry_count = 0;
-		while (retry_count < 10)
+		while (retry_count < max_poll_count)
 		{
 			UStatus = queue_pend(&Queue_BCURevData, &mycanmsg, &err);
 
-			// 打印接收数据内容
-			printf("mycanmsg.Data[0]:%02x\r\n", mycanmsg.data[0]);
-			printf(" mycanmsg.Data[1]:%02x\r\n", mycanmsg.data[1]);
-			printf(" mycanmsg.Data[2]:%02x\r\n", mycanmsg.data[2]);
-			printf(" mycanmsg.Data[3]:%02x\r\n", mycanmsg.data[3]);
-			printf(" mycanmsg.Data[4]:%02x\r\n", mycanmsg.data[4]);
-			printf(" mycanmsg.Data[5]:%02x\r\n", mycanmsg.data[5]);
-			printf(" mycanmsg.Data[6]:%02x\r\n", mycanmsg.data[6]);
-			printf(" mycanmsg.Data[7]:%02x\r\n", mycanmsg.data[7]);
-
 			if (UStatus == 0)
 			{
+				// 只在真正收到CAN帧时打印，避免等待期间反复打印全零数据
+				printf("mycanmsg.Data[0]:%02x\r\n", mycanmsg.data[0]);
+				printf(" mycanmsg.Data[1]:%02x\r\n", mycanmsg.data[1]);
+				printf(" mycanmsg.Data[2]:%02x\r\n", mycanmsg.data[2]);
+				printf(" mycanmsg.Data[3]:%02x\r\n", mycanmsg.data[3]);
+				printf(" mycanmsg.Data[4]:%02x\r\n", mycanmsg.data[4]);
+				printf(" mycanmsg.Data[5]:%02x\r\n", mycanmsg.data[5]);
+				printf(" mycanmsg.Data[6]:%02x\r\n", mycanmsg.data[6]);
+				printf(" mycanmsg.Data[7]:%02x\r\n", mycanmsg.data[7]);
+
 				if (mycanmsg.data[1] == 0x77)
 				{
 					uint16_t received_crc = (mycanmsg.data[4] << 8) | mycanmsg.data[5];
@@ -1116,12 +1149,12 @@ signed char udsServer37(unsigned int id, uint16_t crc_value)
 			else
 			{
 				retry_count++;
-				usleep(50 * 1000); // 100ms 延时
+				usleep(poll_interval_ms * 1000);
 			}
 		}
 
-		// 如果超过3次仍然失败
-		printf("queue_pend 失败超过3次，退出\r\n");
+		LOG("udsServer37 response timeout after %dms, expected CRC=0x%04X !",
+			response_timeout_ms, crc_value);
 		udsstatus.ErrorReg = 33;
 		printf("ErrorReg = %d\r\n", udsstatus.ErrorReg);
 		return 1;
@@ -1355,11 +1388,13 @@ void UDS_OTA(void)
                         LOG("APP_udsServer31_2 successed !"); //成功
                     }
                     else
-                    {                 
+                    {
                         LOG("APP_udsServer31_2 failed !");//失败
+						break;
                     }
                     
-                    usleep(100*1000);//延时
+					LOG("Wait 100ms after RAM SBL jump before APP erase request.");
+					usleep(100*1000);//按专用上位机时序，跳转超时后尽快发送擦除请求
                     res = udsServer31(ACOTACANID,0xee00,0x100);//例行程序控制0x31
                     if(res == 0)
                     {  
@@ -1473,20 +1508,29 @@ void UDS_OTA(void)
                             LOG("APP Block %d transfer failed. Error code: %d !", i, transferRes);
                             break; // 传输失败
                         }
-                        
+
                         usleep(200*1000);//延时
+						LOG("APP Block %d request transfer exit: expected CRC=0x%04X !", i, appData[i].CRC);
                         res = udsServer37(ACOTACANID ,appData[i].CRC);//请求退出0x37
                         if(res == 0)
-                        {                           
+                        {
                             LOG("udsServer37 successed! ");//成功
                         }
                         else
                         {
-                            LOG("udsServer37 failed! ");//失败
+							LOG("APP Block %d udsServer37 failed, expected CRC=0x%04X, ErrorReg=0x%X !",
+								i, appData[i].CRC, udsstatus.ErrorReg);//失败
                             break;
-                        }                       
+                        }
                         usleep(500*1000);//延时
                     }
+
+					if (udsstatus.ErrorReg != 0)
+					{
+						LOG("Abort AC OTA after APP transfer failure, preserve ErrorReg=0x%X !",
+							udsstatus.ErrorReg);
+						break;
+					}
 
                     set_modbus_reg_val(OTAPPROGRESSREGADDR, 80);//0124,升级进度
 
@@ -1597,8 +1641,10 @@ void UDS_OTA(void)
         }
         else
         {
-			LOG("[OTA] can id 0x%x device ota failed, error register val 0x%x!", get_ota_deviceID(), udsstatus.ErrorReg);
-            // set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+				LOG("[OTA] can id 0x%x device ota failed, error register val 0x%x!", get_ota_deviceID(), udsstatus.ErrorReg);
+			set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+			set_ota_UpDating(0);
+			udsstatus.CANStartOTA = 0;
         }
 
         set_ota_OTAStart(0);

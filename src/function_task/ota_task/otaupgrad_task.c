@@ -319,6 +319,8 @@ void *ota_Upgrade_Task(void *arg)
                     LOG("[OTA] CAN ID 0x%x ACP OTA success!\r\n", get_ota_deviceID());
                     if (get_ota_deviceType() == AC)
                     {
+						LOG("[OTA] Hold AC OTA success status and 100%% progress for 5 seconds.\r\n");
+						sleep(5);
                         FinishACOtaAndCleanup();
                     }
                 }
@@ -374,6 +376,7 @@ void *ota_Upgrade_Task(void *arg)
                                 LOG("[OTA] CAN ID 0x%x BCU OTA success!\r\n", get_ota_deviceID());
                                 set_modbus_reg_val(OTAPPROGRESSREGADDR, 100);//0124,升级进度
                                 set_modbus_reg_val(OTASTATUSREGADDR, OTASUCCESS);
+                                sleep(5); // 保持成功状态，确保上位机能够读到
                                 break;
                             }
                             else

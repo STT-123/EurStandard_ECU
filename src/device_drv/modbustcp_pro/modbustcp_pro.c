@@ -414,19 +414,22 @@ static int rtc_Modbus_Deal(uint16_t address, uint16_t data)
 static int BatterySNCodeSend(uint16_t address, const uint8_t *data, uint16_t data_len)
 {
 	static CAN_FD_MESSAGE tx_msg = {0};
-	if ((data == NULL) || (data_len < 3)) {
+	uint16_t register_count;
+
+	if ((data == NULL) || (data_len < 2U) || ((data_len % 2U) != 0U)) {
 		LOG("Invalid data pointer or length\n");
 		return -1;
 	}
+	register_count = data_len / 2U;
 
 	if ((address < MDBUS_SN_START) || (address > MDBUS_SN_END) ||
-		((uint32_t)address + ((data_len + 1U) / 2U) - 1U > MDBUS_SN_END)) {
+		((uint32_t)address + register_count - 1U > MDBUS_SN_END)) {
 		LOG("Invalid address or data length\n");
 		return -1;
 	}
 
-	if(data_len > BCU_SN_CANFD_LEN) {
-		LOG("SN write len exceed max len, data_len = %u\r\n", data_len);
+	if(register_count > BCU_SN_DATA_LEN) {
+		LOG("SN write len exceed max len, register_count = %u\r\n", register_count);
 		return -1;
 	}
 	memset(&tx_msg, 0, sizeof(tx_msg));
@@ -438,12 +441,16 @@ static int BatterySNCodeSend(uint16_t address, const uint8_t *data, uint16_t dat
 	tx_msg.ProtocolMode = 1;
 	tx_msg.DLC = 15U;
 
-	memcpy(tx_msg.Data, data, (data_len > BCU_SN_DATA_LEN) ? BCU_SN_DATA_LEN : data_len);
+	/* One SN character per Modbus register. The character is stored in the
+	 * low byte, so 0x0041 is copied to CAN FD as ASCII 'A' (0x41). */
+	for (uint16_t i = 0; i < register_count; i++) {
+		tx_msg.Data[i] = data[i * 2U + 1U];
+	}
 	tx_msg.Data[BCU_SN_FLAG_OFFSET] = BCU_SN_WRITE_FLAG;
 
 	ModbusSNPrintHex("[ModbusTcp] SN CANFD output", tx_msg.Data, BCU_SN_CANFD_LEN);
-	LOG("[ModbusTcp] SN write matched, address: 0x%x, len: %u, send CANFD ID: 0x%x\r\n",
-		address, data_len, tx_msg.ID);
+	LOG("[ModbusTcp] SN write matched, address: 0x%x, registers: %u, send CANFD ID: 0x%x\r\n",
+		address, register_count, tx_msg.ID);
 	for(int i = 0; i < 3; i++) {
 		Drv_bcu_canfd_send(&tx_msg);
 		usleep(5 * 1000);

@@ -39,41 +39,46 @@ void* Lwip_Listen_TASK(void* param)
 
     listen(otasock, 1); // 监听
 
-    size = sizeof(remote);
+	size = sizeof(remote);
     while (1)
     {
 		LOG("[Xmodem] otasock1 before accept: %d\n", otasock1);
-		otasock1 = accept(otasock, (struct sockaddr *)&remote, &size);
+		int client_socket = accept(otasock, (struct sockaddr *)&remote, &size);
 		int accept_errno = errno;
-        if (otasock1 > 0)
+        if (client_socket >= 0)
         {
-            setClientConnected(1);
-            // clientConnected = 1;
-            LOG("[Xmodem] otasock1 = %d\n", otasock1);
+            LOG("[Xmodem] accepted client socket = %d\n", client_socket);
             LOG("[Xmodem] Client connected: %s:%d\n",inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
 
             pthread_mutex_lock(&task_mutex); // 临界区保护
             if (xmodem_server_stopping)
             {
                 pthread_mutex_unlock(&task_mutex);
-                close(otasock1);
-                otasock1 = -1;
-                setClientConnected(0);
+                close(client_socket);
                 continue;
             }
 
             if (!LwIPTCPDataTaskRunning)
             {
-                if (pthread_create(&LwIPTCPDataTaskHandle, NULL, lwip_data_TASK, NULL) == 0) {
+				otasock1 = client_socket;
+                setClientConnected(1);
+				/* Bind this task to this accepted socket.  Do not let a later
+				 * accept change the descriptor used by an existing data task. */
+				if (pthread_create(&LwIPTCPDataTaskHandle, NULL, lwip_data_TASK,
+							   (void *)(intptr_t)client_socket) == 0) {
                     LwIPTCPDataTaskRunning = 1;
                     LOG("[Xmodem] create lwip_data_TASK success\n");
                 } else {
                     LOG("[Xmodem] create lwip_data_TASK failed\n");
+					close(otasock1);
+					otasock1 = -1;
+					setClientConnected(0);
                 }
             }
             else
             {
-                LOG("[Xmodem] lwip_data_TASK already running!\n");
+				LOG("[Xmodem] lwip_data_TASK already running, reject client socket %d!\n", client_socket);
+				close(client_socket);
             }
             pthread_mutex_unlock(&task_mutex);
         }
