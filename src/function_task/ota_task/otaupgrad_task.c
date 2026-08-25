@@ -319,9 +319,9 @@ void *ota_Upgrade_Task(void *arg)
                     LOG("[OTA] CAN ID 0x%x ACP OTA success!\r\n", get_ota_deviceID());
                     if (get_ota_deviceType() == AC)
                     {
-						LOG("[OTA] Hold AC OTA success status and 100%% progress for 5 seconds.\r\n");
-						sleep(5);
-                        FinishACOtaAndCleanup();
+							LOG("[OTA] Hold AC OTA success status and 100%% progress for 5 seconds.\r\n");
+							sleep(5);
+	                        FinishACOtaAndCleanup();
                     }
                 }
             }

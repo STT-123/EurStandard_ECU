@@ -641,9 +641,10 @@ static void set_ems_bms_reboot()
 {
 	for(int i = 0; i < 3; i++){
 		set_OTA_XCPConnect(170);
+		usleep(250 * 1000);
+		CANFDSendFcn_BCU_step();
 	}
-	CANFDSendFcn_BCU_step();
-	usleep(250 * 1000);
+	set_OTA_XCPConnect(0);
 	LOG("\r\n\r\n  ******* ECU cmd Reset  *******  r\n\r\n");
 	sleep(2);
 	system("reboot"); // 复位并准备跳转
