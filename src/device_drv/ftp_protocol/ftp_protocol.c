@@ -1,9 +1,11 @@
 #include "ftp_protocol.h"
 #include "device_drv/sd_store/sd_store.h"
 #include "interface/setting/ip_setting.h"
+#include "interface/log/log.h"
 #define DATA_PORT 40900
 #define FTP_BUFFER_SIZE 2920 // 2048 网络传输包mtu限制改为1460得倍数
 #define TIMEOUT_SECONDS 300
+#define FTP_ROOT_PATH ZLOG_DATA_FILE_PATH
 pthread_mutex_t ftp_file_io_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int is_safe_path(const char *path);
 static int build_safe_filepath(const FTPState *state, const char *name, char *filepath, size_t filepath_size);
@@ -86,19 +88,14 @@ static void handle_pass_command(FTPState *state, char *args)
     update_last_activity(state);
     state->logged_in = 0;
 
-    if (sdcard_is_formatting()) {
-        send_response(state->control_sock, "450 Storage temporarily unavailable.\r\n");
-        return;
-    }
-
-    if (access(USB_MOUNT_POINT, F_OK) != 0)
+    if (access(FTP_ROOT_PATH, R_OK | X_OK) != 0)
     {
-        LOG("Failed to access USB directory: %s\n", strerror(errno));
-        send_response(state->control_sock, "550 Failed to access USB directory.\r\n");
+        LOG("Failed to access FTP log directory: %s\n", strerror(errno));
+        send_response(state->control_sock, "550 Failed to access log directory.\r\n");
         return;
     }
 
-    strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
+    strncpy(state->path, FTP_ROOT_PATH, sizeof(state->path) - 1);
     state->path[sizeof(state->path) - 1] = '\0';
     state->logged_in = 1;
     send_response(state->control_sock, "230 Login successful.\r\n");
@@ -388,11 +385,6 @@ static void handle_retr_command(FTPState *state, char *filename) {
         result = 0;
 
         while ((bytes_read = fread(buffer, 1, sizeof(buffer), state->file)) > 0) {
-            if (sdcard_is_formatting()) {
-                result = -2;
-                break;
-            }
-
             update_last_activity(state);
             
             if (send(client_data_sock, buffer, bytes_read, 0) < 0) {
@@ -412,10 +404,7 @@ static void handle_retr_command(FTPState *state, char *filename) {
     pthread_mutex_unlock(&ftp_file_io_mutex);
 
     // 发送最终响应
-    if (result == -2) {
-        send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
-        state->quit_requested = 1;
-    } else if (result == 0) {
+    if (result == 0) {
         send_response(state->control_sock, "226 Transfer complete.\r\n");
     } else {
         send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
@@ -465,11 +454,6 @@ static void handle_stor_command(FTPState *state, char *filename) {
         result = 0;
 
         while ((bytes_received = recv(client_data_sock, buffer, sizeof(buffer), 0)) > 0) {
-            if (sdcard_is_formatting()) {
-                result = -2;
-                break;
-            }
-
             update_last_activity(state);
 
             size_t bytes_written = fwrite(buffer, 1, bytes_received, file);
@@ -489,10 +473,7 @@ static void handle_stor_command(FTPState *state, char *filename) {
     pthread_mutex_unlock(&ftp_file_io_mutex);
 
     // 发送最终响应
-    if (result == -2) {
-        send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
-        state->quit_requested = 1;
-    } else if (result == 0) {
+    if (result == 0) {
         send_response(state->control_sock, "226 Transfer complete.\r\n");
     } else {
         send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
@@ -542,17 +523,6 @@ static void handle_mget_command(FTPState *state, char *args)
 
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
     {
-        if (sdcard_is_formatting())
-        {
-            send_response(state->control_sock, "426 Transfer aborted for SD formatting.\r\n");
-            safe_close_file(&file);
-            safe_close_socket(&client_data_sock);
-            safe_close_socket(&state->data_sock);
-            pthread_mutex_unlock(&ftp_file_io_mutex);
-            state->quit_requested = 1;
-            return;
-        }
-
         update_last_activity(state);
         if (send(client_data_sock, buffer, bytes_read, 0) < 0)
         {
@@ -605,14 +575,14 @@ static void handle_cdup_command(FTPState *state)
 
     update_last_activity(state);
 
-    strncpy(parent_path, state->path[0] ? state->path : USB_MOUNT_POINT, sizeof(parent_path) - 1);
+    strncpy(parent_path, state->path[0] ? state->path : FTP_ROOT_PATH, sizeof(parent_path) - 1);
     parent_path[sizeof(parent_path) - 1] = '\0';
 
-    if (strcmp(parent_path, USB_MOUNT_POINT) != 0) {
+    if (strcmp(parent_path, FTP_ROOT_PATH) != 0) {
         last_sep = strrchr(parent_path, '/');
         if (last_sep) {
             if (last_sep == parent_path) {
-                strncpy(parent_path, USB_MOUNT_POINT, sizeof(parent_path) - 1);
+                strncpy(parent_path, FTP_ROOT_PATH, sizeof(parent_path) - 1);
                 parent_path[sizeof(parent_path) - 1] = '\0';
             } else {
                 *last_sep = '\0';
@@ -636,7 +606,9 @@ static int is_safe_path(const char *path) {
     if (!path) return 0;
     
     // 检查路径是否以允许的前缀开始
-    if (strncmp(path, USB_MOUNT_POINT, strlen(USB_MOUNT_POINT)) != 0) {
+    size_t root_len = strlen(FTP_ROOT_PATH);
+    if (strncmp(path, FTP_ROOT_PATH, root_len) != 0 ||
+        (path[root_len] != '\0' && path[root_len] != '/')) {
         return 0;
     }
     
@@ -682,13 +654,8 @@ static int ftp_storage_ready(FTPState *state)
         return -1;
     }
 
-    if (sdcard_is_formatting()) {
-        send_response(state->control_sock, "450 Storage temporarily unavailable.\r\n");
-        return -1;
-    }
-
     if (state->path[0] == '\0') {
-        strncpy(state->path, USB_MOUNT_POINT, sizeof(state->path) - 1);
+        strncpy(state->path, FTP_ROOT_PATH, sizeof(state->path) - 1);
         state->path[sizeof(state->path) - 1] = '\0';
     }
 
@@ -701,13 +668,13 @@ static void build_ftp_display_path(const char *path, char *display_path, size_t 
         return;
     }
 
-    if (!path || strcmp(path, USB_MOUNT_POINT) == 0) {
+    if (!path || strcmp(path, FTP_ROOT_PATH) == 0) {
         snprintf(display_path, display_path_size, "/");
         return;
     }
 
-    if (strncmp(path, USB_MOUNT_POINT, strlen(USB_MOUNT_POINT)) == 0) {
-        snprintf(display_path, display_path_size, "%s", path + strlen(USB_MOUNT_POINT));
+    if (strncmp(path, FTP_ROOT_PATH, strlen(FTP_ROOT_PATH)) == 0) {
+        snprintf(display_path, display_path_size, "%s", path + strlen(FTP_ROOT_PATH));
         if (display_path[0] == '\0') {
             snprintf(display_path, display_path_size, "/");
         }
@@ -734,13 +701,25 @@ static void handle_cwd_command(FTPState *state, const char *args) {
         return;
     }
 
+    /*
+     * 兼容旧客户端的 `CWD /` -> `CWD log` 流程。FTP 的虚拟
+     * `/log` 与 `/` 都映射到真实目录 /userdata/xcharge/log，
+     * 避免暴露 /userdata/xcharge 下的 OTA 等其他目录。
+     */
+    if ((strcmp(state->path, FTP_ROOT_PATH) == 0) &&
+        (strcmp(args, "log") == 0 || strcmp(args, "/log") == 0)) {
+        send_response(state->control_sock, "250 Directory successfully changed.\r\n");
+        LOG("Changed virtual FTP directory /log to: %s\n", FTP_ROOT_PATH);
+        return;
+    }
+
     // 处理绝对路径
     if (args[0] == '/') {
         if (strcmp(args, "/") == 0) {
-            strncpy(target_path, USB_MOUNT_POINT, sizeof(target_path) - 1);
+            strncpy(target_path, FTP_ROOT_PATH, sizeof(target_path) - 1);
         } else {
-            // 显式拼接 USB_MOUNT_POINT 和 args
-            snprintf(target_path, sizeof(target_path), "%s%s", USB_MOUNT_POINT, args);
+            // FTP 绝对路径始终相对于内部日志根目录
+            snprintf(target_path, sizeof(target_path), "%s%s", FTP_ROOT_PATH, args);
         }
     } else {
         // 处理相对路径
@@ -867,15 +846,6 @@ int handle_ftp_commands(FTPState *state) {
     update_last_activity(state);
 
     while (1) {
-        if (sdcard_is_formatting()) {
-            if (state->control_sock >= 0) {
-                send_response(state->control_sock, "421 SD formatting in progress, closing control connection.\r\n");
-            }
-            state->quit_requested = 1;
-            cleanup_ftp_state(state);
-            return -5;
-        }
-
         // 检查是否有待处理的超时
         if (state->timeout_pending) {
             LOG("Processing pending timeout\n");

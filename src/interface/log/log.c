@@ -15,7 +15,6 @@ zlog_category_t *log_csv = NULL;
 static pthread_mutex_t g_log_output_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool g_log_file_output_enabled = true;
 static bool g_log_initialized = false;
-static bool g_log_paused = false;
 
 void log_output_lock(void)
 {
@@ -43,36 +42,6 @@ bool log_file_output_enabled(void)
     return enabled;
 }
 
-void log_pause_for_sd_format(void)
-{
-    pthread_mutex_lock(&g_log_output_mutex);
-    g_log_file_output_enabled = false;
-    if (!g_log_paused) {
-        g_log_paused = true;
-        if (g_log_initialized) {
-            zlog_fini();
-        }
-        g_log_initialized = false;
-    }
-    log_printf = NULL;
-    log_record = NULL;
-    log_csv = NULL;
-    pthread_mutex_unlock(&g_log_output_mutex);
-}
-
-int log_resume_after_sd_format(void)
-{
-    pthread_mutex_lock(&g_log_output_mutex);
-    if (!g_log_paused) {
-        g_log_file_output_enabled = true;
-        pthread_mutex_unlock(&g_log_output_mutex);
-        return 0;
-    }
-    g_log_paused = false;
-    pthread_mutex_unlock(&g_log_output_mutex);
-
-    return log_init();
-}
 // 0 成功
 // -1 配置文件不对
 // -2 初始化失败
@@ -103,12 +72,13 @@ int log_init()
 {
     int rc = 0;
 
-    /*
-     * /mnt/sda 未挂载时它是内部存储上的普通目录。
-     * 这里明确创建两级目录，使无 SD 卡时也能保存日志。
-     */
-    if (ensure_directory("/mnt/sda", 0755) != 0) {
-        printf("create /mnt/sda failed: %s\n", strerror(errno));
+    /* 应用日志固定保存在内部存储，不依赖 SD 卡挂载状态。 */
+    if (ensure_directory("/userdata", 0755) != 0) {
+        printf("create /userdata failed: %s\n", strerror(errno));
+        return -1;
+    }
+    if (ensure_directory("/userdata/xcharge", 0755) != 0) {
+        printf("create /userdata/xcharge failed: %s\n", strerror(errno));
         return -1;
     }
     if (ensure_directory(ZLOG_DATA_FILE_PATH, 0755) != 0) {
@@ -119,7 +89,6 @@ int log_init()
     pthread_mutex_lock(&g_log_output_mutex);
 
     if (g_log_initialized) {
-        g_log_paused = false;
         g_log_file_output_enabled = true;
         pthread_mutex_unlock(&g_log_output_mutex);
         return 0;
@@ -171,7 +140,6 @@ int log_init()
     }
 
     g_log_initialized = true;
-    g_log_paused = false;
     g_log_file_output_enabled = true;
     pthread_mutex_unlock(&g_log_output_mutex);
     return 0;

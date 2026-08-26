@@ -9,7 +9,7 @@
 */
 
 #define ZLOG_CONF_FILE_PATH "/opt/xcharge/zlog.conf"    // zlog 配置文件地址
-#define ZLOG_DATA_FILE_PATH "/mnt/sda/log"          // zlog 日志存放地址
+#define ZLOG_DATA_FILE_PATH "/userdata/xcharge/log" // zlog 日志存放地址（内部存储）
 
 extern zlog_category_t *log_printf;    // 终端
 extern zlog_category_t *log_record;    // 通用日志
@@ -24,8 +24,6 @@ bool log_file_output_enabled(void);
 bool log_file_output_enabled_locked(void);
 void log_output_lock(void);
 void log_output_unlock(void);
-void log_pause_for_sd_format(void);
-int log_resume_after_sd_format(void);
 void ascill_to_string(unsigned char *data, unsigned int data_len, char *string_ptr, int string_len);
 
 #endif /* LOG_H__ */

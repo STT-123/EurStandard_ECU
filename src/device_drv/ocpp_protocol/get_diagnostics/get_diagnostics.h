@@ -5,8 +5,8 @@
 #include "ocpp_messages.h"
 #include "ocpp_app_update.h"
 
-#define UPLOAD_FILE_PATH "/mnt/sda/log/app_project.log.bz2"  // 固定上传的文件路径
-#define LOG_FILE_PATH     "/mnt/sda/log/app_project.log"
+#define UPLOAD_FILE_PATH "/userdata/xcharge/log/app_project.log.bz2"  // 固定上传的文件路径
+#define LOG_FILE_PATH     "/userdata/xcharge/log/app_project.log"
 
 typedef enum
 {

@@ -192,51 +192,6 @@ static int is_mount_point_active(const char *mount_point)
     return mounted;
 }
 
-/*
- * SD 卡运行中掉线时，旧挂载通常仍保留在 /proc/mounts 中。
- * 关闭 zlog 的 SD 文件句柄并延迟卸载，让 /mnt/sda 重新显示为
- * 内部存储目录，然后在内部存储上恢复普通日志。
- */
-static int switch_logs_to_internal_storage(void)
-{
-    int saved_errno = 0;
-    int result = 0;
-
-    log_pause_for_sd_format();
-    leave_mount_point_if_needed(USB_MOUNT_POINT);
-
-    if (is_mount_point_active(USB_MOUNT_POINT) &&
-        umount2(USB_MOUNT_POINT, MNT_DETACH) != 0) {
-        saved_errno = errno;
-        result = -1;
-    }
-
-    if (ensure_mount_point(USB_MOUNT_POINT) != 0 ||
-        ensure_mount_point(ZLOG_DATA_FILE_PATH) != 0) {
-        if (saved_errno == 0) {
-            saved_errno = errno;
-        }
-        result = -1;
-    }
-
-    if (log_resume_after_sd_format() != 0) {
-        if (saved_errno == 0) {
-            saved_errno = errno;
-        }
-        result = -1;
-    }
-
-    if (result == 0) {
-        LOG("[SD Card] SD unavailable, logging switched to internal storage: %s\n",
-            ZLOG_DATA_FILE_PATH);
-    } else {
-        printf("[SD Card] Failed to switch logging to internal storage: %s\n",
-               saved_errno ? strerror(saved_errno) : "zlog initialization failed");
-    }
-
-    return result;
-}
-
 static int unmount_sdcard_if_needed(const char *mount_point)
 {
     int attempt = 0;
@@ -323,7 +278,6 @@ static int format_sdcard_fat32(const char *device, int *exit_code)
 static int mount_sdcard_fat32(void) {
 
     int ret;
-    int log_was_paused = 0;
     char *device = NULL;
     
     // 先检查/proc/mounts
@@ -337,22 +291,12 @@ static int mount_sdcard_fat32(void) {
         return -1;
     }
 
-    /*
-     * zlog 可能正在写未挂载时的内部 /mnt/sda/log。
-     * 挂载前关闭旧文件句柄，挂载后再在 SD 卡上重新打开。
-     */
-    log_pause_for_sd_format();
-    log_was_paused = 1;
-    
     // 2. 创建挂载点目录
     // mkdir - 创建目录（最简单的API）
     if (mkdir(USB_MOUNT_POINT, 0755) != 0) {
         if (errno != EEXIST) {  // 如果目录已存在，不算是错误
             int saved_errno = errno;
             free(device);
-            if (log_was_paused) {
-                log_resume_after_sd_format();
-            }
             LOG("[SD_Card] create /mnt/sda failed: %s\n", strerror(saved_errno));
             errno = saved_errno;
             return -1;
@@ -365,20 +309,9 @@ static int mount_sdcard_fat32(void) {
     if (ret != 0) {
         int saved_errno = errno;
         free(device);
-        if (log_was_paused) {
-            log_resume_after_sd_format();
-        }
         LOG("[SD] Mount failed: %s\n", strerror(saved_errno));
         errno = saved_errno;
         return -1;
-    }
-
-    if (ensure_mount_point(ZLOG_DATA_FILE_PATH) != 0) {
-        printf("[SD Card] create %s failed after mount: %s\n",
-               ZLOG_DATA_FILE_PATH, strerror(errno));
-    }
-    if (log_was_paused && log_resume_after_sd_format() != 0) {
-        printf("[SD Card] zlog reinitialization failed after mount\n");
     }
 
     LOG("[SD_Card] Mount successfully: %s -> %s\n", device, USB_MOUNT_POINT);
@@ -1083,7 +1016,7 @@ static void remove_old_log_date_zips(const char *keep_name)
     DIR *dir;
     struct dirent *entry;
 
-    snprintf(log_path, sizeof(log_path), "%s/log", USB_MOUNT_POINT);
+    snprintf(log_path, sizeof(log_path), "%s", ZLOG_DATA_FILE_PATH);
     dir = opendir(log_path);
     if (!dir) return;
 
@@ -1093,8 +1026,8 @@ static void remove_old_log_date_zips(const char *keep_name)
             strcmp(entry->d_name, keep_name) == 0) {
             continue;
         }
-        snprintf(old_path, sizeof(old_path), "%s/log/%s",
-                 USB_MOUNT_POINT, entry->d_name);
+        snprintf(old_path, sizeof(old_path), "%s/%s",
+                 ZLOG_DATA_FILE_PATH, entry->d_name);
         if (unlink(old_path) == 0) {
             LOG("[SD Card] Removed old log ZIP: %s\n", old_path);
         } else {
@@ -1164,15 +1097,15 @@ static int archive_previous_day(const struct tm *now_time)
         }
     }
 
-    snprintf(log_dir, sizeof(log_dir), "%s/log", USB_MOUNT_POINT);
+    snprintf(log_dir, sizeof(log_dir), "%s", ZLOG_DATA_FILE_PATH);
     if (stat(log_dir, &st) != 0 && mkdir(log_dir, 0777) != 0) {
         LOG("[SD Card] Failed to create %s: %s\n", log_dir, strerror(errno));
         return -1;
     }
-    snprintf(log_zip_path, sizeof(log_zip_path), "%s/log/%s",
-             USB_MOUNT_POINT, zip_name);
-    snprintf(log_temp_path, sizeof(log_temp_path), "%s/log/%s.tmp",
-             USB_MOUNT_POINT, zip_name);
+    snprintf(log_zip_path, sizeof(log_zip_path), "%s/%s",
+             ZLOG_DATA_FILE_PATH, zip_name);
+    snprintf(log_temp_path, sizeof(log_temp_path), "%s/%s.tmp",
+             ZLOG_DATA_FILE_PATH, zip_name);
     unlink(log_temp_path);
     if (copy_file_and_sync(zip_path, log_temp_path) != 0 ||
         validate_zip_file(log_temp_path) != 0 ||
@@ -1185,7 +1118,7 @@ static int archive_previous_day(const struct tm *now_time)
     remove_old_log_date_zips(zip_name);
 
     /*
-     * log 目录中的 ZIP 已经复制、校验并原子发布成功，
+     * 内部日志目录中的 ZIP 已经复制、校验并原子发布成功，
      * 根目录下的中间 ZIP 不再需要保留。删除失败只记录
      * 日志，不影响已完成的归档结果。
      */
@@ -1497,7 +1430,6 @@ void Drv_write_buffer_to_file(void)
     {
         LOG("[SD Card] ERROR: OpenNowWriteAscFile failed for: %s\n", filePath);
         mark_sd_failed();
-        switch_logs_to_internal_storage();
         goto QUIT_FLAG; // 打开失败 直接返回
     }
 
@@ -1609,7 +1541,6 @@ void Drv_write_buffer_to_file(void)
 
     if (write_failed) {
         mark_sd_failed();
-        switch_logs_to_internal_storage();
         goto QUIT_FLAG;
     }
 
@@ -1632,14 +1563,10 @@ int SD_Initialize(void)
     char device_path[PATH_MAX] = "unknown";
     const char *failed_stage = NULL;
     int result = -1;
-    int log_resume_result = 0;
     int saved_errno = 0;
     int mkfs_exit_code = -1;
 
     set_sd_format_in_progress(true);
-    log_pause_for_sd_format();
-    pthread_mutex_lock(&ftp_file_io_mutex);
-
     device = find_sd_card_simple();
     if (!device) {
         failed_stage = "find SD device";
@@ -1674,11 +1601,6 @@ int SD_Initialize(void)
 EXIT:
     free(device);
     set_sd_format_in_progress(false);
-    pthread_mutex_unlock(&ftp_file_io_mutex);
-    log_resume_result = log_resume_after_sd_format();
-    if (log_resume_result != 0) {
-        printf("[SD Card] log_resume_after_sd_format failed: %d\n", log_resume_result);
-    }
     if (result != 0) {
         LOG("[SD Card] format failed: stage=%s, device=%s, errno=%d (%s), mkfs_exit_code=%d\n",
             failed_stage ? failed_stage : "unknown", device_path, saved_errno,
