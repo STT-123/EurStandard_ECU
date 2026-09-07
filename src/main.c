@@ -1,5 +1,8 @@
 #include <time.h>
 #include <execinfo.h>
+#include <signal.h>
+#include "interface/log/sd_log.h"
+static volatile sig_atomic_t stop_requested = 0;
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
 #include "interface/log/log.h"
@@ -50,7 +53,8 @@ void crash_handler(int sig) {
             static const char message[] = "Program exit: SIGTERM\n";
             write(STDERR_FILENO, message, sizeof(message) - 1);
         }
-        _exit(0);
+        stop_requested = 1;
+        return;
     }
 
     {
@@ -104,7 +108,11 @@ int main(int argc, char **argv)
         // for(int i = 0; i < 16; i++){
         //     set_emcu_fault(0x00+i, SET_ERROR);//设置所有故障
         // }
-        sleep(5);
+        if (!stop_requested) sleep(5);
+        if (stop_requested) {
+            sd_log_stop();
+            _exit(0);
+        }
         // main_test();
 
         // printf("data.get_usBatMaxTempCellIndex = %ld\n", get_usBatMaxTempCellIndex());

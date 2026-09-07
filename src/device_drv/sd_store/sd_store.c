@@ -2,6 +2,7 @@
 #include "sd_store.h"
 #include "device_drv/abncheck/abncheck.h"
 #include "interface/log/log.h"
+#include "interface/log/sd_log.h"
 #include "interface/bms/bms_simulink/CANFDRcvFcn_BCU.h"
 #include "interface/bms/bms_simulink/CANRcvFcn_BMU.h"
 #include "interface/bms/bms_analysis.h"
@@ -1567,6 +1568,7 @@ int SD_Initialize(void)
     int mkfs_exit_code = -1;
 
     set_sd_format_in_progress(true);
+    sd_log_pause(true); /* Close log files before unmount. */
     device = find_sd_card_simple();
     if (!device) {
         failed_stage = "find SD device";
@@ -1601,6 +1603,7 @@ int SD_Initialize(void)
 EXIT:
     free(device);
     set_sd_format_in_progress(false);
+    sd_log_pause(false);
     if (result != 0) {
         LOG("[SD Card] format failed: stage=%s, device=%s, errno=%d (%s), mkfs_exit_code=%d\n",
             failed_stage ? failed_stage : "unknown", device_path, saved_errno,

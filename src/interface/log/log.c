@@ -1,4 +1,5 @@
 #include "log.h"
+#include "sd_log.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -15,6 +16,33 @@ zlog_category_t *log_csv = NULL;
 static pthread_mutex_t g_log_output_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool g_log_file_output_enabled = true;
 static bool g_log_initialized = false;
+
+void log_output(const char *file, size_t filelen, const char *func, size_t funclen,
+                long line, const char *format, ...)
+{
+    int saved_errno = errno;
+    va_list args, copy;
+    va_start(args, format);
+    va_copy(copy, args);
+    sd_log_enqueue(file, line, format, copy);
+    va_end(copy);
+    log_output_lock();
+    if (g_log_file_output_enabled && log_record) {
+        va_copy(copy, args);
+        errno = saved_errno;
+        vzlog(log_record, file, filelen, func, funclen, line, ZLOG_LEVEL_INFO, format, copy);
+        va_end(copy);
+    }
+    if (log_printf) {
+        va_copy(copy, args);
+        errno = saved_errno;
+        vzlog(log_printf, file, filelen, func, funclen, line, ZLOG_LEVEL_INFO, format, copy);
+        va_end(copy);
+    }
+    log_output_unlock();
+    va_end(args);
+    errno = saved_errno;
+}
 
 void log_output_lock(void)
 {
@@ -71,6 +99,18 @@ static int ensure_directory(const char *path, mode_t mode)
 int log_init()
 {
     int rc = 0;
+
+    /* SD 副本独立启动，失败不影响原有 zlog。 */
+    static bool sd_started = false;
+    if (!sd_started) {
+        int sd_rc = sd_log_start();
+        if (sd_rc == 0) {
+            sd_started = true;
+            atexit(sd_log_stop);
+        } else {
+            fprintf(stderr, "SD log thread start failed: %s\n", strerror(sd_rc));
+        }
+    }
 
     /* 应用日志固定保存在内部存储，不依赖 SD 卡挂载状态。 */
     if (ensure_directory("/userdata", 0755) != 0) {

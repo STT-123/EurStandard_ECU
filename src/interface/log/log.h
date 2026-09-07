@@ -16,9 +16,10 @@ extern zlog_category_t *log_record;    // 通用日志
 extern zlog_category_t *log_csv;       // csv文件
 
 // 对外提供的宏定义
-#define LOG(fmt, ...)       do { log_output_lock(); if (log_file_output_enabled_locked() && log_record) zlog_info(log_record, fmt, ##__VA_ARGS__); if (log_printf) zlog_info(log_printf, fmt, ##__VA_ARGS__); log_output_unlock(); } while (0)
+#define LOG(fmt, ...)       log_output(__FILE__, sizeof(__FILE__)-1, __func__, sizeof(__func__)-1, __LINE__, fmt, ##__VA_ARGS__)
 #define LOG_CSV(fmt, ...)   do { log_output_lock(); if (log_file_output_enabled_locked() && log_csv) zlog_info(log_csv, fmt, ##__VA_ARGS__); if (log_printf) zlog_info(log_printf, fmt, ##__VA_ARGS__); log_output_unlock(); } while (0)
 
+void log_output(const char *file, size_t filelen, const char *func, size_t funclen, long line, const char *format, ...) __attribute__((format(printf, 6, 7)));
 int log_init(void);
 bool log_file_output_enabled(void);
 bool log_file_output_enabled_locked(void);
