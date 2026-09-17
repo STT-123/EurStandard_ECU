@@ -115,7 +115,7 @@ int main(int argc, char **argv)
         }
         // main_test();
 
-        // printf("data.get_usBatMaxTempCellIndex = %ld\n", get_usBatMaxTempCellIndex());
+        // printf("data.ThermCtrl_ACWarmGoal = %d\n", ThermCtrl_ACWarmGoal);
         // printf("data. get_usBatCellTempMaxValue( = %d\n",  get_usBatCellTempMaxValue());
         // printf("data. get_usBatMinTempCellIndex( = %d\n",  get_usBatMinTempCellIndex());
         // printf("data.get_usBatCellTempMinValue = %ld\n", get_usBatCellTempMinValue());
