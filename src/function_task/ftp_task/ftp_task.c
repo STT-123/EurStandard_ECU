@@ -1,6 +1,5 @@
 #include "ftp_task.h"
 #include "ftp_protocol.h"
-#include "device_drv/sd_store/sd_store.h"
 #include "interface/log/log.h"
 #define FTP_VERSION "FTP Server 1.0.0"
 
@@ -13,7 +12,6 @@ static void *ftp_service_thread_func(void *arg)
     int server_sock;
     struct sockaddr_in server_addr;
     int opt = 1;
-    struct timeval timeout;
 
     server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock < 0){
@@ -49,22 +47,13 @@ static void *ftp_service_thread_func(void *arg)
     {
         FTPState state = {0};
         init_ftp_state(&state);
+        state.listen_sock = server_sock;
         // Accept client connections
         state.client_addr_len = sizeof(state.client_addr);
         state.control_sock = accept(server_sock, (struct sockaddr *)&state.client_addr, &state.client_addr_len);
         if (state.control_sock < 0)
         {
             LOG("[FTP] Failed to accept connection\n");
-            sleep(1);
-            continue;
-        }
-
-        // Set receive timeout for control socket
-        timeout.tv_sec = 60;
-        timeout.tv_usec = 0;
-        if (setsockopt(state.control_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
-        {
-            close(state.control_sock);
             sleep(1);
             continue;
         }
@@ -78,7 +67,7 @@ static void *ftp_service_thread_func(void *arg)
         snprintf(response, sizeof(response), "220 %s ready.\r\n", FTP_VERSION);
         send_response(state.control_sock, response);
 
-        int result = handle_ftp_commands(&state);
+        handle_ftp_commands(&state);
         // 主线程只需要处理连接级别的清理
         if (state.control_sock >= 0) {
             close(state.control_sock);
@@ -87,6 +76,7 @@ static void *ftp_service_thread_func(void *arg)
     }
 
     close(server_sock);
+    return NULL;
 }
 
 void FtpServiceThreadCreate(void)

@@ -1,16 +1,27 @@
 #include "ftp_protocol.h"
-#include "device_drv/sd_store/sd_store.h"
+#include <pthread.h>
+#include <time.h>
+#include <poll.h>
 #include "interface/setting/ip_setting.h"
 #include "interface/log/log.h"
 #define DATA_PORT 40900
 #define FTP_BUFFER_SIZE 2920 // 2048 网络传输包mtu限制改为1460得倍数
 #define TIMEOUT_SECONDS 300
+#define FTP_IO_TIMEOUT_MS 60000
+#define FTP_REPLY_TIMEOUT_MS 1000
+#ifndef FTP_ROOT_PATH
 #define FTP_ROOT_PATH ZLOG_DATA_FILE_PATH
+#endif
+#ifndef FTP_TEST_ROOT_PATH
+#define FTP_TEST_ROOT_PATH "/mnt/sda"
+#endif
 pthread_mutex_t ftp_file_io_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int is_safe_path(const char *path);
+static int is_safe_path(const FTPState *state, const char *path);
 static int build_safe_filepath(const FTPState *state, const char *name, char *filepath, size_t filepath_size);
 static int ftp_storage_ready(FTPState *state);
-static void build_ftp_display_path(const char *path, char *display_path, size_t display_path_size);
+static void build_ftp_display_path(const FTPState *state, const char *path, char *display_path, size_t display_path_size);
+static FILE *open_readonly_file(const FTPState *state, const char *filepath);
+static int open_ftp_path(const FTPState *state, const char *filepath, int directory);
 
 
 // 安全关闭文件的辅助函数
@@ -36,15 +47,108 @@ static void cleanup_ftp_state(FTPState *state) {
     safe_close_socket(&state->control_sock);
     safe_close_file(&state->file);
     state->logged_in = 0;
+    state->user_verified = 0;
+    state->root_path = NULL;
     state->last_activity = 0;
     state->timeout_pending = 0;
     state->quit_requested = 0;
     state->path[0] = '\0';
 }
 
+static int wait_ftp_socket(FTPState *state, int sock, short events, int timeout_ms)
+{
+    if (sock < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) return -1;
+    int64_t deadline = (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000 + timeout_ms;
+
+    for (;;) {
+        struct pollfd fds[3] = {
+            {.fd = sock, .events = events},
+            {.fd = state ? state->listen_sock : -1, .events = POLLIN},
+            {.fd = state && sock != state->control_sock ? state->control_sock : -1}
+        };
+        if (state && state->quit_requested) {
+            errno = ECANCELED;
+            return -1;
+        }
+        if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) return -1;
+        int64_t remaining = deadline - ((int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000);
+        if (remaining <= 0) {
+            errno = ETIMEDOUT;
+            return -1;
+        }
+        int result = poll(fds, 3, (int)remaining);
+        if (result < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (result == 0) {
+            errno = ETIMEDOUT;
+            return -1;
+        }
+        if (fds[1].revents & POLLIN) {
+            LOG("[FTP] New connection pending; closing previous session\n");
+            state->quit_requested = 1;
+            shutdown(state->control_sock, SHUT_RDWR);
+            errno = ECANCELED;
+            return -1;
+        }
+        if (fds[1].revents & (POLLERR | POLLHUP | POLLNVAL) ||
+            fds[2].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+            errno = ECONNRESET;
+            return -1;
+        }
+        if (fds[0].revents & POLLNVAL) {
+            errno = EBADF;
+            return -1;
+        }
+        if (fds[0].revents & (events | POLLERR | POLLHUP)) return 0;
+    }
+}
+
+static int send_ftp_data(FTPState *state, int sock, const char *buffer,
+                         size_t length, int timeout_ms)
+{
+    size_t sent = 0;
+    while (sent < length) {
+        if (wait_ftp_socket(state, sock, POLLOUT, timeout_ms) < 0) return -1;
+        ssize_t n = send(sock, buffer + sent, length - sent, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (n < 0) {
+            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) continue;
+            return -1;
+        }
+        if (n == 0) {
+            errno = EPIPE;
+            return -1;
+        }
+        sent += (size_t)n;
+    }
+    return 0;
+}
+
+static int accept_ftp_data(FTPState *state)
+{
+    if (state->data_sock < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    if (wait_ftp_socket(state, state->data_sock, POLLIN, FTP_IO_TIMEOUT_MS) < 0)
+        return -1;
+    state->client_addr_len = sizeof(state->client_addr);
+    return accept(state->data_sock, (struct sockaddr *)&state->client_addr,
+                  &state->client_addr_len);
+}
+
 void send_response(int sock, const char *message)
 {
-    send(sock, message, strlen(message), 0);
+    if (send_ftp_data(NULL, sock, message, strlen(message), FTP_REPLY_TIMEOUT_MS) < 0) {
+        LOG("[FTP] Failed to send control response: %s\n", strerror(errno));
+        shutdown(sock, SHUT_RDWR);
+    }
 }
 
 // 更新最后活动时间
@@ -66,7 +170,7 @@ void check_timeouts(FTPState *state) {
     if (time_diff > TIMEOUT_SECONDS) {    
         // 发送超时通知
         if (state->control_sock >= 0) {
-            send(state->control_sock, "421 Service not available, closing control connection.\r\n", 54, 0);
+            send_response(state->control_sock, "421 Service not available, closing control connection.\r\n");
         }
         state->timeout_pending = 1;
     }
@@ -79,6 +183,16 @@ void check_timeouts(FTPState *state) {
 static void handle_user_command(FTPState *state, char *args)
 {
     update_last_activity(state);
+    safe_close_socket(&state->data_sock);
+    safe_close_file(&state->file);
+    state->logged_in = 0;
+    state->root_path = NULL;
+    state->path[0] = '\0';
+    state->user_verified = args && strcmp(args, "root") == 0;
+    if (!state->user_verified) {
+        send_response(state->control_sock, "530 Login incorrect.\r\n");
+        return;
+    }
     send_response(state->control_sock, "331 Username OK, need password.\r\n");
 }
 
@@ -87,15 +201,30 @@ static void handle_pass_command(FTPState *state, char *args)
 {
     update_last_activity(state);
     state->logged_in = 0;
-
-    if (access(FTP_ROOT_PATH, R_OK | X_OK) != 0)
-    {
-        LOG("Failed to access FTP log directory: %s\n", strerror(errno));
-        send_response(state->control_sock, "550 Failed to access log directory.\r\n");
+    state->root_path = NULL;
+    state->path[0] = '\0';
+    safe_close_socket(&state->data_sock);
+    if (!state->user_verified || !args ||
+        (strcmp(args, "root") != 0 && strcmp(args, "test") != 0)) {
+        state->user_verified = 0;
+        send_response(state->control_sock, "530 Login incorrect.\r\n");
         return;
     }
+    state->user_verified = 0;
 
-    strncpy(state->path, FTP_ROOT_PATH, sizeof(state->path) - 1);
+    const char *root_path = strcmp(args, "test") == 0 ? FTP_TEST_ROOT_PATH : FTP_ROOT_PATH;
+    int root_fd = open(root_path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (root_fd < 0 || access(root_path, R_OK | X_OK) != 0)
+    {
+        LOG("Failed to access FTP root directory %s: %s\n", root_path, strerror(errno));
+        if (root_fd >= 0) close(root_fd);
+        send_response(state->control_sock, "550 Failed to access root directory.\r\n");
+        return;
+    }
+    close(root_fd);
+
+    state->root_path = root_path;
+    strncpy(state->path, state->root_path, sizeof(state->path) - 1);
     state->path[sizeof(state->path) - 1] = '\0';
     state->logged_in = 1;
     send_response(state->control_sock, "230 Login successful.\r\n");
@@ -221,7 +350,28 @@ static void handle_port_command(FTPState *state, char *args)
         return;
     }
 
-    if (connect(state->data_sock, (struct sockaddr *)&data_addr, sizeof(data_addr)) < 0)
+    int flags = fcntl(state->data_sock, F_GETFL, 0);
+    if (flags < 0 || fcntl(state->data_sock, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+        LOG("[FTP] Failed to set data socket nonblocking: %s\n", strerror(errno));
+        send_response(state->control_sock, "425 Can't open data connection.\r\n");
+        safe_close_socket(&state->data_sock);
+        return;
+    }
+    int result = connect(state->data_sock, (struct sockaddr *)&data_addr, sizeof(data_addr));
+    if (result < 0 && errno == EINPROGRESS) {
+        result = wait_ftp_socket(state, state->data_sock, POLLOUT, FTP_IO_TIMEOUT_MS);
+        if (result == 0) {
+            int error = 0;
+            socklen_t len = sizeof(error);
+            result = getsockopt(state->data_sock, SOL_SOCKET, SO_ERROR, &error, &len);
+            if (result == 0 && error != 0) {
+                errno = error;
+                result = -1;
+            }
+        }
+    }
+    if (result < 0)
     {
         perror("Failed to connect to client data port");
         send_response(state->control_sock, "425 Can't open data connection.\r\n");
@@ -244,7 +394,7 @@ static void handle_list_command(FTPState *state, char *args)
     pthread_mutex_lock(&ftp_file_io_mutex);
     update_last_activity(state);
     send_response(state->control_sock, "150 Here comes the directory listing.\r\n");
-    client_data_sock = accept(state->data_sock, (struct sockaddr *)&state->client_addr, &state->client_addr_len);
+    client_data_sock = accept_ftp_data(state);
 
     if (client_data_sock < 0)
     {
@@ -257,7 +407,9 @@ static void handle_list_command(FTPState *state, char *args)
 
     struct dirent *entry;
     char buffer[FTP_BUFFER_SIZE] = {0};
-    dir = opendir(state->path);
+    int dir_fd = open_ftp_path(state, state->path, 1);
+    dir = dir_fd < 0 ? NULL : fdopendir(dir_fd);
+    if (!dir && dir_fd >= 0) close(dir_fd);
     if (!dir)
     {
         LOG("Failed to open directory: %s\n", strerror(errno));
@@ -295,7 +447,7 @@ static void handle_list_command(FTPState *state, char *args)
             snprintf(buffer, sizeof(buffer), "+r,s%ld,\t%s\r\n", st.st_size, entry->d_name);
         }
 
-        if (send(client_data_sock, buffer, strlen(buffer), 0) < 0)
+        if (send_ftp_data(state, client_data_sock, buffer, strlen(buffer), FTP_IO_TIMEOUT_MS) < 0)
         {
             LOG("Failed to send data: %s\n", strerror(errno));
             send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
@@ -358,9 +510,7 @@ static void handle_retr_command(FTPState *state, char *filename) {
     
     do {
         // 接受数据连接
-        client_data_sock = accept(state->data_sock,
-                                (struct sockaddr *)&state->client_addr,
-                                &state->client_addr_len);
+        client_data_sock = accept_ftp_data(state);
         if (client_data_sock < 0) {
             LOG("Failed to accept data connection: %s\n", strerror(errno));
             send_response(state->control_sock, "425 Can't open data connection.\r\n");
@@ -372,7 +522,7 @@ static void handle_retr_command(FTPState *state, char *filename) {
         LOG("Loading file: %s\n", filepath);
 
         // 打开文件
-        state->file = fopen(filepath, "rb");
+        state->file = open_readonly_file(state, filepath);
         if (!state->file) {
             LOG("Failed to open file: %s\n", strerror(errno));
             send_response(state->control_sock, "550 File not found.\r\n");
@@ -387,7 +537,7 @@ static void handle_retr_command(FTPState *state, char *filename) {
         while ((bytes_read = fread(buffer, 1, sizeof(buffer), state->file)) > 0) {
             update_last_activity(state);
             
-            if (send(client_data_sock, buffer, bytes_read, 0) < 0) {
+            if (send_ftp_data(state, client_data_sock, buffer, bytes_read, FTP_IO_TIMEOUT_MS) < 0) {
                 LOG("Failed to send data: %s\n", strerror(errno));
                 result = -1;
                 break;
@@ -412,72 +562,12 @@ static void handle_retr_command(FTPState *state, char *filename) {
 }
 
 static void handle_stor_command(FTPState *state, char *filename) {
-    int client_data_sock = -1;
-    FILE *file = NULL;
-    int result = -1;
-    char filepath[512] = {0};
-
+    (void)filename;
     if (ftp_storage_ready(state) != 0) {
         return;
     }
-
-    if (build_safe_filepath(state, filename, filepath, sizeof(filepath)) != 0) {
-        send_response(state->control_sock, "550 Invalid filename.\r\n");
-        return;
-    }
-    
-    pthread_mutex_lock(&ftp_file_io_mutex);
-    send_response(state->control_sock, "150 Opening data connection.\r\n");
-
-    do {
-        // 接受数据连接
-        client_data_sock = accept(state->data_sock, 
-                                (struct sockaddr *)&state->client_addr, 
-                                &state->client_addr_len);
-        if (client_data_sock < 0) {
-            LOG("Failed to accept data connection: %s\n", strerror(errno));
-            send_response(state->control_sock, "425 Can't open data connection.\r\n");
-            break;
-        }
-
-        // 创建文件
-        file = fopen(filepath, "wb");
-        if (!file) {
-            LOG("Failed to create file: %s\n", strerror(errno));
-            send_response(state->control_sock, "550 Failed to create file.\r\n");
-            break;
-        }
-
-        // 接收并写入数据
-        char buffer[FTP_BUFFER_SIZE];
-        ssize_t bytes_received;
-        result = 0;
-
-        while ((bytes_received = recv(client_data_sock, buffer, sizeof(buffer), 0)) > 0) {
-            update_last_activity(state);
-
-            size_t bytes_written = fwrite(buffer, 1, bytes_received, file);
-            if (bytes_written != bytes_received) {
-                LOG("Failed to write data to file: %s\n", strerror(errno));
-                result = -1;
-                break;
-            }
-        }
-        
-    } while(0);
-
-    // 清理资源
-    safe_close_file(&file);
-    safe_close_socket(&client_data_sock);
     safe_close_socket(&state->data_sock);
-    pthread_mutex_unlock(&ftp_file_io_mutex);
-
-    // 发送最终响应
-    if (result == 0) {
-        send_response(state->control_sock, "226 Transfer complete.\r\n");
-    } else {
-        send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
-    }
+    send_response(state->control_sock, "550 Read-only FTP server.\r\n");
 }
 
 static void handle_mget_command(FTPState *state, char *args)
@@ -497,7 +587,7 @@ static void handle_mget_command(FTPState *state, char *args)
     pthread_mutex_lock(&ftp_file_io_mutex);
     send_response(state->control_sock, "150 Opening data connection.\r\n");
 
-    int client_data_sock = accept(state->data_sock, (struct sockaddr *)&state->client_addr, &state->client_addr_len);
+    int client_data_sock = accept_ftp_data(state);
     if (client_data_sock < 0)
     {
         LOG("Failed to accept data connection: %s\n", strerror(errno));
@@ -507,7 +597,7 @@ static void handle_mget_command(FTPState *state, char *args)
         return;
     }
 
-    FILE *file = fopen(filepath, "rb"); // Open the file for reading
+    FILE *file = open_readonly_file(state, filepath);
     if (!file)
     {
         LOG("Failed to open file: %s\n", strerror(errno));
@@ -524,7 +614,7 @@ static void handle_mget_command(FTPState *state, char *args)
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
     {
         update_last_activity(state);
-        if (send(client_data_sock, buffer, bytes_read, 0) < 0)
+        if (send_ftp_data(state, client_data_sock, buffer, bytes_read, FTP_IO_TIMEOUT_MS) < 0)
         {
             LOG("Failed to send data: %s\n", strerror(errno));
             send_response(state->control_sock, "426 Connection closed; transfer aborted.\r\n");
@@ -553,7 +643,7 @@ static void handle_pwd_command(FTPState *state)
         return;
     }
 
-    build_ftp_display_path(state->path, display_path, sizeof(display_path));
+    build_ftp_display_path(state, state->path, display_path, sizeof(display_path));
     snprintf(response, sizeof(response), "257 \"%s\" is the current directory.\r\n", display_path);
     send_response(state->control_sock, response);
 }
@@ -566,48 +656,21 @@ static void handle_syst_command(FTPState *state)
 
 static void handle_cdup_command(FTPState *state)
 {
-    char parent_path[sizeof(state->path)] = {0};
-    char *last_sep = NULL;
-
     if (ftp_storage_ready(state) != 0) {
         return;
     }
-
     update_last_activity(state);
-
-    strncpy(parent_path, state->path[0] ? state->path : FTP_ROOT_PATH, sizeof(parent_path) - 1);
-    parent_path[sizeof(parent_path) - 1] = '\0';
-
-    if (strcmp(parent_path, FTP_ROOT_PATH) != 0) {
-        last_sep = strrchr(parent_path, '/');
-        if (last_sep) {
-            if (last_sep == parent_path) {
-                strncpy(parent_path, FTP_ROOT_PATH, sizeof(parent_path) - 1);
-                parent_path[sizeof(parent_path) - 1] = '\0';
-            } else {
-                *last_sep = '\0';
-            }
-        }
-    }
-
-    if (!is_safe_path(parent_path)) {
-        send_response(state->control_sock, "550 Access denied.\r\n");
-        return;
-    }
-
-    strncpy(state->path, parent_path, sizeof(state->path) - 1);
-    state->path[sizeof(state->path) - 1] = '\0';
-    send_response(state->control_sock, "200 Directory successfully changed.\r\n");
+    send_response(state->control_sock, "550 Parent directory navigation disabled.\r\n");
 }
 
 // 路径安全检查函数
-static int is_safe_path(const char *path) {
+static int is_safe_path(const FTPState *state, const char *path) {
     // 检查NULL指针
-    if (!path) return 0;
+    if (!state || !state->root_path || !path) return 0;
     
     // 检查路径是否以允许的前缀开始
-    size_t root_len = strlen(FTP_ROOT_PATH);
-    if (strncmp(path, FTP_ROOT_PATH, root_len) != 0 ||
+    size_t root_len = strlen(state->root_path);
+    if (strncmp(path, state->root_path, root_len) != 0 ||
         (path[root_len] != '\0' && path[root_len] != '/')) {
         return 0;
     }
@@ -639,7 +702,7 @@ static int build_safe_filepath(const FTPState *state, const char *name, char *fi
         return -1;
     }
 
-    if (!is_safe_path(filepath)) {
+    if (!is_safe_path(state, filepath)) {
         return -1;
     }
     return 0;
@@ -647,7 +710,7 @@ static int build_safe_filepath(const FTPState *state, const char *name, char *fi
 
 static int ftp_storage_ready(FTPState *state)
 {
-    if (!state || !state->logged_in) {
+    if (!state || !state->logged_in || !state->root_path) {
         if (state) {
             send_response(state->control_sock, "530 Please login with USER and PASS.\r\n");
         }
@@ -655,26 +718,81 @@ static int ftp_storage_ready(FTPState *state)
     }
 
     if (state->path[0] == '\0') {
-        strncpy(state->path, FTP_ROOT_PATH, sizeof(state->path) - 1);
+        strncpy(state->path, state->root_path, sizeof(state->path) - 1);
         state->path[sizeof(state->path) - 1] = '\0';
     }
 
     return 0;
 }
 
-static void build_ftp_display_path(const char *path, char *display_path, size_t display_path_size)
+/* Walk from the root descriptor without following symlinks, including parents. */
+static int open_ftp_path(const FTPState *state, const char *filepath, int directory)
+{
+    char relative[512];
+    if (!is_safe_path(state, filepath) || strlen(filepath) >= sizeof(relative)) {
+        errno = EACCES;
+        return -1;
+    }
+    int fd = open(state->root_path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return -1;
+    strcpy(relative, filepath + strlen(state->root_path));
+    char *save = NULL;
+    char *part = strtok_r(relative, "/", &save);
+    while (part) {
+        char *next = strtok_r(NULL, "/", &save);
+        int flags = O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK;
+        if (next || directory) flags |= O_DIRECTORY;
+        int child = openat(fd, part, flags);
+        int saved_errno = errno;
+        close(fd);
+        if (child < 0) {
+            errno = saved_errno;
+            return -1;
+        }
+        fd = child;
+        part = next;
+    }
+    return fd;
+}
+
+static FILE *open_readonly_file(const FTPState *state, const char *filepath)
+{
+    int fd = open_ftp_path(state, filepath, 0);
+    if (fd < 0) return NULL;
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        int saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+        return NULL;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        close(fd);
+        errno = EACCES;
+        return NULL;
+    }
+    FILE *file = fdopen(fd, "rb");
+    if (!file) {
+        int saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+    }
+    return file;
+}
+
+static void build_ftp_display_path(const FTPState *state, const char *path, char *display_path, size_t display_path_size)
 {
     if (!display_path || display_path_size == 0) {
         return;
     }
 
-    if (!path || strcmp(path, FTP_ROOT_PATH) == 0) {
+    if (!path || strcmp(path, state->root_path) == 0) {
         snprintf(display_path, display_path_size, "/");
         return;
     }
 
-    if (strncmp(path, FTP_ROOT_PATH, strlen(FTP_ROOT_PATH)) == 0) {
-        snprintf(display_path, display_path_size, "%s", path + strlen(FTP_ROOT_PATH));
+    if (is_safe_path(state, path)) {
+        snprintf(display_path, display_path_size, "%s", path + strlen(state->root_path));
         if (display_path[0] == '\0') {
             snprintf(display_path, display_path_size, "/");
         }
@@ -706,20 +824,21 @@ static void handle_cwd_command(FTPState *state, const char *args) {
      * `/log` 与 `/` 都映射到真实目录 /userdata/xcharge/log，
      * 避免暴露 /userdata/xcharge 下的 OTA 等其他目录。
      */
-    if ((strcmp(state->path, FTP_ROOT_PATH) == 0) &&
+    if ((strcmp(state->root_path, FTP_ROOT_PATH) == 0) &&
+        (strcmp(state->path, state->root_path) == 0) &&
         (strcmp(args, "log") == 0 || strcmp(args, "/log") == 0)) {
         send_response(state->control_sock, "250 Directory successfully changed.\r\n");
-        LOG("Changed virtual FTP directory /log to: %s\n", FTP_ROOT_PATH);
+        LOG("Changed virtual FTP directory /log to: %s\n", state->root_path);
         return;
     }
 
     // 处理绝对路径
     if (args[0] == '/') {
         if (strcmp(args, "/") == 0) {
-            strncpy(target_path, FTP_ROOT_PATH, sizeof(target_path) - 1);
+            strncpy(target_path, state->root_path, sizeof(target_path) - 1);
         } else {
-            // FTP 绝对路径始终相对于内部日志根目录
-            snprintf(target_path, sizeof(target_path), "%s%s", FTP_ROOT_PATH, args);
+            // FTP 绝对路径始终相对于当前会话根目录
+            snprintf(target_path, sizeof(target_path), "%s%s", state->root_path, args);
         }
     } else {
         // 处理相对路径
@@ -728,7 +847,7 @@ static void handle_cwd_command(FTPState *state, const char *args) {
     }
 
     // 安全检查
-    if (!is_safe_path(target_path)) {
+    if (!is_safe_path(state, target_path)) {
         LOG("CWD rejected: unsafe path (%s)\n", target_path);
         send_response(state->control_sock, "550 Access denied.\r\n");
         return;
@@ -740,7 +859,7 @@ static void handle_cwd_command(FTPState *state, const char *args) {
         return;
     }
 
-    if (!is_safe_path(resolved_path) || stat(resolved_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+    if (!is_safe_path(state, resolved_path) || stat(resolved_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
         LOG("Failed to change directory: %s (target_path=%s)\n", strerror(errno), target_path);
         send_response(state->control_sock, "550 Failed to change directory.\r\n");
         return;
@@ -793,10 +912,18 @@ static void handle_size_command(FTPState *state, char *filename)
     }
 
     struct stat st;
-    if (stat(filepath, &st) != 0)
+    FILE *file = open_readonly_file(state, filepath);
+    if (!file)
     {
         LOG("SIZE: File not found - %s (%s)\n", filepath, strerror(errno));
         send_response(state->control_sock, "550 File not found.\r\n");
+        return;
+    }
+    int stat_result = fstat(fileno(file), &st);
+    fclose(file);
+    if (stat_result != 0) {
+        LOG("SIZE: Failed to stat file - %s\n", filepath);
+        send_response(state->control_sock, "550 Failed to read file size.\r\n");
         return;
     }
 
@@ -815,7 +942,7 @@ static void handle_size_command(FTPState *state, char *filename)
 static void handle_quit_command(FTPState *state) {
     // 先发送响应
     if (state->control_sock >= 0) {
-        send(state->control_sock, "221 Goodbye.\r\n", 14, 0);
+        send_response(state->control_sock, "221 Goodbye.\r\n");
     }
     
     // 标记准备退出，但不立即清理
@@ -829,9 +956,12 @@ void init_ftp_state(FTPState *state) {
     if (!state) return;
     
     state->control_sock = -1;
+    state->listen_sock = -1;
     state->data_sock = -1;
     state->file = NULL;
     state->logged_in = 0;
+    state->user_verified = 0;
+    state->root_path = NULL;
     state->last_activity = time(NULL);
     state->path[0] = '\0';
     state->timeout_pending = 0;
@@ -855,6 +985,10 @@ int handle_ftp_commands(FTPState *state) {
         
         // 检查超时（但不立即清理）
         check_timeouts(state);
+        if (state->timeout_pending) {
+            cleanup_ftp_state(state);
+            return -3;
+        }
         
         // 检查socket有效性
         if (state->control_sock < 0) {
@@ -862,16 +996,13 @@ int handle_ftp_commands(FTPState *state) {
             return -4;
         }
         
-        // 设置较短的接收超时
-        struct timeval timeout;
-        timeout.tv_sec = 60;  // 60秒recv轮询，用于定期检查总空闲超时
-        timeout.tv_usec = 0;
-        
-        if (setsockopt(state->control_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-            LOG("Failed to set socket timeout: %s\n", strerror(errno));
+        if (wait_ftp_socket(state, state->control_sock, POLLIN, FTP_IO_TIMEOUT_MS) < 0) {
+            if (errno == ETIMEDOUT) continue;
+            LOG("[FTP] Control wait ended: %s\n", strerror(errno));
+            cleanup_ftp_state(state);
+            return -2;
         }
-        
-        bytes_received = recv(state->control_sock, buffer, sizeof(buffer) - 1, 0);// 接收命令
+        bytes_received = recv(state->control_sock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
         
         if (bytes_received > 0) {
             // 重置超时标记
@@ -879,14 +1010,13 @@ int handle_ftp_commands(FTPState *state) {
             update_last_activity(state);
             
             buffer[bytes_received] = '\0';
-            LOG("Received command: %s", buffer);
-
             // 命令处理逻辑...
             char *command = strtok(buffer, " \r\n");
             char *args = strtok(NULL, "\r\n");
 
             if (command) 
             {
+                LOG("Received FTP command: %s\n", command);
                 //处理 FTP 命令
                 if (strcmp(command, "USER") == 0) //用户名
                 {
@@ -1230,5 +1360,3 @@ int handle_ftp_commands(FTPState *state) {
 //         }
 //     }
 // }
-
-

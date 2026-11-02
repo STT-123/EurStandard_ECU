@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'CANFDRcvFcn_BCU'.
  *
- * Model version                  : 6.20
+ * Model version                  : 6.23
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Wed Sep 16 18:29:46 2026
+ * C/C++ source code generated on : Thu Oct 22 11:05:27 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: NXP->Cortex-M4
@@ -3293,7 +3293,7 @@ void CANFDRcvFcn_BCU_step(void)
   }
 
   BCU_TempMaxIdx = (uint16_T)((int32_T)((uint32_T)((b_0 - 1) << 7) + ((uint32_T)
-    CANFDRcvFcn_BCU_B.CANFDUnpack2_o28 << 3)) >> 3);
+    CANFDRcvFcn_BCU_B.CANFDUnpack2_o28 << 4)) >> 4);
   BCU_TempMaxValue = (uint16_T)CANFDRcvFcn_BCU_B.CANFDUnpack2_o29;
   if (CANFDRcvFcn_BCU_B.CANFDUnpack2_o30 > 16) {
     b_0 = 16U;
@@ -3304,7 +3304,7 @@ void CANFDRcvFcn_BCU_step(void)
   }
 
   BCU_TempMinIdx = (uint16_T)((int32_T)((uint32_T)((b_0 - 1) << 7) + ((uint32_T)
-    CANFDRcvFcn_BCU_B.CANFDUnpack2_o31 << 3)) >> 3);
+    CANFDRcvFcn_BCU_B.CANFDUnpack2_o31 << 4)) >> 4);
   BCU_TempMinValue = (uint16_T)CANFDRcvFcn_BCU_B.CANFDUnpack2_o32;
   u = 10.0F * CANFDRcvFcn_BCU_B.CANFDUnpack1_o30;
   v = fabsf(u);
@@ -7739,7 +7739,7 @@ void CANFDRcvFcn_BCU_step(void)
   rtb_TmpSignalConversionAtSFunct[43] = (uint16_T)(tmp_0 < 0.0 ? (int32_T)
     (uint16_T)-(int16_T)(uint16_T)-tmp_0 : (int32_T)(uint16_T)tmp_0);
   rtb_TmpSignalConversionAtSFunct[44] = (uint16_T)((uint16_T)((uint16_T)
-    (CANFDRcvFcn_BCU_B.CANFDUnpack2_o19 - 1) << 4) +
+    (CANFDRcvFcn_BCU_B.CANFDUnpack2_o19 - 1) << 3) +
     CANFDRcvFcn_BCU_B.CANFDUnpack2_o20);
   rtb_TmpSignalConversionAtSFunct[45] = CANFDRcvFcn_BCU_B.CANFDUnpack2_o21;
   rtb_TmpSignalConversionAtSFunct[46] = (uint16_T)

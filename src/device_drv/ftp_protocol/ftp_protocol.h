@@ -20,8 +20,11 @@
 typedef struct {
 	uint32_t last_activity;
     int control_sock;
+    int listen_sock;       // Borrowed service listener; never closed by session cleanup
     int data_sock;
     int logged_in;
+    int user_verified;
+    const char *root_path;
     struct sockaddr_in client_addr;
     socklen_t client_addr_len;
     char path[255+8];
