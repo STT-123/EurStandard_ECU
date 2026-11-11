@@ -24,6 +24,19 @@ void ECU_OTA(void)
 
     if( (get_ota_deviceID() == 0) && (get_ota_deviceType() == ECU))
     {
+        const char *filename = get_ota_OTAFilename();
+        const char *version = filename ? strchr(filename, 'V') : NULL;
+
+        if (filename == NULL || strstr(filename, "ECU") == NULL ||
+            version == NULL || version[1] != '1') {
+            ecustatus.ErrorReg = OTA_ERR_VERSION_MISMATCH;
+            ecustatus.ErrorDeviceID = get_ota_deviceID();
+            set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+            LOG("[OTA] ECU OTA file name must have 1 immediately after the first V: %s\r\n",
+                filename ? filename : "(null)");
+            return;
+        }
+
         set_modbus_reg_val(OTAPPROGRESSREGADDR, 10); // 进度10%
         
         unsigned int bat_error = 0;

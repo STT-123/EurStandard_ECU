@@ -14,29 +14,9 @@
 #include "device_drv/bmu_deal/bmu_deal.h"
 #include "device_drv/abncheck/abncheck.h"
 #include "interface/bms/bms_simulink/CANFDSendFcn_BCU.h"
-#include <ctype.h>
 pthread_t OTAUpgrad_TASKHandle = 0;
 volatile unsigned int CurrentOTADeviceCanID = 0x1821FF10;
 unsigned short g_ota_flag = 0;
-static int parse_bcu_target_version_h(const char *filename)
-{
-    const char *ver = NULL;
-
-    if (filename == NULL) {
-        return -1;
-    }
-    if (strstr(filename, "BCU") == NULL) {
-        return -1;
-    }
-
-    ver = strchr(filename, 'V');
-    if ((ver == NULL) || !isdigit((unsigned char)*(ver + 1))) {
-        return -1;
-    }
-
-    return *(ver + 1) - '0';
-}
-
 static int has_file_extension(const char *filename, const char *ext)
 {
     size_t filename_len;
@@ -55,43 +35,11 @@ static int has_file_extension(const char *filename, const char *ext)
     return strcmp(filename + filename_len - ext_len, ext) == 0;
 }
 
-static int validate_bcu_ota_version_before_boot(void)
-{
-    const char *filename = get_ota_OTAFilename();
-    int ota_ver_h = parse_bcu_target_version_h(filename);
-    int bcu_ver_h = get_BCU_Version_H();
-
-    if (ota_ver_h < 0) {
-        LOG("[OTA] Invalid BCU OTA file name, cannot parse version before boot: %s\r\n",
-            filename ? filename : "(null)");
-        xcpstatus.ErrorReg = OTA_ERR_VERSION_MISMATCH;
-        xcpstatus.ErrorDeviceID = get_ota_deviceID();
-        return -1;
-    }
-
-    if (bcu_ver_h == 0) {
-        LOG("[OTA] BCU version high byte is 0, treat as unknown and allow OTA. file=%s, ota_ver_h=%d\r\n",
-            filename, ota_ver_h);
-        return 0;
-    }
-
-    if (ota_ver_h != bcu_ver_h) {
-        LOG("[OTA] BCU OTA version mismatch before boot. file=%s, ota_ver_h=%d, bcu_ver_h=%d\r\n",
-            filename, ota_ver_h, bcu_ver_h);
-        xcpstatus.ErrorReg = OTA_ERR_VERSION_MISMATCH;
-        xcpstatus.ErrorDeviceID = get_ota_deviceID();
-        return -1;
-    }
-
-    LOG("[OTA] BCU OTA version check passed before boot. file=%s, ota_ver_h=%d, bcu_ver_h=%d\r\n",
-        filename, ota_ver_h, bcu_ver_h);
-    return 0;
-}
-
 static int precheck_bcu_ota_package_before_boot(void)
 {
     const char *filename = get_ota_OTAFilename();
     char source_file[512] = {'\0'};
+    const char *version;
     int ret;
 
     memset(&xcpstatus, 0, sizeof(xcpstatus));
@@ -101,6 +49,15 @@ static int precheck_bcu_ota_package_before_boot(void)
         xcpstatus.ErrorDeviceID = get_ota_deviceID();
         LOG("[OTA] Invalid BCU OTA file name before boot precheck: %s\r\n",
             filename ? filename : "(null)");
+        return -1;
+    }
+
+    version = strchr(filename, 'V');
+    if (strstr(filename, "BCU") == NULL || version == NULL || version[1] != '5') {
+        xcpstatus.ErrorReg = OTA_ERR_VERSION_MISMATCH;
+        xcpstatus.ErrorDeviceID = get_ota_deviceID();
+        LOG("[OTA] BCU OTA file name must have 5 immediately after the first V: %s\r\n",
+            filename);
         return -1;
     }
 
@@ -134,12 +91,6 @@ static int precheck_bcu_ota_package_before_boot(void)
             xcpstatus.ErrorDeviceID = get_ota_deviceID();
             return -1;
         }
-    }
-
-    if (validate_bcu_ota_version_before_boot() != 0) {
-        LOG("[OTA] BCU OTA version precheck failed before boot. file=%s, ErrorReg=0x%x\r\n",
-            filename, xcpstatus.ErrorReg);
-        return -1;
     }
 
     LOG("[OTA] BCU OTA package precheck passed before boot. file=%s, upgrade_file=%s\r\n",
