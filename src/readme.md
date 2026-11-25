@@ -30,13 +30,30 @@ gcc -Wall -Wextra -pthread $(find src -type d -printf '-I%p ') tests/ftp_reconne
 
 目标板验收：登录后分别在空闲、列目录等待和下载大文件时拔掉网线，再插回并重新连接；无需重启服务，应能重新登录、列目录和下载文件。
 
-### ECU 与 BCU OTA 文件与版本检查
+### ECU、BCU 与 BMU OTA 文件与版本检查
 
-- ECU OTA 要求文件名包含 `ECU`，且第一个大写 `V` 后紧跟 `1`，仅检查文件名，不比较设备当前版本。不符合时在解包或替换程序前以版本不匹配错误拒绝升级。例如 `XC_ECU_V123.tar` 可以通过文件名检查，`XC_ECU_V201.tar`、`XC_ECU_S32K344.bin` 会被拒绝。
+- ECU OTA 要求文件名包含 `ECU`，且第一个大写 `V` 后紧跟数字，数字不能是 `2`（拒绝 `V2...`）。仅检查文件名，不比较设备当前版本。不符合时在解包或替换程序前以版本不匹配错误拒绝升级。例如 `XC_ECU_V123.tar`、`XC_ECU_V301.tar` 可以通过文件名检查，`XC_ECU_V201.tar`、`XC_ECU_S32K344.bin` 会被拒绝。
 
-- BCU OTA 要求文件名包含 `BCU`，且第一个大写 `V` 后紧跟 `5`，否则以版本不匹配错误拒绝升级。不读取或比较 BCU 上报的版本高位；未获取到 BCU 版本不影响此检查。
-- OCPP 使用 `XC_BCU_` 识别 BCU 升级文件，再由 OTA 预检查统一校验上述命名规则。`XC_BCU_V501.tar`、`XC_BCU_V501.bin` 可以通过文件名检查；`XC_BCU_V601.tar`、`XC_BCU_S32K344.bin` 会被拒绝。直接 `.bin` 文件仍需存在并成功复制到升级准备目录；压缩包仍需通过原有解包检查。
+- BCU OTA 要求文件名包含 `BCU`，且第一个大写 `V` 后紧跟数字，数字不能是 `3`（拒绝 `V3...`），否则以版本不匹配错误拒绝升级。不读取或比较 BCU 上报的版本高位；未获取到 BCU 版本不影响此检查。
+- OCPP 使用 `XC_BCU_` 识别 BCU 升级文件，再由 OTA 预检查统一校验上述命名规则。`XC_BCU_V501.tar`、`XC_BCU_V501.bin`、`XC_BCU_V601.tar` 可以通过文件名检查；`XC_BCU_V301.tar`、`XC_BCU_S32K344.bin` 会被拒绝。直接 `.bin` 文件仍需存在并成功复制到升级准备目录；压缩包仍需通过原有解包检查。
+- BMU 支持直接上传 `.bin`，例如 `XC_BMU_V301.bin`，也保留原有压缩包升级。BCU/BMU 在设备升级前统一检查文件：直接 `.bin` 从 `incoming` 复制到 `ready`，不执行 tar 解包，也不要求 `.conf` 或其 MD5 校验；压缩包仍要求原有 `.conf`、文件名及 MD5 校验。BMU 不新增 BCU 的版本限制，`V3...` 仍可使用。
+- BMU 文件准备只在批量升级前执行；准备失败则报失败并清理退出，不再对各 BMU 进行无效重试。准备成功后，各 BMU 及其重试复用同一份固件。
+- BMU 批量升级进度从 0% 开始，按当前 BMU 已确认传输的固件字节数和整体设备序号逐步更新整数百分比。重试不回退进度；传输阶段最高 99%，仅全部 BMU 升级成功后写入 100%。连接、擦除和等待响应时进度可能暂时不变，不使用虚假计时进度。
 - 文件名安全性和其他升级检查保持不变。通过预检查不代表升级成功，后续跳转 BOOT、XCP 连接和传输仍需要设备正常响应。
+
+主机版本与文件准备回归测试（模拟文件操作，不读取固件、不执行实际升级）：
+
+```sh
+gcc -Wall -Wextra -ffunction-sections -fdata-sections $(find src -type d -printf '-I%p ') tests/ota_version_test.c -Wl,--gc-sections -o /tmp/ota_version_test
+/tmp/ota_version_test
+```
+
+主机 BMU 进度回归测试（不连接 CAN、不执行实际升级）：
+
+```sh
+gcc -Wall -Wextra -ffunction-sections -fdata-sections $(find src -type d -printf '-I%p ') tests/bmu_progress_test.c -Wl,--gc-sections -o /tmp/bmu_progress_test
+/tmp/bmu_progress_test
+```
 
 ### MA35_ECU 版本更新说明
 ### v1.00

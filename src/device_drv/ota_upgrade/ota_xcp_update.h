@@ -50,6 +50,9 @@ typedef struct
 } XCPStatus;
 
 extern XCPStatus xcpstatus;
+void bmu_ota_progress_begin(unsigned int total_devices);
+void bmu_ota_progress_set_device(unsigned int index);
+void bmu_ota_progress_complete_device(void);
 void XCP_OTA(int bmucount);
 void FinshhBCUBMUOtaAndCleanup(void );
 #endif

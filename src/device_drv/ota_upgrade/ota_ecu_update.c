@@ -28,11 +28,12 @@ void ECU_OTA(void)
         const char *version = filename ? strchr(filename, 'V') : NULL;
 
         if (filename == NULL || strstr(filename, "ECU") == NULL ||
-            version == NULL || version[1] != '1') {
+            version == NULL || version[1] < '0' || version[1] > '9' ||
+            version[1] == '2') {
             ecustatus.ErrorReg = OTA_ERR_VERSION_MISMATCH;
             ecustatus.ErrorDeviceID = get_ota_deviceID();
             set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-            LOG("[OTA] ECU OTA file name must have 1 immediately after the first V: %s\r\n",
+            LOG("[OTA] ECU OTA file name must have a digit other than 2 immediately after the first V: %s\r\n",
                 filename ? filename : "(null)");
             return;
         }

@@ -35,9 +35,10 @@ static int has_file_extension(const char *filename, const char *ext)
     return strcmp(filename + filename_len - ext_len, ext) == 0;
 }
 
-static int precheck_bcu_ota_package_before_boot(void)
+static int precheck_bcu_bmu_ota_package(void)
 {
     const char *filename = get_ota_OTAFilename();
+    const char *device_name = get_ota_deviceType() == BCU ? "BCU" : "BMU";
     char source_file[512] = {'\0'};
     const char *version;
     int ret;
@@ -47,16 +48,18 @@ static int precheck_bcu_ota_package_before_boot(void)
     if (!ota_filename_is_safe(filename)) {
         xcpstatus.ErrorReg = OTA_ERR_SOURCE_PACKAGE_MISSING;
         xcpstatus.ErrorDeviceID = get_ota_deviceID();
-        LOG("[OTA] Invalid BCU OTA file name before boot precheck: %s\r\n",
-            filename ? filename : "(null)");
+        LOG("[OTA] Invalid %s OTA file name before package precheck: %s\r\n",
+            device_name, filename ? filename : "(null)");
         return -1;
     }
 
     version = strchr(filename, 'V');
-    if (strstr(filename, "BCU") == NULL || version == NULL || version[1] != '5') {
+    if (get_ota_deviceType() == BCU &&
+        (strstr(filename, "BCU") == NULL || version == NULL ||
+         version[1] < '0' || version[1] > '9' || version[1] == '3')) {
         xcpstatus.ErrorReg = OTA_ERR_VERSION_MISMATCH;
         xcpstatus.ErrorDeviceID = get_ota_deviceID();
-        LOG("[OTA] BCU OTA file name must have 5 immediately after the first V: %s\r\n",
+        LOG("[OTA] BCU OTA file name must have a digit other than 3 immediately after the first V: %s\r\n",
             filename);
         return -1;
     }
@@ -68,7 +71,8 @@ static int precheck_bcu_ota_package_before_boot(void)
         if (access(source_file, F_OK) != 0) {
             xcpstatus.ErrorReg = OTA_ERR_SOURCE_PACKAGE_MISSING;
             xcpstatus.ErrorDeviceID = get_ota_deviceID();
-            LOG("[OTA] Direct BCU bin does not exist before boot precheck: %s\r\n", source_file);
+            LOG("[OTA] Direct %s bin does not exist before package precheck: %s\r\n",
+                device_name, source_file);
             return -1;
         }
 
@@ -76,25 +80,26 @@ static int precheck_bcu_ota_package_before_boot(void)
         if (ensure_ota_storage_dirs() != 0 || !copy_file(source_file, ready_file)) {
             xcpstatus.ErrorReg = OTA_ERR_COPY_TARGET_FAILED;
             xcpstatus.ErrorDeviceID = get_ota_deviceID();
-            LOG("[OTA] Failed to stage direct BCU bin: %s -> %s\r\n", source_file, ready_file);
+            LOG("[OTA] Failed to stage direct %s bin: %s -> %s\r\n",
+                device_name, source_file, ready_file);
             return -1;
         }
 
         memset(&g_max_upgrade, 0, sizeof(g_max_upgrade));
         strncpy(g_max_upgrade.upgrade_file, filename, sizeof(g_max_upgrade.upgrade_file) - 1);
-        LOG("[OTA] Direct BCU bin precheck mode: %s\r\n", source_file);
+        LOG("[OTA] Direct %s bin precheck mode: %s\r\n", device_name, source_file);
     } else {
         ret = unzipfile(OTA_READY_PATH, (unsigned int *)&xcpstatus.ErrorReg, FILE_TYPE_BIN);
         if (ret < 0) {
-            LOG("[OTA] BCU OTA package precheck failed before boot. file=%s, ErrorReg=0x%x\r\n",
-                filename, xcpstatus.ErrorReg);
+            LOG("[OTA] %s OTA package precheck failed. file=%s, ErrorReg=0x%x\r\n",
+                device_name, filename, xcpstatus.ErrorReg);
             xcpstatus.ErrorDeviceID = get_ota_deviceID();
             return -1;
         }
     }
 
-    LOG("[OTA] BCU OTA package precheck passed before boot. file=%s, upgrade_file=%s\r\n",
-        filename, g_max_upgrade.upgrade_file);
+    LOG("[OTA] %s OTA package precheck passed. file=%s, upgrade_file=%s\r\n",
+        device_name, filename, g_max_upgrade.upgrade_file);
     return 0;
 }
 
@@ -280,18 +285,20 @@ void *ota_Upgrade_Task(void *arg)
             {
                 LOG("[OTA] BCU or BMU OTA start!\r\n");
                 LOG("[OTA] get_ota_deviceType() ==  : %u\r\n", get_ota_deviceType());
+                if (get_ota_deviceType() == BMU) {
+                    bmu_ota_progress_begin(BMUMAXNUM);
+                }
+                if (precheck_bcu_bmu_ota_package() != 0)
+                {
+                    set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
+                    LOG("[OTA] Stop BCU/BMU OTA before device upgrade because package precheck failed. file=%s, ErrorReg=0x%x\r\n",
+                        get_ota_OTAFilename(), xcpstatus.ErrorReg);
+                    sleep(5);
+                    FinshhBCUBMUOtaAndCleanup();
+                    continue;
+                }
                 if (get_ota_deviceType() == BCU)//0x1cb0110e4
                 {
-                    if (precheck_bcu_ota_package_before_boot() != 0)
-                    {
-                        set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);
-                        LOG("[OTA] Stop BCU OTA before boot jump because package precheck failed. file=%s, ErrorReg=0x%x\r\n",
-                            get_ota_OTAFilename(), xcpstatus.ErrorReg);
-                        sleep(5);
-                        FinshhBCUBMUOtaAndCleanup();
-                        continue;
-                    }
-
                     for (unsigned int i = 0; i < 5; i++){
                         set_OTA_XCPConnect(255);//设置跳转到BOOT的条件,OTA_XCPConnect为0xFF才会跳转到BOOT
                         LOG("[OTA] set_OTA_XCPConnect\r\n");
@@ -349,10 +356,6 @@ void *ota_Upgrade_Task(void *arg)
                 }
                 else if (get_ota_deviceType() == BMU)
                 {
-                    unsigned int total_steps = BMUMAXNUM;  // 0到14共15次
-                    unsigned int start_percent = 7;
-                    unsigned int end_percent = 100;
-                    
                     can_monitor_fun();//检查CAN 状态
                     // 主业务判断：检查bmu是否就绪
                     if (!is_bmu_can_ready()) {
@@ -367,11 +370,12 @@ void *ota_Upgrade_Task(void *arg)
                     if (is_bmu_can_ready())
                     {
                         BMUOtaFlag = 0;
-                        unsigned int percentage = 0;
+                        unsigned int successful_devices = 0;
                         restart_can_interface_enhanced(BMU_CAN_DEVICE_NAME);
                         sleep(2);
                         for (int i = 0; i < BMUMAXNUM; i++)//BMUMAXNUM
                         {
+                            bmu_ota_progress_set_device(i);
                             ReOtaFlag = 0;
                             LOG("[OTA] BMU OTA start! i:%d, ReOtaFlag:%d ,BMUOtaFlag: %d\r\n", i,ReOtaFlag,BMUOtaFlag);
                             while (ReOtaFlag < 5)
@@ -400,17 +404,18 @@ void *ota_Upgrade_Task(void *arg)
                             }
                             if(xcpstatus.ErrorReg == 0)
                             {
+                                successful_devices++;
+                                bmu_ota_progress_complete_device();
                                 sleep(2);
-                                //这段代码是，一共15个BMU，每ota完一个增加7%的进度
-                                percentage = start_percent + (end_percent - start_percent) * i / (total_steps - 1);
-                                set_modbus_reg_val(OTAPPROGRESSREGADDR, percentage); // 0124, upgrade progress,BCU直接写升级进度，BMU 由于有15个，不在这里写进度
-                                LOG("[OTA] STEP %2d: %3d%%\n", i, percentage);
+                                LOG("[OTA] BMU upgrades completed successfully: %u/%u\n",
+                                    successful_devices, (unsigned int)BMUMAXNUM);
                             }else{
                                 LOG("[OTA] CAN ID 0x%x BMU OTA failed\r\n", get_ota_deviceID());
                             }       
                         }
-                        if((percentage == 100) && (BMUOtaFlag < 5)){
+                        if(successful_devices == BMUMAXNUM){
                             LOG("[OTA] BMU OTA SUCCEDD\r\n");
+                            set_modbus_reg_val(OTAPPROGRESSREGADDR, 100);
                             set_modbus_reg_val(OTASTATUSREGADDR, OTASUCCESS);
                         }else{
                             set_modbus_reg_val(OTASTATUSREGADDR, OTAFAILED);

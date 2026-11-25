@@ -13,6 +13,48 @@
 XCPStatus xcpstatus = {0};
 unsigned int OTA_RecvPacketCount = 0;
 
+static unsigned int bmu_progress_total;
+static unsigned int bmu_progress_index;
+static unsigned int bmu_progress_high_water;
+
+void bmu_ota_progress_begin(unsigned int total_devices)
+{
+    bmu_progress_total = total_devices;
+    bmu_progress_index = 0;
+    bmu_progress_high_water = 0;
+    set_modbus_reg_val(OTAPPROGRESSREGADDR, 0);
+}
+
+void bmu_ota_progress_set_device(unsigned int index)
+{
+    bmu_progress_index = index;
+}
+
+static void update_bmu_ota_progress(uint64_t acknowledged_bytes, uint64_t total_bytes)
+{
+    if (bmu_progress_total == 0 || bmu_progress_index >= bmu_progress_total ||
+        total_bytes == 0 || acknowledged_bytes > total_bytes) {
+        LOG("[OTA] Invalid BMU progress context: index=%u, total=%u, bytes=%llu/%llu\n",
+            bmu_progress_index, bmu_progress_total,
+            (unsigned long long)acknowledged_bytes, (unsigned long long)total_bytes);
+        return;
+    }
+    unsigned int percent = ((uint64_t)bmu_progress_index * 100U +
+                            acknowledged_bytes * 100U / total_bytes) / bmu_progress_total;
+    if (percent > 99U) {
+        percent = 99U;
+    }
+    if (percent > bmu_progress_high_water) {
+        bmu_progress_high_water = percent;
+        set_modbus_reg_val(OTAPPROGRESSREGADDR, percent);
+    }
+}
+
+void bmu_ota_progress_complete_device(void)
+{
+    update_bmu_ota_progress(1, 1);
+}
+
 static int build_expected_bin_path(char *out_path, size_t out_len)
 {
     char filenametmp[256];
@@ -390,7 +432,7 @@ static int XcpTryQueryStatusOnce(XCPStatus *xcpstatus)
 }
    #endif
 
-static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcpstatus, unsigned int i, unsigned int totalpack)
+static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcpstatus, unsigned int i, unsigned int totalpack, unsigned int filesize)
 {
     if ( xcpstatus == NULL) {
             LOG("[OTA] Error: Null pointer passed to XCPCANOTAMSGParseMult.\n");
@@ -425,6 +467,9 @@ static int  SendOTACommand(unsigned char *buf, unsigned int len, XCPStatus *xcps
 
     int result = XCPCANOTAMSGParseMult(xcpstatus);
     if (result == 0) {
+        if (get_ota_deviceType() == BMU) {
+            update_bmu_ota_progress((uint64_t)i * 7U + len, filesize);
+        }
         return 0;
     }
     else
@@ -556,7 +601,7 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                 memcpy(buf, &FileBuff[FileCount * 7], 7);
                 rnum = 7;
                 FileCount++;
-                if(SendOTACommand(buf, 7, xcpstatus, i, totalpack) != 0){
+                if(SendOTACommand(buf, 7, xcpstatus, i, totalpack, filesize) != 0){
                     return 1;
                 }
                 if(xcpstatus->ErrorReg != 0)
@@ -577,7 +622,12 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
             if (xcpstatus->ErrorReg == 0) 
             {
                 fseek(rfile, (totalpack-1)* 7, SEEK_SET);  // 设置到最后一包开头
-                SendLastPacket(rfile,lastpackdatanum, xcpstatus);
+                if (SendLastPacket(rfile,lastpackdatanum, xcpstatus) != 0) {
+                    return 1;
+                }
+                if (get_ota_deviceType() == BMU) {
+                    update_bmu_ota_progress(filesize, filesize);
+                }
     
 
                 ProgramProgress = (int)((float)i/totalpack*100);
@@ -616,7 +666,7 @@ static int ReadFileAndSendData(FILE *rfile, XCPStatus *xcpstatus)
                 memcpy(buf, &FileBuff[FileCount * 7], 7);
                 rnum = 7;
                 FileCount++;
-                if(SendOTACommand(buf, 7, xcpstatus, i, totalpack) != 0){
+                if(SendOTACommand(buf, 7, xcpstatus, i, totalpack, filesize) != 0){
                     return 1;
                 }
                 ProgramProgress = (int)((float)i/totalpack*100);
@@ -776,10 +826,9 @@ void XCP_OTA(int count)
         LOG("[OTA] OTAing.....................\r\n");
         OTA_RecvPacketCount = 0;//接收包计数为0
         if(count == 0){//BMU 不用每次都解压
-            if ((get_ota_deviceType() == BCU) &&
-                (build_expected_bin_path(otafilenamestr1, sizeof(otafilenamestr1)) == 0) &&
+            if ((build_expected_bin_path(otafilenamestr1, sizeof(otafilenamestr1)) == 0) &&
                 (access(otafilenamestr1, F_OK) == 0)) {
-                LOG("[OTA] Reuse prechecked BCU bin before XCP OTA: %s\r\n", otafilenamestr1);
+                LOG("[OTA] Reuse prechecked BCU/BMU bin before XCP OTA: %s\r\n", otafilenamestr1);
             } else {
                 ret = unzipfile(OTA_READY_PATH,(unsigned int *)&xcpstatus.ErrorReg,FILE_TYPE_BIN);
                 if(ret < 0){
@@ -907,5 +956,3 @@ void FinshhBCUBMUOtaAndCleanup(void)
     CANFDSendFcn_BCU_step();
     set_ota_OTAStart(0);
 }
-
-
